@@ -4,19 +4,24 @@ import { FactoryState } from '../../types';
 import { calculateAvailableScrapKg } from '../../lib/utils';
 import { ALL_MACHINES_LIST } from '../../lib/constants';
 import { LiveMaintenanceTracker } from '../LiveMaintenanceTracker';
+import { LiveFloorManpowerTracker } from '../LiveFloorManpowerTracker';
 
 interface MasterExecutiveDashboardProps {
   state: FactoryState;
   onBackToHub: () => void;
   onOpenStationModal: (machineName: string) => void;
   onOpenAttendModal?: (machineName: string, incidentId?: string) => void;
+  onNavigateAnalytics?: () => void;
+  onSaveState?: (newState: FactoryState) => void;
 }
 
 export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> = ({
   state,
   onBackToHub,
   onOpenStationModal,
-  onOpenAttendModal
+  onOpenAttendModal,
+  onNavigateAnalytics,
+  onSaveState
 }) => {
   const { jobs, packJobs, logs, scrapSales, maintenanceIncidents = [] } = state;
 
@@ -62,10 +67,21 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
           <span>Back to Main Menu</span>
         </button>
         <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-blue-600 animate-pulse" />
-          <h3 className="text-base font-bold text-[#1a365d] uppercase tracking-wide m-0">
-            Executive Control Center (Live Factory Pulse)
-          </h3>
+          {onNavigateAnalytics && (
+            <button
+              onClick={onNavigateAnalytics}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-violet-700 to-indigo-800 hover:from-violet-800 hover:to-indigo-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              <Activity className="w-3.5 h-3.5 text-violet-200" />
+              <span>Machine & Operator Audit (8-दिन/5-दिन रिपोर्ट) ➔</span>
+            </button>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Activity className="w-5 h-5 text-blue-600 animate-pulse" />
+            <h3 className="text-base font-bold text-[#1a365d] uppercase tracking-wide m-0">
+              Executive Control Center
+            </h3>
+          </div>
         </div>
       </div>
 
@@ -115,6 +131,14 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
             <div className="text-xl font-extrabold text-rose-950">{availableScrap} KG</div>
           </div>
         </div>
+      </div>
+
+      {/* Live Plant Floor Manpower & Helper Allocation Tracker */}
+      <div className="mb-6">
+        <LiveFloorManpowerTracker
+          state={state}
+          onSaveState={onSaveState || (() => {})}
+        />
       </div>
 
       {/* Live Floor Maintenance & Breakdown Tracking Banner */}

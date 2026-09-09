@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Settings,
@@ -33,7 +33,8 @@ import {
   Eye,
   CheckCircle2,
   Tag,
-  Box
+  Box,
+  Wrench
 } from 'lucide-react';
 import {
   FactoryState,
@@ -55,6 +56,7 @@ import {
   DEFAULT_CRATE_CAPACITY_MASTER
 } from '../../lib/constants';
 import { exportToJSON, getCurrentExpectedShift } from '../../lib/utils';
+import { exportDatabaseBackup, importDatabaseBackup, getStorageHealth, pruneFactoryState } from '../../lib/storage';
 
 interface AdminSettingsViewProps {
   state: FactoryState;
@@ -62,7 +64,7 @@ interface AdminSettingsViewProps {
   onSaveState: (state: FactoryState) => void;
 }
 
-type AdminTab = 'brand_items_paper' | 'crate_master' | 'users' | 'master_data' | 'whatsapp' | 'sequences_shifts' | 'backup_restore';
+type AdminTab = 'brand_items_paper' | 'crate_master' | 'users' | 'master_data' | 'whatsapp' | 'sequences_shifts' | 'backup_restore' | 'maintenance_master';
 type MasterDataSubTab = 'jobs' | 'orders' | 'logs';
 
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
@@ -72,6 +74,21 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('brand_items_paper');
   const [masterSubTab, setMasterSubTab] = useState<MasterDataSubTab>('jobs');
+
+  // Storage Health Telemetry
+  const [storageHealth, setStorageHealth] = useState<{
+    usedBytes: number;
+    quotaBytes: number;
+    percentage: number;
+    isIndexedDBSupported: boolean;
+    engine: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'backup_restore') {
+      getStorageHealth().then(setStorageHealth).catch(() => {});
+    }
+  }, [activeTab]);
 
   // ==========================================
   // BRAND ITEMS & PAPER MILL MASTER STATE
@@ -258,10 +275,42 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   const [waPhone, setWaPhone] = useState(state.whatsappConfig?.phone || '');
   const [waApiKey, setWaApiKey] = useState(state.whatsappConfig?.apiKey || '');
   const [waAutoSend, setWaAutoSend] = useState(state.whatsappConfig?.autoSend || false);
+  const [waDayReportTime, setWaDayReportTime] = useState(state.whatsappConfig?.dayShiftReportTime || '20:00');
+  const [waNightReportTime, setWaNightReportTime] = useState(state.whatsappConfig?.nightShiftReportTime || '08:00');
+  const [waAutoDay, setWaAutoDay] = useState(state.whatsappConfig?.autoSendShiftReportDay !== false);
+  const [waAutoNight, setWaAutoNight] = useState(state.whatsappConfig?.autoSendShiftReportNight !== false);
+  const [waPreviewShift, setWaPreviewShift] = useState<'DAY' | 'NIGHT'>('DAY');
   const [waWebhookUrl, setWaWebhookUrl] = useState(state.whatsappConfig?.webhookUrl || '');
   const [waCustomMessage, setWaCustomMessage] = useState(
     state.whatsappConfig?.customMessage || 'Wünderkraf Paperware Factory Live Shift Report'
   );
+
+  // ==========================================
+  // TAB 7: MAINTENANCE MASTER & RIGHTS STATE
+  // ==========================================
+  const [maintTechs, setMaintTechs] = useState<string[]>(() => {
+    return state.maintenanceTechniciansMaster || [
+      'Ramesh Sharma (Head Mech)',
+      'Vijay Patel (Sr Electrical)',
+      'Dinesh Mistry (Mould Tooling)',
+      'Kiran Gohil (Hydraulic & Pneumatics)'
+    ];
+  });
+  const [newTechName, setNewTechName] = useState('');
+  const [maintSpareParts, setMaintSpareParts] = useState<string[]>(() => {
+    return state.maintenanceSparePartsMaster || [
+      'Upper Mould Heater Band (220V/1500W)',
+      'High-Speed Cutting Blade Punch Set',
+      'Thermocouple K-Type Sensor Cable',
+      'Festo 5/2 Directional Solenoid Valve',
+      'Hydraulic Piston Rod Oil Seal 45x60x10',
+      'NSK High-Precision Deep Groove Ball Bearing',
+      'PTFE Non-Stick Mould Liner Strip'
+    ];
+  });
+  const [newPartName, setNewPartName] = useState('');
+  const [maxRollPieces, setMaxRollPieces] = useState<number>(state.maxPiecesPerSlitRoll || 12000);
+  const [strictRollAudit, setStrictRollAudit] = useState<boolean>(state.strictAuditRollYield || false);
 
   // ==========================================
   // TAB 4: SEQUENCES & SHIFTS STATE
@@ -369,22 +418,40 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
 
   const handleDeleteUser = (userKey: string) => {
     if (userKey === 'admin') {
-      alert('⚠️ Security Protection: Master Admin account cannot be deleted!');
+      showToast('⚠️ Security Protection: Master Admin account cannot be deleted!', 'error');
       return;
     }
-    if (!confirm(`Are you sure you want to delete user account [${userKey}]?`)) return;
 
-    const updatedUsers = { ...usersRecord };
-    delete updatedUsers[userKey];
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete User Account',
+      message: `Are you sure you want to permanently delete user account [${userKey}]? All login access and assigned workstation permissions will be revoked immediately.`,
+      confirmLabel: 'Yes, Delete Account',
+      isDanger: true,
+      onConfirm: () => {
+        setConfirmModal(null);
+        const updatedUsers = { ...usersRecord };
+        delete updatedUsers[userKey];
 
-    onSaveState({
-      ...state,
-      users: updatedUsers
+        onSaveState({
+          ...state,
+          users: updatedUsers
+        });
+
+        setSelectedUserKey('admin');
+        const adminU = updatedUsers['admin'] || usersRecord['admin'];
+        if (adminU) {
+          setEditingUser({
+            pass: adminU.pass || '1234',
+            perms: adminU.perms || ['*'],
+            name: adminU.name || 'Master Administrator',
+            role: adminU.role || 'Administrator',
+            phone: adminU.phone || ''
+          });
+        }
+        showToast(`🗑️ User account [${userKey}] deleted successfully!`);
+      }
     });
-
-    setSelectedUserKey('admin');
-    handleSelectUser('admin');
-    alert(`✅ User [${userKey}] deleted successfully.`);
   };
 
   const ALL_OPERATIONAL_PERMS = [
@@ -398,6 +465,12 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     'QC',
     'Packing',
     'Maintenance',
+    'Mnt_LogIncident',
+    'Mnt_AssignTech',
+    'Mnt_Repair',
+    'Mnt_SpareParts',
+    'Mnt_Preventative',
+    'Mnt_RCA',
     'Purchase',
     'Stock',
     'Orders',
@@ -1009,44 +1082,110 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
         apiKey: waApiKey.trim(),
         autoSend: waAutoSend,
         webhookUrl: waWebhookUrl.trim(),
-        customMessage: waCustomMessage.trim()
+        customMessage: waCustomMessage.trim(),
+        dayShiftReportTime: waDayReportTime,
+        nightShiftReportTime: waNightReportTime,
+        autoSendShiftReportDay: waAutoDay,
+        autoSendShiftReportNight: waAutoNight
       }
     });
-    alert('✅ WhatsApp Backup & Notification Settings Saved Successfully!');
+    showToast('✅ WhatsApp Shift Reporting & Changeover Settings Saved Successfully!');
   };
 
-  const handleSendWhatsAppShiftReport = () => {
-    const currentShift = getCurrentExpectedShift(state.shiftConfig);
+  const generateShiftChangeoverReportText = (targetShift: 'DAY' | 'NIGHT') => {
     const todayStr = new Date().toISOString().split('T')[0];
+    const shiftLogs = (state.logs || []).filter((l) => {
+      const matchDate = !l.rawDate || l.rawDate === todayStr;
+      const matchShift = !l.shift || l.shift.toUpperCase() === targetShift;
+      return matchDate && matchShift;
+    });
 
-    // Compute floor totals
-    const totalRollsStock = state.jobs.reduce((acc, j) => acc + (j.availableRolls || 0), 0);
-    const totalCutStock = state.jobs.reduce((acc, j) => acc + (j.availableCuttingCrates || 0), 0);
-    const totalFormedStock = state.jobs.reduce((acc, j) => acc + (j.availableFormingCrates || 0), 0);
-    const totalQcStock = state.jobs.reduce((acc, j) => acc + (j.availableQcCrates || 0), 0);
+    // 1. Slitting
+    const slitLogs = shiftLogs.filter(
+      (l) => l.stage?.toLowerCase().includes('slitting') || l.machine?.toLowerCase().includes('slitting')
+    );
+    const slitOps = Array.from(new Set(slitLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Ramesh Patel (Slit)';
+    const slitRollsProduced = slitLogs.reduce((acc, l) => {
+      const m = l.action?.match(/(\d+)\s*(Rolls|रील)/i);
+      return acc + (m ? parseInt(m[1], 10) : 0);
+    }, 0) || state.jobs.reduce((s, j) => s + (j.availableRolls || 0), 0);
 
-    const pendingOrdersCount = state.packJobs.filter((o) => o.status !== 'Dispatched').length;
-    const totalPackedBoxes = state.packJobs.reduce((acc, o) => acc + (o.packedBoxes || 0), 0);
-    const totalDispatchedBoxes = state.packJobs.reduce((acc, o) => acc + (o.dispatchedBoxes || 0), 0);
+    // 2. Cutting
+    const cutLogs = shiftLogs.filter(
+      (l) => l.stage?.toLowerCase().includes('cutting') || l.machine?.toLowerCase().includes('cutting')
+    );
+    const cut1Logs = cutLogs.filter((l) => l.machine === 'Cutting-1');
+    const cut1Op = Array.from(new Set(cut1Logs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Kishore Parmar';
+    const cut2Logs = cutLogs.filter((l) => l.machine === 'Cutting-2');
+    const cut2Op = Array.from(new Set(cut2Logs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Mahesh Solanki';
+    const cutCratesStock = state.jobs.reduce((s, j) => s + (j.availableCuttingCrates || 0), 0);
 
-    const reportMessage = `🏭 *WÜNDERKRAF PAPERWARE ERP - LIVE SHIFT REPORT*
-📅 *Date:* ${todayStr} | *Shift:* ${currentShift}
-⏱️ *Generated At:* ${new Date().toLocaleTimeString()}
+    // 3. Forming Machines (M-01 to M-08)
+    const formLogs = shiftLogs.filter(
+      (l) => l.stage?.toLowerCase().includes('forming') || l.machine?.toLowerCase().includes('forming')
+    );
+    const formMachines = ['Forming-1', 'Forming-2', 'Forming-3', 'Forming-4', 'Forming-5', 'Forming-6', 'Forming-7', 'Forming-8'];
+    const formLines = formMachines.map((m) => {
+      const mLogs = formLogs.filter((l) => l.machine === m);
+      const op = Array.from(new Set(mLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Operator Assigned';
+      const crates = mLogs.reduce((acc, l) => {
+        const match = l.action?.match(/(\d+)\s*(Crates|crates|क्रेट)/i);
+        return acc + (match ? parseInt(match[1], 10) : 0);
+      }, 0);
+      return `• ${m}: Op: *${op}* | Out: ${crates > 0 ? `${crates} Crates` : 'Active Run'}`;
+    });
 
-📊 *CURRENT WIP STOCK MATRIX:*
-• 📜 Slit Rolls Stock: *${totalRollsStock} Rolls*
-• ✂️ Cut Crates Stock: *${totalCutStock} Crates*
-• ⚙️ Formed Crates Stock: *${totalFormedStock} Crates*
-• 🔍 QC Passed Stock: *${totalQcStock} Crates*
+    // 4. QC Inspection
+    const qcLogs = shiftLogs.filter(
+      (l) => l.stage?.toLowerCase().includes('qc') || l.machine?.toLowerCase().includes('qc')
+    );
+    const qcInspectors = Array.from(new Set(qcLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Kavita Ben / QC Desk';
+    const qcOkCrates = state.jobs.reduce((s, j) => s + (j.availableQcCrates || 0), 0);
 
-📦 *PACKING & DISPATCH STATUS:*
-• 📋 Active Pending Orders: *${pendingOrdersCount} Orders*
-• 📦 Total Packed Boxes: *${totalPackedBoxes} Boxes*
-• 🚚 Dispatched Delivered: *${totalDispatchedBoxes} Boxes*
+    // 5. Packing & Dispatch
+    const packLogs = shiftLogs.filter(
+      (l) => l.stage?.toLowerCase().includes('packing') || l.machine?.toLowerCase().includes('packing')
+    );
+    const packOps = Array.from(new Set(packLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Suresh & Packing Staff';
+    const totalPackedBoxes = state.packJobs.reduce((s, p) => s + (p.packedBoxes || 0), 0);
+    const totalDispatched = state.packJobs.reduce((s, p) => s + (p.dispatchedBoxes || 0), 0);
 
-👥 *SYSTEM STATUS:* All 5 Workstations Operational.
-✅ *Admin Suite Verified.*`;
+    const shiftTimeRange = targetShift === 'DAY'
+      ? `${state.shiftConfig?.dayStart || '08:00'} to ${state.shiftConfig?.dayEnd || '20:00'}`
+      : `${state.shiftConfig?.nightStart || '20:00'} to ${state.shiftConfig?.nightEnd || '08:00'}`;
 
+    return `🏭 *WÜNDERKRAF PAPERWARE ERP*
+📋 *DAILY ${targetShift} SHIFT CHANGEOVER REPORT*
+📅 *Date:* ${todayStr} | *Shift:* ${targetShift} (${shiftTimeRange})
+⏱️ *Changeover Trigger Time:* ${new Date().toLocaleTimeString()}
+
+━━━━━━━━━━━━━━━━━━━━━
+📜 *1. SLITTING SECTION:*
+• Slitting-1: Operator: *${slitOps}*
+  Output: ${slitRollsProduced} Slit Rolls
+
+✂️ *2. CUTTING SECTION:*
+• Cutting-1: Operator: *${cut1Op}*
+• Cutting-2: Operator: *${cut2Op}*
+  Floor Cut Stock: ${cutCratesStock} Crates
+
+⚙️ *3. FORMING MACHINES (M-01 to M-08):*
+${formLines.join('\n')}
+
+🔍 *4. QUALITY CONTROL (QC):*
+• QC Inspector: *${qcInspectors}*
+• Passed QC Stock: *${qcOkCrates} Crates*
+
+📦 *5. PACKING & DISPATCH:*
+• Supervisor/Packer: *${packOps}*
+• Total Packed: *${totalPackedBoxes} Boxes*
+• Dispatched Today: *${totalDispatched} Boxes*
+━━━━━━━━━━━━━━━━━━━━━
+✅ *Auto Shift Changeover Handover Complete.*`;
+  };
+
+  const handleSendShiftWhatsApp = (shift: 'DAY' | 'NIGHT') => {
+    const reportMessage = generateShiftChangeoverReportText(shift);
     const encodedText = encodeURIComponent(reportMessage);
     const cleanPhone = waPhone.replace(/[^0-9]/g, '');
 
@@ -1055,6 +1194,76 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     } else {
       window.open(`https://wa.me/?text=${encodedText}`, '_blank');
     }
+  };
+
+  const handleSendWhatsAppShiftReport = () => {
+    const currentShift = getCurrentExpectedShift(state.shiftConfig);
+    handleSendShiftWhatsApp(currentShift === 'NIGHT' ? 'NIGHT' : 'DAY');
+  };
+
+  // Maintenance Master Handlers
+  const handleSaveMaintenanceMaster = () => {
+    onSaveState({
+      ...state,
+      maintenanceTechniciansMaster: maintTechs,
+      maintenanceSparePartsMaster: maintSpareParts,
+      maxPiecesPerSlitRoll: Number(maxRollPieces) || 12000,
+      strictAuditRollYield: strictRollAudit
+    });
+    showToast('✅ Maintenance Master, Rights & Roll Yield Limits Saved Successfully!');
+  };
+
+  const handleAddTech = () => {
+    if (!newTechName.trim()) return;
+    if (maintTechs.includes(newTechName.trim())) return alert('Technician already exists!');
+    setMaintTechs([...maintTechs, newTechName.trim()]);
+    setNewTechName('');
+  };
+
+  const handleRemoveTech = (idx: number) => {
+    setMaintTechs(maintTechs.filter((_, i) => i !== idx));
+  };
+
+  const handleAddSparePart = () => {
+    if (!newPartName.trim()) return;
+    if (maintSpareParts.includes(newPartName.trim())) return alert('Spare part already in catalogue!');
+    setMaintSpareParts([...maintSpareParts, newPartName.trim()]);
+    setNewPartName('');
+  };
+
+  const handleRemoveSparePart = (idx: number) => {
+    setMaintSpareParts(maintSpareParts.filter((_, i) => i !== idx));
+  };
+
+  const handleGrantAllMaintenanceRightsToUser = (userKey: string) => {
+    const u = usersRecord[userKey];
+    if (!u) return;
+    const mntRights = [
+      'Maintenance',
+      'Mnt_LogIncident',
+      'Mnt_AssignTech',
+      'Mnt_Repair',
+      'Mnt_SpareParts',
+      'Mnt_Preventative',
+      'Mnt_RCA'
+    ];
+    const existing = u.perms || [];
+    const combined = Array.from(new Set([...existing, ...mntRights]));
+    const updatedUsers = {
+      ...usersRecord,
+      [userKey]: {
+        ...u,
+        perms: combined
+      }
+    };
+    onSaveState({
+      ...state,
+      users: updatedUsers
+    });
+    if (selectedUserKey === userKey) {
+      setEditingUser({ ...editingUser, perms: combined });
+    }
+    showToast(`✅ Granted All Maintenance Desk Rights to [${userKey}]!`);
   };
 
   // ==========================================
@@ -1085,25 +1294,36 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   // ==========================================
   // BACKUP, RESTORE & HARD RESET
   // ==========================================
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.jobs && parsed.packJobs && parsed.logs) {
-          onSaveState(parsed);
-          alert('✅ Factory database state restored successfully from JSON backup!');
-        } else {
-          alert('Invalid state JSON structure!');
-        }
-      } catch (err) {
-        alert('Failed to parse JSON file!');
-      }
-    };
-    reader.readAsText(file);
+    try {
+      const restored = await importDatabaseBackup(file);
+      onSaveState(restored);
+      getStorageHealth().then(setStorageHealth).catch(() => {});
+      alert(`✅ Factory database state restored successfully from backup!\n• Jobs: ${restored.jobs?.length || 0}\n• Orders: ${restored.packJobs?.length || 0}\n• Logs: ${restored.logs?.length || 0}`);
+    } catch (err: any) {
+      alert(`❌ Restore failed: ${err.message || 'Invalid backup JSON file'}`);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleRunPruning = () => {
+    if (
+      !confirm(
+        'Run database archival and pruning for completed records older than 30 days?\nThis will protect storage space by moving older logs and completed jobs into cold archival records.'
+      )
+    ) {
+      return;
+    }
+    const result = pruneFactoryState(state, 30);
+    onSaveState(result.prunedState);
+    getStorageHealth().then(setStorageHealth).catch(() => {});
+    alert(
+      `✅ Pruning completed!\n• Archived ${result.archivedJobsCount} completed jobs\n• Archived ${result.archivedLogsCount} historical logs\nActive database is lean and optimized.`
+    );
   };
 
   const handleHardReset = () => {
@@ -1135,7 +1355,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     { key: 'Forming', label: '⚙️ Forming Desk (Stage 3)', desc: 'Hydraulic moulding & pressing' },
     { key: 'QC', label: '🔍 QC Inspection Desk (Stage 4)', desc: 'Formed crates quality check & scrap' },
     { key: 'Packing', label: '📦 Packing Desk (Stage 5)', desc: 'Kit assembly & box packaging' },
-    { key: 'Maintenance', label: '🛠️ Maintenance Desk & Downtime', desc: 'Machine breakdowns, spare parts, logs & ready handover' },
+    { key: 'Maintenance', label: '🛠️ Maintenance Desk (Full Control)', desc: 'Machine breakdowns, spare parts, logs & ready handover' },
+    { key: 'Mnt_LogIncident', label: '🚨 Log Machine Breakdown / Down', desc: 'Can report machine breakdowns and stoppage reasons' },
+    { key: 'Mnt_AssignTech', label: '👨‍🔧 Assign Technician & Priority', desc: 'Can assign maintenance leads, priority, and acknowledge' },
+    { key: 'Mnt_Repair', label: '🔧 Mark Repaired & Action Log', desc: 'Can mark machines repaired, ready for production handover' },
+    { key: 'Mnt_SpareParts', label: '⚙️ Spare Parts Consumption & Stock', desc: 'Can record replacement parts and adjust inventory' },
+    { key: 'Mnt_Preventative', label: '📋 Preventative Maintenance Schedules', desc: 'Can manage routine PM checklists and machine health' },
+    { key: 'Mnt_RCA', label: '📊 Root Cause Analysis (RCA) & Audit', desc: 'Can edit failure root cause and CAPA preventive actions' },
     { key: 'Purchase', label: '🛒 Purchase & Indent Desk', desc: 'Material Indents, Vendor POs & Incoming Goods (माल प्राप्ति)' },
     { key: 'Stock', label: '📊 Raw & WIP Stock Matrix', desc: 'Real-time inventory levels' },
     { key: 'Orders', label: '📋 Orders Book & Customer Specs', desc: 'View customer orders list' },
@@ -1242,6 +1468,18 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
         >
           <Sliders className="w-4 h-4" />
           <span>🔢 Sequences, Shifts & Master PIN</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('maintenance_master')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'maintenance_master'
+              ? 'bg-[#1a365d] text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          <span>🔧 Maintenance Master & Desk Rights</span>
         </button>
 
         <button
@@ -1935,9 +2173,24 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                           {u.name || userKey} • {u.role || 'User'}
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                        {u.perms?.includes('*') ? 'ALL' : `${u.perms?.length || 0} Rights`}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {u.perms?.includes('*') ? 'ALL' : `${u.perms?.length || 0} Rights`}
+                        </span>
+                        {!isMaster && (
+                          <span
+                            role="button"
+                            title={`Delete user account ${userKey}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteUser(userKey);
+                            }}
+                            className="p-1 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -2846,99 +3099,440 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-                WhatsApp Backup & Shift Reporting (व्हाट्सएप बैकअप व लाइव रिपोर्टिंग)
+                WhatsApp Live Shift Changeover & Machine Reports (व्हाट्सएप शिफ्ट चेंजओवर रिपोर्ट)
               </h4>
               <p className="text-xs text-slate-500 m-0">
-                Configure auto WhatsApp notifications, recipient mobile number, and dispatch live shift summaries
+                Daily Shift Changeover hone ke baad all machines ke short reports with Operator names WhatsApp par auto/manual bhejein.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleSendShiftWhatsApp('DAY')}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>☀️ Send Day Shift Report</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSendShiftWhatsApp('NIGHT')}
+                className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>🌙 Send Night Shift Report</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Configuration Column */}
+            <div className="lg:col-span-6 space-y-4">
+              {/* Recipient Number Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <h5 className="text-xs font-extrabold text-slate-800 uppercase m-0 flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-emerald-600" />
+                  WhatsApp Recipient Mobile & Gateway API
+                </h5>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Admin / Manager WhatsApp Mobile Number (With Country Code):
+                  </label>
+                  <input
+                    type="text"
+                    value={waPhone}
+                    onChange={(e) => setWaPhone(e.target.value)}
+                    placeholder="e.g. +91 9876543210"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    All machine shift changeover reports will be routed to this WhatsApp number.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    WhatsApp Webhook URL / Gateway API (Optional for automated server dispatch):
+                  </label>
+                  <input
+                    type="text"
+                    value={waWebhookUrl}
+                    onChange={(e) => setWaWebhookUrl(e.target.value)}
+                    placeholder="e.g. https://api.whatsapp-gateway.com/v1/send"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Day & Night Shift Changeover Timing Settings */}
+              <div className="bg-white border-2 border-slate-200 rounded-xl p-4 space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h5 className="text-xs font-black text-slate-900 uppercase m-0 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    Shift Changeover Auto Timing Settings (समय कस्टमाइज़)
+                  </h5>
+                  <span className="text-[10px] bg-blue-100 text-blue-800 font-extrabold px-2 py-0.5 rounded">
+                    Day & Night Separate
+                  </span>
+                </div>
+
+                {/* Day Shift Settings Card */}
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-950 flex items-center gap-1">
+                      ☀️ DAY SHIFT CHANGEOVER SETTING
+                    </span>
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={waAutoDay}
+                        onChange={(e) => setWaAutoDay(e.target.checked)}
+                        className="rounded text-amber-600 w-3.5 h-3.5"
+                      />
+                      Auto Send Enabled
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Changeover Report Time:
+                      </label>
+                      <input
+                        type="time"
+                        value={waDayReportTime}
+                        onChange={(e) => setWaDayReportTime(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-black text-amber-950 outline-none"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaPreviewShift('DAY');
+                          handleSendShiftWhatsApp('DAY');
+                        }}
+                        className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Send className="w-3 h-3" /> Send Day WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Night Shift Settings Card */}
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-indigo-950 flex items-center gap-1">
+                      🌙 NIGHT SHIFT CHANGEOVER SETTING
+                    </span>
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-900 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={waAutoNight}
+                        onChange={(e) => setWaAutoNight(e.target.checked)}
+                        className="rounded text-indigo-600 w-3.5 h-3.5"
+                      />
+                      Auto Send Enabled
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Changeover Report Time:
+                      </label>
+                      <input
+                        type="time"
+                        value={waNightReportTime}
+                        onChange={(e) => setWaNightReportTime(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-black text-indigo-950 outline-none"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaPreviewShift('NIGHT');
+                          handleSendShiftWhatsApp('NIGHT');
+                        }}
+                        className="w-full py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Send className="w-3 h-3" /> Send Night WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveWhatsAppConfig}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> Save Shift Timing & WhatsApp Settings
+                </button>
+              </div>
+            </div>
+
+            {/* Live WhatsApp Message Preview Column */}
+            <div className="lg:col-span-6 space-y-3">
+              <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                <span className="text-xs font-extrabold text-slate-700 px-2">Preview Shift Message:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setWaPreviewShift('DAY')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      waPreviewShift === 'DAY'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    ☀️ Day Shift Message
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWaPreviewShift('NIGHT')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      waPreviewShift === 'NIGHT'
+                        ? 'bg-indigo-700 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    🌙 Night Shift Message
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-emerald-950 text-emerald-100 rounded-2xl p-4 space-y-3 font-mono text-xs shadow-md border border-emerald-800">
+                <div className="flex items-center justify-between border-b border-emerald-800/80 pb-2">
+                  <span className="font-extrabold text-emerald-300">
+                    Live Formatted Report ({waPreviewShift} SHIFT):
+                  </span>
+                  <span className="text-[10px] bg-emerald-800 text-emerald-100 px-2 py-0.5 rounded font-bold">
+                    All Machines + Operators
+                  </span>
+                </div>
+                <div className="whitespace-pre-line leading-relaxed text-xs text-emerald-50 max-h-[500px] overflow-y-auto pr-1">
+                  {generateShiftChangeoverReportText(waPreviewShift)}
+                </div>
+                <div className="border-t border-emerald-800/80 pt-2 flex items-center justify-between text-[11px] text-emerald-400">
+                  <span>📱 Ready for WhatsApp one-click dispatch</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSendShiftWhatsApp(waPreviewShift)}
+                    className="text-xs font-black text-emerald-200 hover:text-white underline cursor-pointer"
+                  >
+                    Send This {waPreviewShift} Report Now →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 8: MAINTENANCE DESK MASTER & RIGHTS (मेंटेनेंस डेस्क मास्टर व राइट्स) */}
+      {/* ========================================================================= */}
+      {activeTab === 'maintenance_master' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
+                🔧 Maintenance Desk Master & Rights Suite (मेंटेनेंस डेस्क मास्टर एवं राइट्स)
+              </h4>
+              <p className="text-xs text-slate-500 m-0">
+                Admin controls for Maintenance Desk permissions, technician directory, spare parts catalogue, and roll yield limits.
               </p>
             </div>
             <button
               type="button"
-              onClick={handleSendWhatsAppShiftReport}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              onClick={handleSaveMaintenanceMaster}
+              className="px-4 py-2 bg-[#1a365d] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <Send className="w-4 h-4" />
-              <span>🚀 Send Live Shift Report via WhatsApp Now</span>
+              <Save className="w-4 h-4" />
+              <span>Save Maintenance Masters</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
-              <h5 className="text-xs font-extrabold text-slate-800 uppercase m-0 flex items-center gap-1.5">
-                <Smartphone className="w-4 h-4 text-emerald-600" />
-                WhatsApp Recipient & API Settings
-              </h5>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Recipient Mobile Number (with Country Code):
-                </label>
-                <input
-                  type="text"
-                  value={waPhone}
-                  onChange={(e) => setWaPhone(e.target.value)}
-                  placeholder="e.g. +91 9876543210"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-                />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  Reports will be sent to this WhatsApp mobile number.
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 1. Maintenance Rights Assignment */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h5 className="text-xs font-black text-slate-900 uppercase m-0 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-blue-600" />
+                  Maintenance Rights Quick-Grant
+                </h5>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">
+                  User Permissions
                 </span>
               </div>
+              <p className="text-[11px] text-slate-600 m-0">
+                Select an active user to immediately grant full Maintenance Desk operational rights (Incidents, Repairs, Spare parts & RCA):
+              </p>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  WhatsApp Webhook URL / Gateway API (Optional):
-                </label>
-                <input
-                  type="text"
-                  value={waWebhookUrl}
-                  onChange={(e) => setWaWebhookUrl(e.target.value)}
-                  placeholder="e.g. https://api.whatsapp-gateway.com/send"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-                />
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                {Object.keys(usersRecord).map((userKey) => {
+                  const u = usersRecord[userKey];
+                  const hasMnt = u.perms?.includes('*') || u.perms?.includes('Maintenance');
+                  return (
+                    <div
+                      key={userKey}
+                      className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 text-xs"
+                    >
+                      <div>
+                        <span className="font-extrabold text-slate-900 block">{userKey}</span>
+                        <span className="text-[10px] text-slate-500">{u.name || userKey} • {u.role || 'User'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {hasMnt ? (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded">
+                            Authorized
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleGrantAllMaintenanceRightsToUser(userKey)}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded transition cursor-pointer"
+                          >
+                            + Grant Rights
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="waAutoSendToggle"
-                  checked={waAutoSend}
-                  onChange={(e) => setWaAutoSend(e.target.checked)}
-                  className="rounded text-emerald-600 w-4 h-4"
-                />
-                <label htmlFor="waAutoSendToggle" className="text-xs font-bold text-slate-800 cursor-pointer">
-                  Enable Scheduled Auto Shift Report (Day Shift 20:00 & Night Shift 08:00)
-                </label>
+              <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-lg text-[11px] text-blue-900">
+                <strong>💡 Granular Rights:</strong> For individual checkboxes (e.g. Mnt_LogIncident, Mnt_Repair), switch to the <em>👥 User Accounts & Roles</em> tab.
               </div>
-
-              <button
-                type="button"
-                onClick={handleSaveWhatsAppConfig}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Save className="w-4 h-4" /> Save WhatsApp Configurations
-              </button>
             </div>
 
-            {/* Live WhatsApp Preview Box */}
-            <div className="bg-emerald-950 text-emerald-100 rounded-xl p-4 space-y-3 font-mono text-xs shadow-md border border-emerald-800">
-              <div className="flex items-center justify-between border-b border-emerald-800 pb-2">
-                <span className="font-extrabold text-emerald-300">WhatsApp Message Live Preview:</span>
-                <span className="text-[10px] bg-emerald-800 text-emerald-100 px-2 py-0.5 rounded">Ready</span>
+            {/* 2. Technicians Master Directory */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h5 className="text-xs font-black text-slate-900 uppercase m-0 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-emerald-600" />
+                  Maintenance Technicians Directory ({maintTechs.length})
+                </h5>
               </div>
-              <div className="whitespace-pre-line leading-relaxed text-xs text-emerald-50">
-                {`🏭 *WÜNDERKRAF PAPERWARE ERP - SHIFT REPORT*
-📅 *Date:* ${new Date().toISOString().split('T')[0]} | *Shift:* ${getCurrentExpectedShift(state.shiftConfig)}
 
-📊 *CURRENT WIP STOCK:*
-• 📜 Slit Rolls: ${state.jobs.reduce((a, b) => a + (b.availableRolls || 0), 0)} Rolls
-• ✂️ Cut Crates: ${state.jobs.reduce((a, b) => a + (b.availableCuttingCrates || 0), 0)} Crates
-• ⚙️ Formed Crates: ${state.jobs.reduce((a, b) => a + (b.availableFormingCrates || 0), 0)} Crates
-• 🔍 QC OK Crates: ${state.jobs.reduce((a, b) => a + (b.availableQcCrates || 0), 0)} Crates
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTechName}
+                  onChange={(e) => setNewTechName(e.target.value)}
+                  placeholder="e.g. Mukesh Kumar (Hydraulics)"
+                  className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTech}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add
+                </button>
+              </div>
 
-📦 *PACKING & DISPATCH:*
-• 📋 Pending Orders: ${state.packJobs.filter((o) => o.status !== 'Dispatched').length}
-• 🚚 Total Dispatches: ${state.packJobs.reduce((a, b) => a + (b.dispatchedBoxes || 0), 0)} Boxes`}
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                {maintTechs.map((tech, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 text-xs"
+                  >
+                    <span className="font-bold text-slate-800">{tech}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTech(idx)}
+                      className="text-slate-400 hover:text-red-600 p-1 rounded transition cursor-pointer"
+                      title="Remove technician"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Spare Parts Catalogue & Roll Yield Limits */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+              <div className="border-b border-slate-200 pb-2">
+                <h5 className="text-xs font-black text-slate-900 uppercase m-0 flex items-center gap-1.5">
+                  <Cog className="w-4 h-4 text-indigo-600" />
+                  Spare Parts Catalogue ({maintSpareParts.length})
+                </h5>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPartName}
+                  onChange={(e) => setNewPartName(e.target.value)}
+                  placeholder="e.g. Solenoid Valve 24V"
+                  className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSparePart}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {maintSpareParts.map((part, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 text-xs"
+                  >
+                    <span className="font-bold text-slate-800 truncate">{part}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSparePart(idx)}
+                      className="text-slate-400 hover:text-red-600 p-1 rounded transition cursor-pointer"
+                      title="Remove part"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Slitting Roll to Pieces Conversion Setting */}
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-900 uppercase">
+                    Slitting: Roll to Pcs Setting (रील से पीस लिमिट)
+                  </span>
+                  <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-1.5 py-0.5 rounded">
+                    Admin Config
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-600">
+                    Max Theoretical Pieces Per Slit Roll:
+                  </label>
+                  <input
+                    type="number"
+                    value={maxRollPieces}
+                    onChange={(e) => setMaxRollPieces(Number(e.target.value) || 12000)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-500 block">
+                    Adjust this setting so operators never encounter false errors during slitting or conversion.
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={strictRollAudit}
+                    onChange={(e) => setStrictRollAudit(e.target.checked)}
+                    className="rounded text-blue-600 w-3.5 h-3.5"
+                  />
+                  <span>Strict Yield Audit (Unchecked = Warning only, never block)</span>
+                </label>
               </div>
             </div>
           </div>
@@ -3087,11 +3681,79 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
         <div className="space-y-6">
           <div>
             <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-              Database JSON Backup, Restore & Recovery
+              Database Storage Health, Archival & JSON Backup
             </h4>
             <p className="text-xs text-slate-500 m-0">
-              Export full factory database to offline JSON, restore previous state, or hard reset system
+              High-capacity IndexedDB persistence with automatic localStorage quota protection and offline JSON recovery
             </p>
+          </div>
+
+          {/* Storage Health & Resilience Telemetry Card */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-[#1a365d] rounded-2xl p-5 text-white shadow-md border border-slate-700">
+            <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/40 text-blue-300 flex items-center justify-center font-black">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Persistence Engine</div>
+                  <div className="text-base font-black text-white flex items-center gap-2">
+                    <span>{storageHealth?.engine || 'IndexedDB (Enterprise High-Capacity)'}</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
+                      ACTIVE & PROTECTED
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRunPruning}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-blue-400/30"
+                title="Archive historical records older than 30 days to free up operational memory"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Run Archival & Auto-Prune</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 text-xs">
+              <div>
+                <span className="text-[11px] text-slate-400 block">Current Footprint</span>
+                <span className="font-extrabold text-white text-sm">
+                  {storageHealth?.usedBytes ? `${(storageHealth.usedBytes / 1024).toFixed(1)} KB` : '< 1 MB'}
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  Quota: {storageHealth?.quotaBytes ? `${Math.round(storageHealth.quotaBytes / (1024 * 1024))} MB` : '1024 MB'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 block">Operational Records</span>
+                <span className="font-extrabold text-white text-sm">
+                  {(state.jobs?.length || 0) + (state.packJobs?.length || 0)} Total
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  {state.jobs?.length || 0} Jobs, {state.packJobs?.length || 0} Orders
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 block">Audit Logs</span>
+                <span className="font-extrabold text-white text-sm">{state.logs?.length || 0} Entries</span>
+                <span className="text-[10px] text-slate-400 block">Zero Data Loss Policy</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 block">Cold Archival Records</span>
+                <span className="font-extrabold text-white text-sm">
+                  {(state.archivedJobs?.length || 0) + (state.archivedLogs?.length || 0)} Archived
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  {state.archivedJobs?.length || 0} Jobs, {state.archivedLogs?.length || 0} Logs
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3102,15 +3764,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                 </div>
                 <h5 className="text-xs font-extrabold text-slate-900 uppercase m-0">Export JSON Database</h5>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Download a complete backup copy of all jobs, logs, orders, and user settings.
+                  Download a complete enterprise backup containing metadata, jobs, pack orders, and audit logs.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  exportToJSON(`wunderkraf_backup_${new Date().toISOString().split('T')[0]}.json`, state)
-                }
-                className="mt-4 w-full py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+                onClick={() => exportDatabaseBackup(state)}
+                className="mt-4 w-full py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" /> Download JSON Backup
               </button>
@@ -3123,10 +3783,10 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                 </div>
                 <h5 className="text-xs font-extrabold text-slate-900 uppercase m-0">Restore from JSON</h5>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Upload an existing factory backup JSON file to restore all previous records.
+                  Upload an existing factory backup JSON file to restore and persist all operational records into IndexedDB.
                 </p>
               </div>
-              <label className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer">
+              <label className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs">
                 <Upload className="w-3.5 h-3.5" /> Select Backup JSON File
                 <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
               </label>
@@ -3139,7 +3799,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                 </div>
                 <h5 className="text-xs font-extrabold text-rose-950 uppercase m-0">Factory State Reset</h5>
                 <p className="text-[11px] text-rose-700 mt-1">
-                  Wipe all current operational data and restore clean default sample records.
+                  Wipe current operational data and restore factory to default clean baseline records.
                 </p>
               </div>
               <button

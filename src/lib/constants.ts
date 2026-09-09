@@ -1,4 +1,4 @@
-import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity } from '../types';
+import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity, FloorWorker } from '../types';
 
 export const PRODUCTS: ProductType[] = ['Spoon', 'Fork', 'Knife', 'Dessert Spoon'];
 
@@ -7,6 +7,16 @@ export const DEFAULT_CRATE_CAPACITY_MASTER: Record<string, ProductCrateCapacity>
   'Fork': { cuttingPcs: 9000, formingPcs: 6500 },
   'Knife': { cuttingPcs: 11000, formingPcs: 7500 },
   'Dessert Spoon': { cuttingPcs: 12000, formingPcs: 8500 }
+};
+
+export const DEFAULT_PCS_PER_KG_MAP: Record<string, number> = {
+  'Spoon': 450,
+  'Fork': 480,
+  'Knife': 550,
+  'Dessert Spoon': 600,
+  'Tea Spoon': 700,
+  'Soup Spoon': 350,
+  'Spork': 460
 };
 
 export const LOCAL_STORAGE_KEY = 'wunderkraf_erp_state_v1';
@@ -52,6 +62,50 @@ export const DEPT_WORKERS: Record<string, string[]> = {
   'QC': ['QC_RAMESH', 'QC_DINESH', 'QC_ANIL', 'KAVITA_BEN', 'QC_KAVITA'],
   'Packing': ['PACK_SURESH', 'PACK_MAHESH', 'PACK_SUNIL', 'KAVITA_BEN', 'PACK_KAVITA']
 };
+
+export const DEFAULT_FLOOR_WORKERS: FloorWorker[] = [
+  // CUTTING DEPARTMENT (With Operators and 2 Helpers explicitly on Cutting-1)
+  { id: 'FW-CUT-1', name: 'CUT_OP1', role: 'OPERATOR', department: 'Cutting', assignedMachine: 'Cutting-1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Primary Operator' },
+  { id: 'FW-CUT-2', name: 'CUT_OP2', role: 'OPERATOR', department: 'Cutting', assignedMachine: 'Cutting-2', shift: 'DAY', isPresent: true, inTime: '08:15 AM', notes: 'Primary Operator' },
+  { id: 'FW-CUT-3', name: 'VIKRAM_CUT', role: 'OPERATOR', department: 'Cutting', assignedMachine: 'Cutting-1', shift: 'NIGHT', isPresent: false, notes: 'Night Shift Operator' },
+  { id: 'FW-CUT-H1', name: 'SUNIL_HELPER', role: 'HELPER', department: 'Cutting', assignedMachine: 'Cutting-1', pairedWithOperator: 'CUT_OP1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Feed & Crate Stacking' },
+  { id: 'FW-CUT-H2', name: 'DINESH_HELPER', role: 'HELPER', department: 'Cutting', assignedMachine: 'Cutting-1', pairedWithOperator: 'CUT_OP1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Scrap Weighing & Crate Shifting' },
+  { id: 'FW-CUT-H3', name: 'MUKESH_HELPER', role: 'HELPER', department: 'Cutting', assignedMachine: 'Cutting-2', pairedWithOperator: 'CUT_OP2', shift: 'DAY', isPresent: true, inTime: '08:15 AM', notes: 'Material Feeding' },
+  { id: 'FW-CUT-S1', name: 'Suresh Cut-Master', role: 'SUPERVISOR', department: 'Cutting', shift: 'DAY', isPresent: true, inTime: '07:45 AM', notes: 'Cutting Dept Head' },
+
+  // SLITTING DEPARTMENT
+  { id: 'FW-SLIT-1', name: 'RAMESH_SLIT', role: 'OPERATOR', department: 'Slitting', assignedMachine: 'Slitting-1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Master Slitter' },
+  { id: 'FW-SLIT-2', name: 'SURESH_SLIT', role: 'OPERATOR', department: 'Slitting', assignedMachine: 'Slitting-1', shift: 'NIGHT', isPresent: false, notes: 'Night Slitter' },
+  { id: 'FW-SLIT-H1', name: 'PRAKASH_HELPER', role: 'HELPER', department: 'Slitting', assignedMachine: 'Slitting-1', pairedWithOperator: 'RAMESH_SLIT', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Jumbo Reel Loading' },
+  { id: 'FW-SLIT-S1', name: 'Ramesh Slit-Head', role: 'SUPERVISOR', department: 'Slitting', shift: 'DAY', isPresent: true, inTime: '07:50 AM', notes: 'Slitting Head' },
+
+  // FORMING DEPARTMENT
+  { id: 'FW-FORM-1', name: 'FORM_OP1', role: 'OPERATOR', department: 'Forming', assignedMachine: 'Forming-1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Forming Lead Operator' },
+  { id: 'FW-FORM-2', name: 'FORM_OP2', role: 'OPERATOR', department: 'Forming', assignedMachine: 'Forming-2', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Operator' },
+  { id: 'FW-FORM-3', name: 'FORM_OP3', role: 'OPERATOR', department: 'Forming', assignedMachine: 'Forming-3', shift: 'DAY', isPresent: true, inTime: '08:30 AM', notes: 'Operator' },
+  { id: 'FW-FORM-4', name: 'RAHUL_FORM', role: 'OPERATOR', department: 'Forming', assignedMachine: 'Forming-4', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Operator' },
+  { id: 'FW-FORM-H1', name: 'BABLU_HELPER', role: 'HELPER', department: 'Forming', assignedMachine: 'Forming-1', pairedWithOperator: 'FORM_OP1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Blank Feeding & Ejection' },
+  { id: 'FW-FORM-H2', name: 'CHANDAN_HELPER', role: 'HELPER', department: 'Forming', assignedMachine: 'Forming-2', pairedWithOperator: 'FORM_OP2', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Crate Stacking' },
+  { id: 'FW-FORM-S1', name: 'Rajesh Form-Lead', role: 'SUPERVISOR', department: 'Forming', shift: 'DAY', isPresent: true, inTime: '07:45 AM', notes: 'Forming Dept Head' },
+
+  // QC DEPARTMENT
+  { id: 'FW-QC-1', name: 'QC_RAMESH', role: 'QC_INSPECTOR', department: 'QC', assignedMachine: 'QC-Desk', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Inspector' },
+  { id: 'FW-QC-2', name: 'QC_DINESH', role: 'QC_INSPECTOR', department: 'QC', assignedMachine: 'QC-Desk', shift: 'DAY', isPresent: true, inTime: '08:15 AM', notes: 'Inspector' },
+  { id: 'FW-QC-S1', name: 'Amit Verma (Lead QC)', role: 'SUPERVISOR', department: 'QC', shift: 'DAY', isPresent: true, inTime: '07:55 AM', notes: 'QC Quality Head' },
+
+  // PACKING DEPARTMENT
+  { id: 'FW-PACK-1', name: 'PACK_SURESH', role: 'OPERATOR', department: 'Packing', assignedMachine: 'Packing-1', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Head Packer' },
+  { id: 'FW-PACK-2', name: 'PACK_MAHESH', role: 'OPERATOR', department: 'Packing', assignedMachine: 'Packing-2', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Machine Packer' },
+  { id: 'FW-PACK-H1', name: 'SANTOSH_HELPER', role: 'HELPER', department: 'Packing', assignedMachine: 'Packing-1', pairedWithOperator: 'PACK_SURESH', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Carton Taping' },
+  { id: 'FW-PACK-H2', name: 'RAJU_HELPER', role: 'HELPER', department: 'Packing', assignedMachine: 'Packing-1', pairedWithOperator: 'PACK_SURESH', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Box Weighing' },
+  { id: 'FW-PACK-S1', name: 'Vikram Singh', role: 'SUPERVISOR', department: 'Packing', shift: 'DAY', isPresent: true, inTime: '07:50 AM', notes: 'Packing In-Charge' },
+
+  // MAINTENANCE DEPARTMENT
+  { id: 'FW-MNT-1', name: 'Ramesh Sharma (Head Mech)', role: 'MAINTENANCE', department: 'Maintenance', shift: 'DAY', isPresent: true, inTime: '07:30 AM', notes: 'Chief Mech Engineer' },
+  { id: 'FW-MNT-2', name: 'Kishan Patel (Sr. Electrical)', role: 'MAINTENANCE', department: 'Maintenance', shift: 'DAY', isPresent: true, inTime: '08:00 AM', notes: 'Electrical & PLC' },
+  { id: 'FW-MNT-3', name: 'Dinesh Varma (Pneumatics)', role: 'MAINTENANCE', department: 'Maintenance', shift: 'DAY', isPresent: true, inTime: '08:10 AM', notes: 'Hydraulic & Pneumatic' },
+  { id: 'FW-MNT-S1', name: 'Manoj Kumar (Plant Head)', role: 'SUPERVISOR', department: 'Maintenance', shift: 'DAY', isPresent: true, inTime: '07:30 AM', notes: 'Plant Production Manager' }
+];
 
 export const PAPER_BRANDS = ['ITC', 'CENTURY', 'JK PAPER', 'WEST COAST', 'EMAMI', 'APP (ASIA PULP)'];
 
@@ -514,7 +568,7 @@ export const INITIAL_STATE: FactoryState = {
       stage: 'Cutting',
       machine: 'Cutting-1',
       shift: 'DAY',
-      action: 'Finished Cutting Batch B-1002 (8 Crates, Scrap: 14 KG)',
+      action: 'Finished Cutting Batch B-1002 (8 Crates = 80,000 Flat Blanks, Scrap: 14 KG)',
       worker: 'CUT_OP1',
       user: 'cut_user',
       startTime: '09:45 AM',
@@ -525,16 +579,226 @@ export const INITIAL_STATE: FactoryState = {
     {
       jobId: 'SPN-001',
       product: 'Spoon',
+      stage: 'Forming',
+      machine: 'Forming-1',
+      shift: 'DAY',
+      action: 'Finished Forming Batch B-1003 (7 Crates = 35,000 3D Pieces, Defect Pieces: 120)',
+      worker: 'FORM_OP1',
+      user: 'form_user',
+      startTime: '11:30 AM',
+      endTime: '01:00 PM',
+      rawDate: '2026-09-01',
+      timestamp: '9/1/2026, 01:00:00 PM'
+    },
+    {
+      jobId: 'SPN-001',
+      product: 'Spoon',
       stage: 'QC',
       machine: 'QC-Desk',
       shift: 'DAY',
-      action: 'Completed QC Inspection (6 Crates, Scrap: 2 KG)',
+      action: 'Completed QC Inspection (6 Crates = 30,000 Pieces, Scrap: 2 KG)',
       worker: 'QC_RAMESH',
       user: 'qc_user',
-      startTime: '11:30 AM',
-      endTime: '12:30 PM',
+      startTime: '01:30 PM',
+      endTime: '02:30 PM',
       rawDate: '2026-09-01',
-      timestamp: '9/1/2026, 12:30:00 PM'
+      timestamp: '9/1/2026, 02:30:00 PM'
+    },
+    {
+      jobId: 'ORD-001',
+      product: '3-in-1 Kit (Tissue, Spoon, Fork)',
+      stage: 'Packing',
+      machine: 'Packing-1',
+      shift: 'DAY',
+      action: 'Packed 50 Boxes (= 5,000 Pieces)',
+      worker: 'PACK_SURESH',
+      user: 'pack_user',
+      startTime: '02:45 PM',
+      endTime: '04:15 PM',
+      rawDate: '2026-09-01',
+      timestamp: '9/1/2026, 04:15:00 PM'
+    },
+    {
+      jobId: 'FRK-001',
+      product: 'Fork',
+      stage: 'Cutting',
+      machine: 'Cutting-1',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-1004 (7 Crates = 70,000 Flat Blanks, Scrap: 11 KG)',
+      worker: 'CUT_OP1',
+      user: 'cut_user',
+      startTime: '09:00 AM',
+      endTime: '11:30 AM',
+      rawDate: '2026-09-03',
+      timestamp: '9/3/2026, 11:30:00 AM'
+    },
+    {
+      jobId: 'FRK-001',
+      product: 'Fork',
+      stage: 'Cutting',
+      machine: 'Cutting-2',
+      shift: 'NIGHT',
+      action: 'Finished Cutting Batch B-1005 (6 Crates = 60,000 Flat Blanks, Scrap: 9 KG)',
+      worker: 'CUT_OP2',
+      user: 'cut_user',
+      startTime: '09:00 PM',
+      endTime: '11:00 PM',
+      rawDate: '2026-09-04',
+      timestamp: '9/4/2026, 11:00:00 PM'
+    },
+    {
+      jobId: 'FRK-001',
+      product: 'Fork',
+      stage: 'Forming',
+      machine: 'Forming-2',
+      shift: 'DAY',
+      action: 'Finished Forming Batch B-1006 (6 Crates = 30,000 3D Pieces, Defect Pieces: 80)',
+      worker: 'FORM_OP2',
+      user: 'form_user',
+      startTime: '10:00 AM',
+      endTime: '12:30 PM',
+      rawDate: '2026-09-04',
+      timestamp: '9/4/2026, 12:30:00 PM'
+    },
+    {
+      jobId: 'SPN-002',
+      product: 'Spoon',
+      stage: 'Cutting',
+      machine: 'Cutting-1',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-1007 (9 Crates = 90,000 Flat Blanks, Scrap: 15 KG)',
+      worker: 'CUT_OP1',
+      user: 'cut_user',
+      startTime: '08:30 AM',
+      endTime: '11:00 AM',
+      rawDate: '2026-09-05',
+      timestamp: '9/5/2026, 11:00:00 AM'
+    },
+    {
+      jobId: 'SPN-002',
+      product: 'Spoon',
+      stage: 'Forming',
+      machine: 'Forming-1',
+      shift: 'DAY',
+      action: 'Finished Forming Batch B-1008 (8 Crates = 40,000 3D Pieces, Defect Pieces: 140)',
+      worker: 'FORM_OP1',
+      user: 'form_user',
+      startTime: '11:30 AM',
+      endTime: '02:00 PM',
+      rawDate: '2026-09-05',
+      timestamp: '9/5/2026, 02:00:00 PM'
+    },
+    {
+      jobId: 'KNF-001',
+      product: 'Knife',
+      stage: 'Cutting',
+      machine: 'Cutting-2',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-1009 (5 Crates = 50,000 Flat Blanks, Scrap: 8 KG)',
+      worker: 'VIKRAM_CUT',
+      user: 'cut_user',
+      startTime: '09:15 AM',
+      endTime: '11:15 AM',
+      rawDate: '2026-09-06',
+      timestamp: '9/6/2026, 11:15:00 AM'
+    },
+    {
+      jobId: 'KNF-001',
+      product: 'Knife',
+      stage: 'Forming',
+      machine: 'Forming-3',
+      shift: 'DAY',
+      action: 'Finished Forming Batch B-1010 (5 Crates = 25,000 3D Pieces, Defect Pieces: 60)',
+      worker: 'FORM_OP3',
+      user: 'form_user',
+      startTime: '11:45 AM',
+      endTime: '01:30 PM',
+      rawDate: '2026-09-06',
+      timestamp: '9/6/2026, 01:30:00 PM'
+    },
+    {
+      jobId: 'SPN-001',
+      product: 'Spoon',
+      stage: 'Cutting',
+      machine: 'Cutting-1',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-0988 (10 Crates = 100,000 Flat Blanks, Scrap: 16 KG)',
+      worker: 'CUT_OP1',
+      user: 'cut_user',
+      startTime: '08:30 AM',
+      endTime: '11:30 AM',
+      rawDate: '2026-08-30',
+      timestamp: '8/30/2026, 11:30:00 AM'
+    },
+    {
+      jobId: 'SPN-001',
+      product: 'Spoon',
+      stage: 'Forming',
+      machine: 'Forming-1',
+      shift: 'DAY',
+      action: 'Finished Forming Batch B-0989 (9 Crates = 45,000 3D Pieces, Defect Pieces: 150)',
+      worker: 'FORM_OP1',
+      user: 'form_user',
+      startTime: '12:00 PM',
+      endTime: '02:30 PM',
+      rawDate: '2026-08-30',
+      timestamp: '8/30/2026, 02:30:00 PM'
+    },
+    {
+      jobId: 'FRK-001',
+      product: 'Fork',
+      stage: 'Cutting',
+      machine: 'Cutting-2',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-0975 (8 Crates = 80,000 Flat Blanks, Scrap: 12 KG)',
+      worker: 'CUT_OP2',
+      user: 'cut_user',
+      startTime: '09:00 AM',
+      endTime: '11:45 AM',
+      rawDate: '2026-08-23',
+      timestamp: '8/23/2026, 11:45:00 AM'
+    },
+    {
+      jobId: 'SPN-001',
+      product: 'Spoon',
+      stage: 'Cutting',
+      machine: 'Cutting-1',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-0950 (11 Crates = 110,000 Flat Blanks, Scrap: 18 KG)',
+      worker: 'CUT_OP1',
+      user: 'cut_user',
+      startTime: '08:00 AM',
+      endTime: '11:45 AM',
+      rawDate: '2026-08-10',
+      timestamp: '8/10/2026, 11:45:00 AM'
+    },
+    {
+      jobId: 'FRK-001',
+      product: 'Fork',
+      stage: 'Cutting',
+      machine: 'Cutting-1',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-0880 (12 Crates = 120,000 Flat Blanks, Scrap: 19 KG)',
+      worker: 'CUT_OP1',
+      user: 'cut_user',
+      startTime: '08:30 AM',
+      endTime: '12:00 PM',
+      rawDate: '2026-06-15',
+      timestamp: '6/15/2026, 12:00:00 PM'
+    },
+    {
+      jobId: 'SPN-001',
+      product: 'Spoon',
+      stage: 'Cutting',
+      machine: 'Cutting-2',
+      shift: 'DAY',
+      action: 'Finished Cutting Batch B-0740 (10 Crates = 100,000 Flat Blanks, Scrap: 15 KG)',
+      worker: 'CUT_OP2',
+      user: 'cut_user',
+      startTime: '09:00 AM',
+      endTime: '12:15 PM',
+      rawDate: '2026-03-20',
+      timestamp: '3/20/2026, 12:15:00 PM'
     },
     {
       jobId: 'ORD-001',
@@ -550,6 +814,11 @@ export const INITIAL_STATE: FactoryState = {
   ],
   scrapSales: [
     {
+      id: 'SCR-1001',
+      partyName: 'EcoRecycle Corp Batch A',
+      weightKg: 200,
+      ratePerKg: 18,
+      totalAmount: 3600,
       soldKg: 200,
       buyerNote: 'EcoRecycle Corp Batch A',
       date: '2026-08-31',
@@ -636,7 +905,25 @@ export const INITIAL_STATE: FactoryState = {
   products: PRODUCTS,
   paperBrands: PAPER_BRANDS,
   productPrefixMap: PRODUCT_PREFIX_MAP,
+  maxPiecesPerSlitRoll: 12000,
+  strictAuditRollYield: false,
+  maintenanceTechniciansMaster: [
+    'Ramesh Sharma (Head Mech)',
+    'Vijay Patel (Sr Electrical)',
+    'Dinesh Mistry (Mould Tooling)',
+    'Kiran Gohil (Hydraulic & Pneumatics)'
+  ],
+  maintenanceSparePartsMaster: [
+    'Upper Mould Heater Band (220V/1500W)',
+    'High-Speed Cutting Blade Punch Set',
+    'Thermocouple K-Type Sensor Cable',
+    'Festo 5/2 Directional Solenoid Valve',
+    'Hydraulic Piston Rod Oil Seal 45x60x10',
+    'NSK High-Precision Deep Groove Ball Bearing',
+    'PTFE Non-Stick Mould Liner Strip'
+  ],
   autoNotifyDeptHeadsOnCritical: true,
   departmentHeads: DEFAULT_DEPARTMENT_HEADS,
-  crateCapacityMaster: DEFAULT_CRATE_CAPACITY_MASTER
+  crateCapacityMaster: DEFAULT_CRATE_CAPACITY_MASTER,
+  floorWorkers: DEFAULT_FLOOR_WORKERS
 };

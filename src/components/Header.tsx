@@ -1,10 +1,13 @@
 import React from 'react';
-import { Cloud, KeyRound, ShieldCheck, Home, ClipboardList, LogOut, UserCheck } from 'lucide-react';
+import { Cloud, KeyRound, ShieldCheck, Home, ClipboardList, LogOut, UserCheck, TrendingUp, Users } from 'lucide-react';
 
 interface HeaderProps {
   currentUser?: { username: string; perms: string[] } | null;
   brandLogoBase64?: string;
   onNavigateHome?: () => void;
+  onNavigateAnalytics?: () => void;
+  onOpenManpowerModal?: () => void;
+  manpowerCount?: number;
   onOpenPasswordModal?: () => void;
   onOpenDriveModal?: () => void;
   onOpenRequisitionModal?: () => void;
@@ -18,6 +21,9 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   brandLogoBase64,
   onNavigateHome,
+  onNavigateAnalytics,
+  onOpenManpowerModal,
+  manpowerCount,
   onOpenPasswordModal,
   onOpenDriveModal,
   onOpenRequisitionModal,
@@ -64,11 +70,35 @@ export const Header: React.FC<HeaderProps> = ({
         {onNavigateHome && (
           <button
             onClick={onNavigateHome}
-            className="flex items-center gap-1 bg-[#2b6cb0] hover:bg-[#2c5282] text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm active:scale-95 cursor-pointer"
-            title="Main Navigation Hub"
+            className="flex items-center gap-1.5 bg-[#2b6cb0] hover:bg-[#2c5282] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
+            title="Home"
           >
-            <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Hub</span>
+            <Home className="w-4 h-4" />
+            <span>Home</span>
+          </button>
+        )}
+
+        {onNavigateAnalytics && (
+          <button
+            onClick={onNavigateAnalytics}
+            className="flex items-center gap-1 bg-violet-700 hover:bg-violet-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm active:scale-95 cursor-pointer"
+            title="Machine & Operator Performance Audit (मशीन व ऑपरेटर परफ़ॉर्मेंस ऑडिट)"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-violet-200" />
+            <span className="hidden sm:inline">Performance</span>
+          </button>
+        )}
+
+        {/* Live Plant Workforce & Helpers Button */}
+        {onOpenManpowerModal && (
+          <button
+            id="header-manpower-btn"
+            onClick={onOpenManpowerModal}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
+            title="Live Plant Floor Workforce & Helpers Audit (लाईव मैनपावर व हेल्पर ट्रैकर)"
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-200" />
+            <span>मैनपावर {manpowerCount !== undefined ? `(${manpowerCount})` : ''}</span>
           </button>
         )}
 

@@ -26,10 +26,11 @@ import {
   PlusCircle,
   Wrench
 } from 'lucide-react';
-import { FactoryState, Job, PackJob, ProductType } from '../../types';
+import { FactoryState, Job, PackJob, ProductType, OperatorRunSlice, LogEntry } from '../../types';
 import { DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift } from '../../lib/utils';
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
+import { ShiftHandoverModal } from '../ShiftHandoverModal';
 
 interface PackingViewProps {
   state: FactoryState;
@@ -76,6 +77,9 @@ export const PackingView: React.FC<PackingViewProps> = ({
   const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
   const [holdReasonSelection, setHoldReasonSelection] = useState('Mechanical Sealer / Tooling Fault');
   const [holdRemarks, setHoldRemarks] = useState('');
+
+  // Shift Handover Modal state
+  const [isShiftHandoverModalOpen, setIsShiftHandoverModalOpen] = useState(false);
 
   // Active running or held packing jobs on this machine
   const activePackJobs = packJobs.filter(
@@ -652,6 +656,73 @@ export const PackingView: React.FC<PackingViewProps> = ({
   };
 
   // ==========================================
+  // ACTION: ATOMIC SHIFT HANDOVER
+  // ==========================================
+  const handleConfirmShiftHandover = (handoverData: {
+    relievedByOperator: string;
+    nextShift: 'DAY' | 'NIGHT' | string;
+    handoverTime: string;
+    meterReading: number;
+    sliceProducedQty: number;
+    sliceProducedPieces?: number;
+    sliceScrapQty: number;
+    handoverNotes: string;
+  }) => {
+    if (!activeJob) return;
+
+    const newSlice: OperatorRunSlice = {
+      sliceId: `SLICE-PACK-${Date.now()}`,
+      operator: activeJob.worker || packerName,
+      relievedByOperator: handoverData.relievedByOperator,
+      shift: activeJob.shift || shift,
+      startTime: activeJob.startTime || '',
+      handoverTime: handoverData.handoverTime,
+      endMeterReading: handoverData.meterReading,
+      strokeCount: handoverData.meterReading,
+      producedQty: handoverData.sliceProducedQty,
+      scrapQty: handoverData.sliceScrapQty,
+      notes: handoverData.handoverNotes,
+      handoverConfirmed: true
+    };
+
+    const updatedPackJobs = packJobs.map((pj) => {
+      if (pj.id !== activeJob.id) return pj;
+      return {
+        ...pj,
+        worker: handoverData.relievedByOperator,
+        shift: handoverData.nextShift as any,
+        packedBoxes: (pj.packedBoxes || 0) + handoverData.sliceProducedQty,
+        slices: [...(pj.slices || []), newSlice]
+      };
+    });
+
+    const handoverLog: LogEntry = {
+      jobId: activeJob.id,
+      product: activeJob.kitType,
+      stage: 'Packing',
+      machine: selectedMachine,
+      shift: handoverData.nextShift,
+      action: `🔄 Shift Handover: Packer [${activeJob.worker || packerName}] handed over active order [${activeJob.id}] to [${handoverData.relievedByOperator}] (${handoverData.nextShift}). Locked slice: ${handoverData.sliceProducedQty} Boxes, ${handoverData.sliceScrapQty} Damaged Pcs, Meter/Counter: ${handoverData.meterReading || 'N/A'}.`,
+      worker: handoverData.relievedByOperator,
+      user: 'pack_supervisor',
+      rawDate: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+    };
+
+    onSaveState({
+      ...state,
+      packJobs: updatedPackJobs,
+      logs: [handoverLog, ...(state.logs || [])]
+    });
+
+    setPackedBoxesInput('');
+    setPackerName(handoverData.relievedByOperator);
+    setShift(handoverData.nextShift as any);
+    setIsShiftHandoverModalOpen(false);
+    alert(`✅ Shift Handover Complete! Ongoing packing order transferred from ${activeJob.worker || packerName} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Boxes locked to ${activeJob.worker || packerName}.`);
+  };
+
+  // ==========================================
   // ACTION: COMPLETE AND FINISH PACKING ORDER
   // ==========================================
   const handleFinishPacking = () => {
@@ -1005,6 +1076,29 @@ export const PackingView: React.FC<PackingViewProps> = ({
                   <span>Station On HOLD Reason: {activeJob.holdReason}</span>
                 </div>
               )}
+
+              {/* Slices History Banner */}
+              {activeJob.slices && activeJob.slices.length > 0 && (
+                <div className="bg-blue-50/90 border border-blue-200 p-2.5 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-black text-blue-950 uppercase text-[10px]">
+                      Prior Shift Slices ({activeJob.slices.length}):
+                    </span>
+                    {activeJob.slices.map((sl, sIdx) => (
+                      <span key={sIdx} className="bg-white px-2 py-0.5 rounded border border-blue-200 text-[11px] font-bold text-blue-900">
+                        {sl.operator} ({sl.producedQty} Boxes)
+                      </span>
+                    ))}
+                    <span className="text-slate-400">➔</span>
+                    <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold text-[11px] border border-emerald-300">
+                      Active: {activeJob.worker}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded">
+                    Continuous Mid-Batch Handover Active
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Boxes Packed Input & Partial Forward Action */}
@@ -1036,15 +1130,25 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
 
             {/* Workstation Action Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleOpenAddMoreCratesModal}
-                className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs col-span-2 sm:col-span-1"
+                className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 title="Add 2 or more crates to this running order from QC stock"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>+ Add Crates</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsShiftHandoverModalOpen(true)}
+                className="py-2.5 px-3 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                title="Handover packing workstation to incoming shift operator without stopping the order"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Shift Handover</span>
               </button>
 
               {activeJob.status === 'Running' ? (
@@ -1813,6 +1917,41 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* SHIFT HANDOVER MODAL */}
+      {activeJob && (
+        <ShiftHandoverModal
+          isOpen={isShiftHandoverModalOpen}
+          onClose={() => setIsShiftHandoverModalOpen(false)}
+          batch={{
+            batchId: activeJob.id,
+            stage: 'Packing',
+            machine: selectedMachine,
+            shift: activeJob.shift || shift,
+            startTime: activeJob.startTime || '',
+            status: activeJob.status === 'Held' ? 'Held' : 'Running',
+            worker: activeJob.worker || packerName,
+            user: activeJob.worker || packerName,
+            producedQty: 0,
+            meterReading: 0,
+            slices: activeJob.slices || []
+          }}
+          job={{
+            id: activeJob.id,
+            product: (activeJob.kitType as any) || '80 ML',
+            stage: 'Packing',
+            availableRolls: 0,
+            availableCuttingCrates: 0,
+            availableFormingCrates: 0,
+            availableQcCrates: 0
+          }}
+          machine={selectedMachine}
+          stageName="Packing"
+          availableWorkers={DEPT_WORKERS['Packing'] || []}
+          unitLabel="Boxes"
+          onConfirmHandover={handleConfirmShiftHandover}
+        />
       )}
     </div>
   );

@@ -27,6 +27,7 @@ interface NavigationHubProps {
   currentUser?: { username: string; perms: string[] } | null;
   onSelectView: (view: CurrentView) => void;
   onOpenRequisitionModal?: () => void;
+  onOpenManpowerModal?: () => void;
   onOpenAdmin?: () => void;
 }
 
@@ -45,6 +46,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
   currentUser,
   onSelectView,
   onOpenRequisitionModal,
+  onOpenManpowerModal,
   onOpenAdmin
 }) => {
   const username = currentUser?.username || 'admin';
@@ -186,11 +188,12 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
     },
     {
       id: 'ANALYTICS',
-      title: 'Efficiency Analytics',
-      subtitle: 'Output Trends, Scrap Economics & Shift Telemetry',
+      title: 'Machine & Operator Performance',
+      subtitle: '8-Day Machine Output, 5-Day/1-Mo/6-Mo Operator Audit & Filter Reports (मशीन व ऑपरेटर रिपोर्ट)',
       icon: <TrendingUp className="w-8 h-8 text-violet-600" />,
       perm: 'Analytics',
-      borderColor: 'border-violet-600'
+      borderColor: 'border-violet-600',
+      badge: '8-Day & Operator Audit'
     },
     {
       id: 'SEARCH',
@@ -258,9 +261,9 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
     <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🎛️</span>
+          <span className="text-xl">🏠</span>
           <h2 className="text-base font-bold text-[#1a365d] uppercase tracking-wide m-0">
-            Navigation Hub — Select Your Workstation Module
+            Home — Select Your Workstation Module
           </h2>
         </div>
         <div className="flex items-center gap-3">
@@ -344,12 +347,12 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
         )}
       </div>
 
-      {/* Quick Material Requisition Bar */}
-      {onOpenRequisitionModal && (
-        <div className="mb-5">
+      {/* Quick Action Banners: Material Requisition & Live Floor Manpower */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+        {onOpenRequisitionModal && (
           <button
             onClick={onOpenRequisitionModal}
-            className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-xl transition shadow-xs hover:shadow group cursor-pointer text-left"
+            className="flex items-center justify-between p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-xl transition shadow-xs hover:shadow group cursor-pointer text-left"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
@@ -357,10 +360,10 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
-                  <span>Material Requisition Desk (मटेरियल इंडेन्ट)</span>
+                  <span>Material Indent Desk (मटेरियल इंडेन्ट)</span>
                   {arrivedRequisitionsCount > 0 ? (
                     <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-extrabold animate-pulse">
-                      {arrivedRequisitionsCount} Arrived at Store!
+                      {arrivedRequisitionsCount} Arrived!
                     </span>
                   ) : (
                     <span className="bg-emerald-200 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold">
@@ -369,16 +372,43 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
                   )}
                 </div>
                 <div className="text-xs text-emerald-700 mt-0.5">
-                  मटेरियल / स्पेयर पार्ट डिमांड भरें और आगमन स्टेटस ट्रैक करें
+                  मटेरियल / स्पेयर पार्ट डिमांड भरें और स्टेटस ट्रैक करें
                 </div>
               </div>
             </div>
-            <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-3 py-1 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
-              Open Indent Desk &rarr;
+            <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
+              Open &rarr;
             </span>
           </button>
-        </div>
-      )}
+        )}
+
+        {onOpenManpowerModal && (
+          <button
+            onClick={onOpenManpowerModal}
+            className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200 hover:border-amber-300 rounded-xl transition shadow-xs hover:shadow group cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-600 text-white flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition text-base">
+                👷‍♂️
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>Plant Floor Manpower (लाइव ऑपरेटर व हेल्पर)</span>
+                  <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.5 rounded font-extrabold">
+                    {state?.floorWorkers ? `${state.floorWorkers.filter((w) => w.isPresent).length} On Duty` : 'Live Roster'}
+                  </span>
+                </div>
+                <div className="text-xs text-amber-800 mt-0.5">
+                  प्लांट में कुल ऑपरेटर, हेल्पर और मशीन आवंटन लाइव देखें
+                </div>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-amber-900 bg-white border border-amber-300 px-2.5 py-1 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition">
+              View Roster &rarr;
+            </span>
+          </button>
+        )}
+      </div>
 
       {/* Main Module Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3.5">

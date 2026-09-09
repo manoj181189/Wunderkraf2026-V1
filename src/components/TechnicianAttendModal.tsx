@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { FactoryState, MaintenanceIncident, SparePartItem, MachineReadyAlert, LogEntry } from '../types';
 import { DEFAULT_MAINTENANCE_TECHNICIANS, COMMON_SPARE_PARTS } from '../lib/constants';
+import { CustomSparePartModal } from './CustomSparePartModal';
 
 interface TechnicianAttendModalProps {
   isOpen: boolean;
@@ -62,10 +63,17 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
   const targetMachine = activeIncident?.machine || machineName || 'Slitting-1';
 
   // Technicians list
-  const technicianList =
+  const baseTechnicians =
     state.maintenanceTechniciansMaster && state.maintenanceTechniciansMaster.length > 0
       ? state.maintenanceTechniciansMaster
       : DEFAULT_MAINTENANCE_TECHNICIANS;
+
+  const technicianList = Array.from(
+    new Set([
+      'Manoj Kumar (Plant Head / Maintenance Manager)',
+      ...baseTechnicians
+    ])
+  );
 
   // Form states for Attend
   const [selectedTech, setSelectedTech] = useState<string>(technicianList[0] || 'Ramesh Sharma (Head Mech)');
@@ -75,11 +83,15 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
   // Form states for Finish / Complete Repair
   const [actionTaken, setActionTaken] = useState('');
   const [sparesList, setSparesList] = useState<SparePartItem[]>([]);
+  const [sparesOptions, setSparesOptions] = useState<string[]>(COMMON_SPARE_PARTS);
   const [newPartName, setNewPartName] = useState(COMMON_SPARE_PARTS[0] || 'Band Heater Element 1500W');
   const [newPartQty, setNewPartQty] = useState('1');
   const [newPartUnit, setNewPartUnit] = useState('Nos');
   const [newPartNotes, setNewPartNotes] = useState('');
   const [sendWhatsAppHandover, setSendWhatsAppHandover] = useState(true);
+  const [isCustomSpareModalOpen, setIsCustomSpareModalOpen] = useState(false);
+  const [isDirectPartInput, setIsDirectPartInput] = useState(false);
+  const [directPartNameInput, setDirectPartNameInput] = useState('');
 
   if (!isOpen) return null;
 
@@ -177,19 +189,35 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
 
   // 2. Action: Add Spare Part
   const handleAddSpare = () => {
-    if (!newPartName.trim()) return;
+    const finalPartName = isDirectPartInput ? directPartNameInput.trim() : newPartName.trim();
+    if (!finalPartName) {
+      alert('⚠️ कृपया स्पेयर पार्ट का नाम दर्ज करें!');
+      return;
+    }
     const qty = parseInt(newPartQty) || 1;
     setSparesList([
       ...sparesList,
       {
-        name: newPartName.trim(),
+        name: finalPartName,
         qty,
         unit: newPartUnit,
         notes: newPartNotes.trim()
       }
     ]);
+    if (!sparesOptions.includes(finalPartName)) {
+      setSparesOptions((prev) => [finalPartName, ...prev]);
+    }
+    setDirectPartNameInput('');
     setNewPartNotes('');
     setNewPartQty('1');
+  };
+
+  const handleAddCustomSpare = (part: SparePartItem) => {
+    setSparesList((prev) => [...prev, part]);
+    if (!sparesOptions.includes(part.name)) {
+      setSparesOptions((prev) => [part.name, ...prev]);
+    }
+    setNewPartName(part.name);
   };
 
   const handleRemoveSpare = (idx: number) => {
@@ -537,7 +565,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                       रिपेयरिंग कार्य चालू है (Under Repair)
                     </div>
                     <div className="text-sm font-black text-amber-950 mt-0.5">
-                      कार्यरत टेक्नीशियन: 👨‍🔧 {activeIncident?.technicianName || 'Technician'}
+                      👨‍🔧 यह आदमी यहां पर काम कर रहा है: <b>{activeIncident?.technicianName || activeIncident?.attendedBy || effectiveTechName}</b>
                     </div>
                     <div className="text-[11px] text-amber-800 mt-0.5 font-medium">
                       काम शुरू होने का समय:{' '}
@@ -615,23 +643,64 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
 
                 {/* Spare Parts Consumed Section */}
                 <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <label className="block text-xs font-bold text-slate-700">
-                    बदले गए स्पेयर पार्ट्स (Spare Parts Replaced):
-                  </label>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="block text-xs font-bold text-slate-700">
+                      बदले गए स्पेयर पार्ट्स (Spare Parts Replaced):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomSpareModalOpen(true)}
+                        className="text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>➕ कस्टम पार्ट पॉप-अप</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsDirectPartInput(!isDirectPartInput)}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                          isDirectPartInput
+                            ? 'bg-amber-600 text-white border-amber-700'
+                            : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        {isDirectPartInput ? '📋 लिस्ट से चुनें' : '✍️ सीधे नाम टाइप करें'}
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                     <div className="sm:col-span-6">
-                      <select
-                        value={newPartName}
-                        onChange={(e) => setNewPartName(e.target.value)}
-                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-                      >
-                        {COMMON_SPARE_PARTS.map((sp) => (
-                          <option key={sp} value={sp}>
-                            {sp}
-                          </option>
-                        ))}
-                      </select>
+                      {isDirectPartInput ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={directPartNameInput}
+                          onChange={(e) => setDirectPartNameInput(e.target.value)}
+                          placeholder="स्पेयर पार्ट का नाम टाइप करें (उदा. Brass Bush 32mm)..."
+                          className="w-full p-2 bg-white border-2 border-amber-400 rounded-lg text-xs font-bold text-slate-900 outline-none"
+                        />
+                      ) : (
+                        <select
+                          value={newPartName}
+                          onChange={(e) => {
+                            if (e.target.value === 'CUSTOM_PART_POPUP') {
+                              setIsCustomSpareModalOpen(true);
+                            } else {
+                              setNewPartName(e.target.value);
+                            }
+                          }}
+                          className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                        >
+                          <option value="CUSTOM_PART_POPUP">➕ नया कस्टम पार्ट लिखें (Type Custom Part)...</option>
+                          {sparesOptions.map((sp) => (
+                            <option key={sp} value={sp}>
+                              {sp}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
 
                     <div className="sm:col-span-2">
@@ -723,6 +792,13 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Custom Spare Part Modal */}
+      <CustomSparePartModal
+        isOpen={isCustomSpareModalOpen}
+        onClose={() => setIsCustomSpareModalOpen(false)}
+        onAddPart={handleAddCustomSpare}
+      />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Cog, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Cog, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
 import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
 import { PRODUCTS, DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobAllGsms, getJobReelsSummary } from '../../lib/utils';
@@ -204,14 +204,14 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
   const handleConfirmForwardToQC = () => {
     if (!activeBatchObj) return;
-    const qty = parseInt(forwardQtyInput, 10) || 0;
+    const qty = parseFloat(forwardQtyInput) || 0;
     if (qty <= 0) {
       alert('Please enter a valid crates quantity to forward!');
       return;
     }
 
     const { job, batch } = activeBatchObj;
-    const forwardedFormedPcs = qty * effectiveFormPcs;
+    const forwardedFormedPcs = Math.round(qty * effectiveFormPcs);
 
     // Dynamic conversion standards
     const standardCutPcs = job.pcsPerCrateCutting || state.crateCapacityMaster?.[job.product]?.cuttingPcs || 10000;
@@ -231,7 +231,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
         inputPcs: totalInputPieces,
         inputCrates,
         scrapPcs: 0,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${totalInputPieces.toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalInputPieces ?? 0).toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
       });
       return;
     }
@@ -261,7 +261,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
       stage: 'Forming Forward',
       machine: selectedMachine,
       shift: batch.shift,
-      action: `⚡ Partial Forward: ${qty} Formed Crates (= ${forwardedFormedPcs.toLocaleString()} 3D Pieces) forwarded to QC Desk (Batch #${batch.batchId})`,
+      action: `⚡ Partial Forward: ${qty} Formed Crates (= ${(forwardedFormedPcs ?? 0).toLocaleString()} 3D Pieces) forwarded to QC Desk (Batch #${batch.batchId})`,
       worker: batch.worker,
       user: 'form_user',
       rawDate: new Date().toISOString().split('T')[0],
@@ -276,7 +276,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
     setIsForwardModalOpen(false);
     setForwardQtyInput('');
-    alert(`✅ Forwarded ${qty} Formed Crates (= ${forwardedFormedPcs.toLocaleString()} 3D Pieces) to QC Inspection Desk! Machine remains RUNNING.`);
+    alert(`✅ Forwarded ${qty} Formed Crates (= ${(forwardedFormedPcs ?? 0).toLocaleString()} 3D Pieces) to QC Inspection Desk! Machine remains RUNNING.`);
   };
 
   const handleConfirmQuickUnissue = () => {
@@ -359,14 +359,17 @@ export const FormingView: React.FC<FormingViewProps> = ({
       shift: batch.shift || 'DAY',
       startTime: batch.startTime,
       handoverTime: handoverData.handoverTime,
+      startMeterReading: batch.startMeterReading || batch.meterReading,
       endMeterReading: handoverData.meterReading,
       strokeCount: handoverData.meterReading,
       producedQty: handoverData.sliceProducedQty,
-      producedPieces: handoverData.sliceProducedPieces,
+      producedPieces: handoverData.sliceProducedPieces || (handoverData.sliceProducedQty * effectiveFormPcs),
       scrapQty: handoverData.sliceScrapQty,
       notes: handoverData.handoverNotes,
       handoverConfirmed: true
     };
+
+    const producedPiecesSlice = handoverData.sliceProducedPieces || (handoverData.sliceProducedQty * effectiveFormPcs);
 
     const updatedBatches = (job.runningBatches || []).map((b) => {
       if (b.batchId === batch.batchId) {
@@ -375,13 +378,25 @@ export const FormingView: React.FC<FormingViewProps> = ({
           worker: handoverData.relievedByOperator,
           shift: handoverData.nextShift,
           meterReading: handoverData.meterReading,
+          startMeterReading: handoverData.meterReading,
+          producedQty: (b.producedQty || 0) + handoverData.sliceProducedQty,
+          producedPieces: (b.producedPieces || 0) + producedPiecesSlice,
+          scrapPcs: (b.scrapPcs || 0) + handoverData.sliceScrapQty,
           slices: [...(b.slices || []), newSlice]
         };
       }
       return b;
     });
 
-    const updatedJobs = jobs.map((j) => (j.id === job.id ? { ...j, runningBatches: updatedBatches } : j));
+    const updatedJobs = jobs.map((j) => {
+      if (j.id !== job.id) return j;
+      return {
+        ...j,
+        availableFormingCrates: (j.availableFormingCrates || 0) + handoverData.sliceProducedQty,
+        totalFormedPieces: (j.totalFormedPieces || 0) + producedPiecesSlice,
+        runningBatches: updatedBatches
+      };
+    });
 
     const handoverLog: LogEntry = {
       jobId: job.id,
@@ -402,10 +417,13 @@ export const FormingView: React.FC<FormingViewProps> = ({
       logs: [handoverLog, ...(state.logs || [])]
     });
 
+    setOutputCrates('');
+    setLoosePiecesInput('');
+    setScrapPcs('0');
     setOperatorName(handoverData.relievedByOperator);
     setShift(handoverData.nextShift as 'DAY' | 'NIGHT');
     setIsShiftHandoverModalOpen(false);
-    alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping.`);
+    alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Formed Crates locked to ${batch.worker}.`);
   };
 
   const handleResume = () => {
@@ -451,7 +469,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
   const handleFinish = () => {
     if (!activeBatchObj) return alert('Select batch to finish!');
-    const cratesDone = parseInt(outputCrates, 10) || 0;
+    const cratesDone = parseFloat(outputCrates) || 0;
     const looseDone = parseInt(loosePiecesInput, 10) || 0;
     const scrapPcsVal = parseInt(scrapPcs, 10) || 0;
 
@@ -462,7 +480,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
     const inputCrates = batch.issuedQty || 0;
     const totalInputPieces = inputCrates * standardCutPcs;
 
-    const currentOutputPieces = cratesDone * effectiveFormPcs + looseDone;
+    const currentOutputPieces = Math.round(cratesDone * effectiveFormPcs) + looseDone;
     const prevProducedPieces = batch.producedPieces || 0;
     const prevProducedCrates = batch.producedQty || 0;
     const cumulativeOutputPieces = prevProducedPieces + currentOutputPieces;
@@ -476,7 +494,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
         inputPcs: totalInputPieces,
         inputCrates,
         scrapPcs: scrapPcsVal,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${totalInputPieces.toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalInputPieces ?? 0).toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
       });
       return;
     }
@@ -489,7 +507,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
         inputPcs: totalInputPieces,
         inputCrates,
         scrapPcs: scrapPcsVal,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates + ${scrapPcsVal} defect pcs) exceeds issued input quantity (${totalInputPieces.toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates + ${scrapPcsVal} defect pcs) exceeds issued input quantity (${(totalInputPieces ?? 0).toLocaleString()} pcs across ${inputCrates} crates). Entry blocked.`
       });
       return;
     }
@@ -503,12 +521,12 @@ export const FormingView: React.FC<FormingViewProps> = ({
         inputPcs: totalInputPieces,
         inputCrates,
         scrapPcs: scrapPcsVal,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates) has ${unaccountedGap.toLocaleString()} unaccounted pieces missing from issued ${inputCrates} crates without logged scrap/rejection. Entry blocked.`
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) has ${(unaccountedGap ?? 0).toLocaleString()} unaccounted pieces missing from issued ${inputCrates} crates without logged scrap/rejection. Entry blocked.`
       });
       return;
     }
 
-    const totalFormedPcs = cratesDone * effectiveFormPcs + looseDone;
+    const totalFormedPcs = Math.round(cratesDone * effectiveFormPcs) + looseDone;
     const stopTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const updatedJobs = jobs.map((j) => {
@@ -521,15 +539,29 @@ export const FormingView: React.FC<FormingViewProps> = ({
         formingLoosePcs: (j.formingLoosePcs || 0) + looseDone,
         runningBatches: (j.runningBatches || []).map((b) => {
           if (b.batchId !== batch.batchId) return b;
+          const finalSlices = [...(b.slices || [])];
+          if (finalSlices.length > 0) {
+            finalSlices.push({
+              sliceId: `SLC-${Date.now()}-${finalSlices.length + 1}`,
+              operator: b.worker,
+              shift: b.shift,
+              producedQty: cratesDone,
+              producedPieces: totalFormedPcs,
+              scrapQty: scrapPcsVal,
+              handoverTime: stopTime,
+              notes: 'Final Run Completion'
+            });
+          }
           return {
             ...b,
             status: 'Completed',
             endTime: stopTime,
             producedQty: (b.producedQty || 0) + cratesDone,
             pcsPerCrate: effectiveFormPcs,
-            producedPieces: totalFormedPcs,
+            producedPieces: (b.producedPieces || 0) + totalFormedPcs,
             loosePieces: looseDone,
-            scrapPcs: scrapPcsVal
+            scrapPcs: scrapPcsVal,
+            slices: finalSlices
           };
         })
       };
@@ -541,7 +573,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
       stage: 'Forming',
       machine: selectedMachine,
       shift: batch.shift,
-      action: `⏹️ Finished Forming Batch ${batch.batchId} (${cratesDone} Crates = ${totalFormedPcs.toLocaleString()} 3D Pieces, Defect Pieces: ${scrapPcsVal})`,
+      action: `⏹️ Finished Forming Batch ${batch.batchId} (${cratesDone} Crates = ${(totalFormedPcs ?? 0).toLocaleString()} 3D Pieces, Defect Pieces: ${scrapPcsVal})`,
       worker: batch.worker,
       user: 'form_user',
       startTime: batch.startTime,
@@ -561,7 +593,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
     setPcsPerCrateOverride('');
     setScrapPcs('0');
     setSelectedActiveBatchId('');
-    alert(`✅ Forming Run Finished! Added ${cratesDone} Formed Crates (= ${totalFormedPcs.toLocaleString()} 3D Pieces) to inventory.`);
+    alert(`✅ Forming Run Finished! Added ${cratesDone} Formed Crates (= ${(totalFormedPcs ?? 0).toLocaleString()} 3D Pieces) to inventory.`);
   };
 
   const handleConfirmCancelRun = () => {
@@ -629,13 +661,13 @@ export const FormingView: React.FC<FormingViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* VISUAL WORKSTATION FLOOR SELECTOR (मशीन फ्लोर डैशबोर्ड कार्ड्स) */}
+      {/* VISUAL WORKSTATION FLOOR SELECTOR */}
       {/* ========================================================================= */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
           <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
             <Cog className="w-4 h-4 text-indigo-600" />
-            Select Forming Machine (मशीन चुनें):
+            Select Forming Machine:
           </label>
           <span className="text-[11px] font-bold text-slate-500">
             Click any machine card to operate its template
@@ -719,7 +751,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
                 {isUnderRepair && (
                   <div className="mb-2 p-1.5 bg-amber-100/90 border border-amber-300 rounded text-[11px] text-amber-950 font-bold">
-                    👨‍🔧 कार्यरत: {activeInc?.technicianName}
+                    👨‍🔧 Working: {activeInc?.technicianName}
                   </div>
                 )}
 
@@ -894,17 +926,17 @@ export const FormingView: React.FC<FormingViewProps> = ({
                     title="Job-level override: Change pieces per crate for this forming job"
                   />
                   <span className="text-[10px] text-amber-900 font-extrabold bg-amber-200/80 px-2 py-0.5 rounded">
-                    3D Formed Pcs (3D नंग)
+                    3D Formed Pcs
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-amber-900 bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
                 <span>
-                  📐 <b>3D Volume Expansion:</b> 1 Cut Crate ({standardCutPcs.toLocaleString()} flat) expands to ≈ <b>{expansionRatio} Formed Crates</b> ({effectiveFormPcs.toLocaleString()} 3D pcs/crate).
+                  📐 <b>3D Volume Expansion:</b> 1 Cut Crate ({(standardCutPcs ?? 0).toLocaleString()} flat) expands to ≈ <b>{expansionRatio} Formed Crates</b> ({(effectiveFormPcs ?? 0).toLocaleString()} 3D pcs/crate).
                 </span>
                 <span className="font-bold text-slate-600">
-                  Input Issued: <b>{activeBatchObj.batch.issuedQty || 0} Cut Crates</b> (≈ {((activeBatchObj.batch.issuedQty || 0) * standardCutPcs).toLocaleString()} Flat Blanks)
+                  Input Issued: <b>{activeBatchObj.batch.issuedQty || 0} Cut Crates</b> (≈ {(((activeBatchObj.batch.issuedQty || 0) * standardCutPcs) || 0).toLocaleString()} Flat Blanks)
                 </span>
               </div>
 
@@ -913,11 +945,11 @@ export const FormingView: React.FC<FormingViewProps> = ({
                 (() => {
                   const inputCrates = activeBatchObj.batch.issuedQty || 0;
                   const totalInputPieces = inputCrates * standardCutPcs;
-                  const enterCrates = parseInt(outputCrates, 10) || 0;
+                  const enterCrates = parseFloat(outputCrates) || 0;
                   const enterLoose = parseInt(loosePiecesInput, 10) || 0;
                   const enterScrap = parseInt(scrapPcs, 10) || 0;
                   const prevPcs = activeBatchObj.batch.producedPieces || 0;
-                  const currentOutPcs = enterCrates * effectiveFormPcs + enterLoose;
+                  const currentOutPcs = Math.round(enterCrates * effectiveFormPcs) + enterLoose;
                   const cumulativeOutPcs = prevPcs + currentOutPcs;
                   const isAuditExceeded = cumulativeOutPcs > totalInputPieces;
                   const isScrapExceeded = (cumulativeOutPcs + enterScrap) > totalInputPieces;
@@ -926,11 +958,11 @@ export const FormingView: React.FC<FormingViewProps> = ({
                     <div className="space-y-2">
                       <div className="bg-white/95 border border-amber-300 px-3 py-2.5 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
                         <div className="font-bold text-slate-700">
-                          Conversion Formula: <span className="text-emerald-700 font-black">{enterCrates} Crates</span> × {effectiveFormPcs.toLocaleString()} Pcs/Crate
+                          Conversion Formula: <span className="text-emerald-700 font-black">{enterCrates} Crates</span> × {(effectiveFormPcs ?? 0).toLocaleString()} Pcs/Crate
                           {enterLoose > 0 && <span> + {enterLoose} Loose</span>}
                         </div>
                         <div className="text-amber-950 font-black bg-amber-100 px-2.5 py-1 rounded-md text-xs border border-amber-300">
-                          Claimed: {cumulativeOutPcs.toLocaleString()} / Issued: {totalInputPieces.toLocaleString()} Pcs
+                          Claimed: {(cumulativeOutPcs ?? 0).toLocaleString()} / Issued: {(totalInputPieces ?? 0).toLocaleString()} Pcs
                         </div>
                       </div>
 
@@ -939,7 +971,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                         <div className="bg-rose-100 border-2 border-rose-500 text-rose-950 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between animate-pulse">
                           <span className="flex items-center gap-1.5">
                             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>🚨 AUDIT MISMATCH: Output ({cumulativeOutPcs.toLocaleString()} pcs) exceeds Input ({totalInputPieces.toLocaleString()} pcs) by {(cumulativeOutPcs - totalInputPieces).toLocaleString()} pcs!</span>
+                            <span>🚨 AUDIT MISMATCH: Output ({(cumulativeOutPcs ?? 0).toLocaleString()} pcs) exceeds Input ({(totalInputPieces ?? 0).toLocaleString()} pcs) by {(cumulativeOutPcs - totalInputPieces).toLocaleString()} pcs!</span>
                           </span>
                           <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">
                             Submission Blocked
@@ -949,7 +981,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                         <div className="bg-rose-100 border-2 border-rose-500 text-rose-950 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between">
                           <span className="flex items-center gap-1.5">
                             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>🚨 AUDIT MISMATCH: Good Pcs + Defect Pcs ({(cumulativeOutPcs + enterScrap).toLocaleString()} pcs) exceeds Input ({totalInputPieces.toLocaleString()} pcs)!</span>
+                            <span>🚨 AUDIT MISMATCH: Good Pcs + Defect Pcs ({((cumulativeOutPcs + enterScrap) || 0).toLocaleString()} pcs) exceeds Input ({(totalInputPieces ?? 0).toLocaleString()} pcs)!</span>
                           </span>
                           <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">
                             Submission Blocked
@@ -962,7 +994,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                             <span>✅ AUDIT VERIFIED: Output quantity is strictly within issued {inputCrates} Cut Crates envelope.</span>
                           </span>
                           <span className="text-[11px] text-emerald-800 font-mono">
-                            Yield: {((cumulativeOutPcs / totalInputPieces) * 100).toFixed(1)}%
+                            Yield: {((cumulativeOutPcs / (totalInputPieces || 1)) * 100).toFixed(1)}%
                           </span>
                         </div>
                       ) : null}
@@ -972,24 +1004,47 @@ export const FormingView: React.FC<FormingViewProps> = ({
               )}
             </div>
 
+            {/* Shift Handover Guidance Notice if batch was relieved */}
+            {activeBatchObj?.batch && (activeBatchObj.batch.producedQty || 0) > 0 && (
+              <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-blue-950 flex items-center gap-1.5">
+                    <RotateCcw className="w-4 h-4 text-blue-600" />
+                    <span>Active Shift Handover on this Continuous Batch</span>
+                  </span>
+                  <span className="text-[10px] font-extrabold bg-blue-600 text-white px-2 py-0.5 rounded">
+                    Prior Output Locked: {activeBatchObj.batch.producedQty} Crates
+                  </span>
+                </div>
+                <p className="text-blue-900 text-[11px] m-0 leading-relaxed">
+                  👉 <b>Enter ONLY the new crates produced in YOUR current shift below.</b> Do not add the previous {activeBatchObj.batch.producedQty} crates. The system automatically calculates total batch output: <b>{activeBatchObj.batch.producedQty} + {parseFloat(outputCrates) || 0} = {((activeBatchObj.batch.producedQty || 0) + (parseFloat(outputCrates) || 0))} Crates</b>.
+                </p>
+              </div>
+            )}
+
             {/* Output and scrap entries */}
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                    Passed Formed Crates Output (फॉर्मिंग क्रेट तैयार):
+                    Passed Formed Crates Output (Current Shift):
                   </label>
                   <input
                     type="number"
+                    step="any"
+                    min="0"
                     value={outputCrates}
                     onChange={(e) => setOutputCrates(e.target.value)}
-                    placeholder="e.g. 6 Crates"
+                    placeholder="e.g. 5 or 0.5 Crates"
                     className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
                   />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Decimals allowed (e.g. 0.5, 1.5)
+                  </span>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-amber-800 uppercase mb-1">
-                    Loose Pieces (अतिरिक्त खुले नंग):
+                    Loose Pieces:
                   </label>
                   <input
                     type="number"
@@ -1001,7 +1056,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-rose-700 uppercase mb-1">
-                    Defective Pieces (PCS) (डिफेक्ट टुकड़े):
+                    Defective Pieces (PCS):
                   </label>
                   <input
                     type="number"
@@ -1173,7 +1228,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700 uppercase">
-                Enter Cut Crates to Issue (कटिंग क्रेट्स) *:
+                Enter Cut Crates to Issue (Cut Crates) *:
               </label>
               <div className="flex items-center gap-1">
                 {[1, 2, 4, 8].map((num) => (
@@ -1220,10 +1275,10 @@ export const FormingView: React.FC<FormingViewProps> = ({
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 m-0">
               <Layers className="w-5 h-5 text-teal-600" />
-              <span>Forming Reels & Traceability Register (फॉर्मिंग रील व जॉब आईडी रजिस्टर)</span>
+              <span>Forming Reels & Traceability Register</span>
             </h3>
             <p className="text-xs text-slate-500 m-0">
-              हर जॉब आईडी में प्रयुक्त रील नंबर, जीएसएम व आगे की स्टेज की ट्रेसेबिलिटी स्थिति
+              Reel number, GSM, and forward traceability status for each forming job ID
             </p>
           </div>
           <div className="relative w-full sm:w-72">
@@ -1243,15 +1298,16 @@ export const FormingView: React.FC<FormingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
-                <th className="p-3 text-blue-900">Reel No. (रील नंबर)</th>
-                <th className="p-3 text-amber-900">GSM (जीएसएम)</th>
+                <th className="p-3 text-indigo-900">Date (तारीख)</th>
+                <th className="p-3 text-blue-900">Reel No.</th>
+                <th className="p-3 text-amber-900">GSM</th>
                 <th className="p-3">Paper Mill</th>
                 <th className="p-3">Product</th>
                 <th className="p-3">Remarks / Lot</th>
                 <th className="p-3 text-right">Formed Stock</th>
                 <th className="p-3 text-right">In / Out / Scrap</th>
                 <th className="p-3 text-center">Stage Status</th>
-                <th className="p-3 text-center">Traceability (ट्रेसेबिलिटी)</th>
+                <th className="p-3 text-center">Traceability</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1281,9 +1337,20 @@ export const FormingView: React.FC<FormingViewProps> = ({
                   const totalDefects = formBatches.reduce((sum, b) => sum + (b.scrapPcs || 0), 0);
                   const totalInCrates = formBatches.reduce((sum, b) => sum + (b.issuedQty || 0), 0);
 
+                  const latestLog = (state.logs || []).filter((l) => l.jobId === j.id).slice(-1)[0];
+                  const entryDate = latestLog?.rawDate || (j.createdAt ? j.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+                  const entryTime = latestLog?.startTime || (latestLog?.timestamp ? latestLog.timestamp.split(',')[1]?.trim() : '');
+
                   return (
                     <tr key={j.id} className="hover:bg-slate-50 transition">
                       <td className="p-2.5 font-mono font-bold text-blue-800">{j.id}</td>
+                      <td className="p-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{entryDate}</span>
+                        </div>
+                        {entryTime && <div className="text-[10px] text-slate-400 font-mono ml-4">{entryTime}</div>}
+                      </td>
                       <td className="p-2.5">
                         <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
                           {allReels.map((r, idx) => (
@@ -1359,7 +1426,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                             setGenealogyModalJob(j);
                           }}
                           className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[11px] transition shadow-xs inline-flex items-center gap-1 cursor-pointer"
-                          title="ट्रेसेबिलिटी में देखें कि यह रील/लॉट कहाँ-कहाँ पहुँची"
+                          title="View genealogy traceability for this reel and batch lot"
                         >
                           <ShieldCheck className="w-3.5 h-3.5" />
                           <span>Trace Lot</span>
@@ -1539,7 +1606,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-black text-rose-950 uppercase tracking-wide m-0">
-                  ⚠️ AUDIT MISMATCH: ENTRY BLOCKED (ऑडिट विसंगति - प्रविष्टि रोकी गई)
+                  ⚠️ AUDIT MISMATCH: ENTRY BLOCKED
                 </h3>
                 <p className="text-xs text-rose-700 font-semibold m-0">
                   Multi-Stage Strict Quantity & Crate Conversion Integrity Audit
@@ -1556,28 +1623,28 @@ export const FormingView: React.FC<FormingViewProps> = ({
             {/* Side-by-side verification comparison */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-500 uppercase">1. Issued Input (इनपुट कटिंग क्रेट्स)</div>
+                <div className="text-[11px] font-bold text-slate-500 uppercase">1. Issued Input (Cut Crates)</div>
                 <div className="text-xl font-black text-slate-800">
                   {auditMismatchError.inputCrates} Cut Crates
                 </div>
                 <div className="text-slate-600 font-semibold">
-                  @ {standardCutPcs.toLocaleString()} Flat Blanks / Crate
+                  @ {(standardCutPcs ?? 0).toLocaleString()} Flat Blanks / Crate
                 </div>
                 <div className="font-black text-blue-900 text-sm pt-1.5 border-t border-slate-200">
-                  Total Input: {auditMismatchError.inputPcs.toLocaleString()} Pcs
+                  Total Input: {(auditMismatchError.inputPcs ?? 0).toLocaleString()} Pcs
                 </div>
               </div>
 
               <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-1.5">
-                <div className="text-[11px] font-bold text-rose-600 uppercase">2. Claimed Output (आउटपुट फॉर्मिंग)</div>
+                <div className="text-[11px] font-bold text-rose-600 uppercase">2. Claimed Output (Forming)</div>
                 <div className="text-xl font-black text-rose-950">
                   {auditMismatchError.outputCrates} Formed Crates
                 </div>
                 <div className="text-rose-700 font-semibold">
-                  @ {effectiveFormPcs.toLocaleString()} 3D Pieces / Crate
+                  @ {(effectiveFormPcs ?? 0).toLocaleString()} 3D Pieces / Crate
                 </div>
                 <div className="font-black text-rose-950 text-sm pt-1.5 border-t border-rose-200">
-                  Total Claimed: {auditMismatchError.outputPcs.toLocaleString()} Pcs
+                  Total Claimed: {(auditMismatchError.outputPcs ?? 0).toLocaleString()} Pcs
                 </div>
               </div>
             </div>
@@ -1585,10 +1652,10 @@ export const FormingView: React.FC<FormingViewProps> = ({
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950 space-y-1.5">
               <div className="font-bold flex items-center gap-1.5 text-amber-900">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Dynamic Packing & Physical Conservation Rule (ऑडिट नियम):</span>
+                <span>Dynamic Packing & Physical Conservation Rule:</span>
               </div>
               <p className="m-0 leading-relaxed text-[11px]">
-                कटिंग में प्रति क्रेट <b>{standardCutPcs.toLocaleString()} ब्लैंक्स</b> होते हैं जबकि फॉर्मिंग में प्रति क्रेट <b>{effectiveFormPcs.toLocaleString()} 3D पीस</b> होते हैं। यद्यपि क्रेट की संख्या वॉल्यूम विस्तार के कारण बदलती है, परंतु <b>कुल उत्पादित पीस कभी भी इनपुट पीस से अधिक नहीं हो सकते</b>। शून्य सहिष्णुता (Zero Tolerance) के तहत फॉर्म सेव नहीं हो सकता।
+                Cutting has <b>{(standardCutPcs ?? 0).toLocaleString()} flat blanks</b> per crate while forming has <b>{(effectiveFormPcs ?? 0).toLocaleString()} 3D pieces</b> per crate. Although crate count changes due to volume expansion, <b>total output pieces can never exceed total input pieces</b>. Under Zero Tolerance policy, this entry has been blocked.
               </p>
             </div>
 
@@ -1599,7 +1666,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
                 className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Acknowledge & Correct Quantities (संख्या सही करें)</span>
+                <span>Acknowledge & Correct Quantities</span>
               </button>
             </div>
           </div>

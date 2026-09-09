@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, SearchCheck, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, PlusCircle, Users, Box, Search, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, SearchCheck, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, PlusCircle, Users, Box, Search, ShieldCheck, Calendar, Clock } from 'lucide-react';
 import { FactoryState, Job, ProductType, RunningBatch } from '../../types';
 import { PRODUCTS, DEPT_WORKERS } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobAllGsms } from '../../lib/utils';
@@ -651,6 +651,7 @@ export const QCView: React.FC<QCViewProps> = ({
               <thead className="bg-slate-100/80 text-[11px] font-black text-slate-600 uppercase border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2">Inspector (आदमी का नाम)</th>
+                  <th className="px-3 py-2">Date & Shift (तारीख व शिफ्ट)</th>
                   <th className="px-3 py-2">Job & Product</th>
                   <th className="px-3 py-2">Current in Hand (हाथ में क्रेट्स)</th>
                   <th className="px-3 py-2">Approved / Forwarded</th>
@@ -663,6 +664,15 @@ export const QCView: React.FC<QCViewProps> = ({
                     <td className="px-3 py-2 font-black text-blue-950 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                       {batch.worker}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-700">
+                      <div className="flex items-center gap-1 font-bold text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{batch.startTime?.includes(':') ? new Date().toISOString().split('T')[0] : (batch.startTime || new Date().toISOString().split('T')[0])}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-semibold">
+                        Shift: <b className="text-slate-800">{batch.shift || shift}</b>
+                      </div>
                     </td>
                     <td className="px-3 py-2 font-bold text-slate-700">
                       {job.id} — <span className="text-slate-500">{job.product}</span>
@@ -1081,6 +1091,7 @@ export const QCView: React.FC<QCViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
+                <th className="p-3 text-indigo-900">Date (तारीख)</th>
                 <th className="p-3 text-blue-900">Reel No. (रील नंबर)</th>
                 <th className="p-3 text-amber-900">GSM (जीएसएम)</th>
                 <th className="p-3">Paper Mill</th>
@@ -1141,9 +1152,20 @@ export const QCView: React.FC<QCViewProps> = ({
                     );
                   }
 
+                  const latestLog = (state.logs || []).filter((l) => l.jobId === j.id).slice(-1)[0];
+                  const entryDate = latestLog?.rawDate || (j.createdAt ? j.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+                  const entryTime = latestLog?.startTime || (latestLog?.timestamp ? latestLog.timestamp.split(',')[1]?.trim() : '');
+
                   return (
                     <tr key={j.id} className="hover:bg-slate-50 transition">
                       <td className="p-2.5 font-mono font-bold text-blue-800">{j.id}</td>
+                      <td className="p-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{entryDate}</span>
+                        </div>
+                        {entryTime && <div className="text-[10px] text-slate-400 font-mono ml-4">{entryTime}</div>}
+                      </td>
                       <td className="p-2.5">
                         <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
                           {allReels.map((r, idx) => (

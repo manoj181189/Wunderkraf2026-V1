@@ -45,6 +45,8 @@ import {
   DEFAULT_DEPARTMENT_HEADS
 } from '../../lib/constants';
 import { LiveMaintenanceTracker } from '../LiveMaintenanceTracker';
+import { CustomSparePartModal } from '../CustomSparePartModal';
+import { AttendingTechnicianModal } from '../AttendingTechnicianModal';
 
 interface MaintenanceViewProps {
   state: FactoryState;
@@ -102,6 +104,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   const [newPartQty, setNewPartQty] = useState('1');
   const [newPartUnit, setNewPartUnit] = useState('Nos');
   const [newPartNotes, setNewPartNotes] = useState('');
+  const [availableSpareParts, setAvailableSpareParts] = useState<string[]>(COMMON_SPARE_PARTS);
+  const [isCustomPartModalOpen, setIsCustomPartModalOpen] = useState(false);
+  const [isDirectPartInput, setIsDirectPartInput] = useState(false);
+  const [directPartNameInput, setDirectPartNameInput] = useState('');
+  const [attendingModalIncident, setAttendingModalIncident] = useState<MaintenanceIncident | null>(null);
 
   // Department Heads list for cross-department coordination
   const deptHeads: MaintenanceContact[] = state.departmentHeads && state.departmentHeads.length > 0
@@ -138,6 +145,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   const [manualPriority, setManualPriority] = useState<'Normal' | 'Urgent' | 'Critical'>('Critical');
   const [manualPhone, setManualPhone] = useState(contacts[0]?.phone || '');
   const [manualAutoNotify, setManualAutoNotify] = useState<boolean>(true);
+  const [manualStartDate, setManualStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualStartTime, setManualStartTime] = useState(
+    new Date().toTimeString().slice(0, 5) // "HH:mm"
+  );
+
+  // Breakdown Stop Time inputs for repair completion & downtime difference
+  const [repairStopDate, setRepairStopDate] = useState(new Date().toISOString().split('T')[0]);
+  const [repairStopTime, setRepairStopTime] = useState(
+    new Date().toTimeString().slice(0, 5) // "HH:mm"
+  );
 
   // Calculate live downtime metrics
   const activeIncidents = incidents.filter(
@@ -177,59 +194,112 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
   // Add a spare part to the active resolution form
   const handleAddSparePart = () => {
-    if (!newPartName.trim()) return;
+    const finalPartName = isDirectPartInput ? directPartNameInput.trim() : newPartName.trim();
+    if (!finalPartName) {
+      alert('⚠️ कृपया स्पेयर पार्ट का नाम दर्ज करें!');
+      return;
+    }
     const qty = parseInt(newPartQty) || 1;
     setSparePartsList([
       ...sparePartsList,
       {
-        name: newPartName.trim(),
+        name: finalPartName,
         qty,
         unit: newPartUnit,
         notes: newPartNotes.trim()
       }
     ]);
+    if (!availableSpareParts.includes(finalPartName)) {
+      setAvailableSpareParts((prev) => [finalPartName, ...prev]);
+    }
+    setDirectPartNameInput('');
     setNewPartNotes('');
     setNewPartQty('1');
+  };
+
+  const handleAddCustomPart = (part: SparePartItem) => {
+    setSparePartsList((prev) => [...prev, part]);
+    if (!availableSpareParts.includes(part.name)) {
+      setAvailableSpareParts((prev) => [part.name, ...prev]);
+    }
+    setNewPartName(part.name);
   };
 
   const handleRemoveSparePart = (index: number) => {
     setSparePartsList(sparePartsList.filter((_, idx) => idx !== index));
   };
 
-  // Start repair / attend
+  // Start repair / attend (Opens Attend Confirmation Dialog)
   const handleStartRepair = (incident: MaintenanceIncident) => {
+    setAttendingModalIncident(incident);
+  };
+
+  // Confirm Attend: strictly records the technician/manager who is attending
+  const handleConfirmAttend = (technicianName: string, notes?: string) => {
+    if (!attendingModalIncident) return;
     const nowIso = new Date().toISOString();
-    const responseMins = Math.max(1, Math.round((Date.now() - new Date(incident.breakdownStartTime).getTime()) / 60000));
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const todayStr = new Date().toISOString().split('T')[0];
+    const responseMins = Math.max(1, Math.round((Date.now() - new Date(attendingModalIncident.breakdownStartTime).getTime()) / 60000));
 
     const updated = incidents.map((inc) => {
-      if (inc.id === incident.id) {
+      if (inc.id === attendingModalIncident.id) {
         return {
           ...inc,
           status: 'IN_PROGRESS' as const,
           repairStartTime: nowIso,
           attendingStartedAt: nowIso,
-          technicianName: repairTechName,
-          attendedBy: repairTechName,
-          responseTimeMinutes: responseMins
+          technicianName,
+          attendedBy: technicianName,
+          responseTimeMinutes: responseMins,
+          technicianRemarks: notes ? (inc.technicianRemarks ? `${inc.technicianRemarks} | ${notes}` : notes) : inc.technicianRemarks
         };
       }
       return inc;
     });
 
+    const newLog: LogEntry = {
+      jobId: attendingModalIncident.machine,
+      product: 'Maintenance',
+      stage: 'Breakdown Attended',
+      machine: attendingModalIncident.machine,
+      action: `👨‍🔧 Technician/Manager ${technicianName} started attending breakdown on ${attendingModalIncident.machine} (${attendingModalIncident.reason || 'General'}). Response: ${responseMins} mins.`,
+      user: technicianName,
+      startTime: nowTime,
+      rawDate: todayStr,
+      timestamp: new Date().toLocaleString()
+    };
+
+    setRepairTechName(technicianName);
+    setSelectedIncidentId(attendingModalIncident.id);
+
     onSaveState({
       ...state,
-      maintenanceIncidents: updated
+      maintenanceIncidents: updated,
+      logs: [newLog, ...(state.logs || [])]
     });
-    setSelectedIncidentId(incident.id);
+
+    alert(`✅ ${technicianName} ने ${attendingModalIncident.machine} पर काम शुरू कर दिया है।\nस्थिति: "यह आदमी यहां पर काम कर रहा है" सक्रिय हो गई है।`);
+    setAttendingModalIncident(null);
   };
 
-  // Complete Repair & Mark "Ready for Run / मेरी साइड से ओके है"
+  // Complete Repair & Mark "Ready for Run / Certified OK"
   const handleCompleteRepair = (incident: MaintenanceIncident, sendWhatsApp: boolean = false) => {
     const nowIso = new Date().toISOString();
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const elapsedMins = getElapsedMinutes(incident.breakdownStartTime);
-    const repairStartIso = incident.repairStartTime || incident.attendingStartedAt || nowIso;
-    const repairDurationMins = Math.max(1, Math.round((Date.now() - new Date(repairStartIso).getTime()) / 60000));
+
+    // Effective Breakdown Stop Time (user entered or current)
+    const effectiveStopIso = repairStopDate && repairStopTime
+      ? new Date(`${repairStopDate}T${repairStopTime}:00`).toISOString()
+      : nowIso;
+
+    // Calculate exact downtime difference: Breakdown Stop Time - Breakdown Start Time
+    const startMs = new Date(incident.breakdownStartTime).getTime();
+    const stopMs = new Date(effectiveStopIso).getTime();
+    const elapsedMins = Math.max(1, Math.round((stopMs - startMs) / 60000));
+
+    const repairStartIso = incident.repairStartTime || incident.attendingStartedAt || incident.breakdownStartTime;
+    const repairDurationMins = Math.max(1, Math.round((stopMs - new Date(repairStartIso).getTime()) / 60000));
 
     const partsSummary = sparePartsList.length > 0
       ? sparePartsList.map((p) => `${p.name} (Qty: ${p.qty} ${p.unit || ''})`).join(', ')
@@ -241,7 +311,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         return {
           ...inc,
           status: 'REPAIRED_READY' as const,
-          repairedAt: nowIso,
+          repairedAt: effectiveStopIso,
+          breakdownStopTime: effectiveStopIso,
           totalDowntimeMinutes: elapsedMins,
           repairDurationMinutes: repairDurationMins,
           technicianName: repairTechName,
@@ -327,7 +398,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         `📋 *Work Done:* ${actionTaken || 'Repair complete, calibrated & certified OK'}\n` +
         `🔩 *Spare Parts:* ${partsSummary}\n` +
         `⏰ *Handover Time:* ${nowTime}\n\n` +
-        `📢 *Status:* "मेरी साइड से मशीन ओके है - रेडी टू रन!" Production team can resume running.`
+        `📢 *Status:* "Ready for Run / Certified OK!" Production team can resume running.`
       );
       window.open(`https://wa.me/${cleanPhone}?text=${waText}`, '_blank');
     }
@@ -453,7 +524,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   ) => {
     const nowIso = new Date().toISOString();
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const reasonText = quickReason || (newStatus === 'Critical' ? 'Critical Emergency Breakdown (लाइन बंद)' : newStatus === 'Down' ? 'Machine Down / Emergency Stoppage' : 'Machine Restored Operational');
+    const reasonText = quickReason || (newStatus === 'Critical' ? 'Critical Emergency Breakdown (Line Stopped)' : newStatus === 'Down' ? 'Machine Down / Emergency Stoppage' : 'Machine Restored Operational');
 
     let detectedStage = 'Production';
     if (machine.startsWith('Cutting-')) detectedStage = 'Cutting';
@@ -674,6 +745,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     const nowIso = new Date().toISOString();
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    // Use custom breakdown start time if entered, or default to current
+    const effectiveStartIso = manualStartDate && manualStartTime
+      ? new Date(`${manualStartDate}T${manualStartTime}:00`).toISOString()
+      : nowIso;
+
     let detectedStage = 'Production';
     if (manualMachine.startsWith('Cutting-')) detectedStage = 'Cutting';
     else if (manualMachine.startsWith('Forming-')) detectedStage = 'Forming';
@@ -707,8 +783,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
       deptHeadsNotifiedAt: willNotify ? notifResult?.nowIso : undefined,
       notifiedHeadsList: willNotify ? notifResult?.headsListNames : undefined,
       status: 'OPEN',
-      breakdownStartTime: nowIso,
-      breakdownDate: todayStr,
+      breakdownStartTime: effectiveStartIso,
+      breakdownDate: manualStartDate || todayStr,
       whatsAppAlertSent: false
     };
 
@@ -878,7 +954,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Hub</span>
+              <span>Back to Home</span>
             </button>
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
@@ -887,7 +963,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-black text-slate-900 m-0">
-                    Maintenance Desk (मेंटेनेंस डेस्क)
+                    Maintenance Desk
                   </h1>
                   {activeIncidents.length > 0 ? (
                     <span className="bg-red-500 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full animate-pulse">
@@ -957,7 +1033,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 title="Raise Spare Parts / Material Indent to Purchase Department"
               >
                 <ClipboardList className="w-3.5 h-3.5" />
-                <span>मटेरियल / स्पेयर इंडेन्ट</span>
+                <span>Material / Spares Indent</span>
                 {maintenanceArrivedCount > 0 && (
                   <span className="bg-amber-300 text-slate-900 font-extrabold text-[10px] px-1.5 py-0.2 rounded-full">
                     {maintenanceArrivedCount} Arrived
@@ -1057,7 +1133,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               </div>
               <div>
                 <h3 className="text-xs font-black text-slate-900 m-0 flex items-center gap-1.5 flex-wrap">
-                  <span>Machine Fleet Status & Coordination (मशीन स्थिति व समन्वय)</span>
+                  <span>Machine Fleet Status & Coordination</span>
                   <span className="text-[10px] font-normal text-slate-500">
                     • Set status to 'Critical' or 'Down' to trigger instant cross-department notification
                   </span>
@@ -1168,7 +1244,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         <>
                           <button
                             type="button"
-                            onClick={() => handleQuickUpdateMachineStatus(m, 'Down', 'Machine Down (अचानक बंद)')}
+                            onClick={() => handleQuickUpdateMachineStatus(m, 'Down', 'Machine Down (Stoppage)')}
                             className="flex-1 py-1 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded cursor-pointer transition text-center"
                             title="Set to Down and auto-notify department heads"
                           >
@@ -1176,7 +1252,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleQuickUpdateMachineStatus(m, 'Critical', 'Critical Breakdown (क्रिटिकल - लाइन बंद)')}
+                            onClick={() => handleQuickUpdateMachineStatus(m, 'Critical', 'Critical Breakdown (Line Stopped)')}
                             className="flex-1 py-1 text-[10px] font-bold bg-red-100 hover:bg-red-200 text-red-900 rounded cursor-pointer transition text-center"
                             title="Set to Critical and auto-notify department heads"
                           >
@@ -1224,7 +1300,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Active Breakdowns & Repairs (चालू ब्रेकडाउन)</span>
+            <span>Active Breakdowns & Repairs</span>
             {activeIncidents.length > 0 && (
               <span className="ml-1 bg-red-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
                 {activeIncidents.length}
@@ -1241,7 +1317,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Downtime & Maintenance Log (मेंटेनेंस रिकॉर्ड व लॉग)</span>
+            <span>Downtime & Maintenance Log</span>
             <span className="ml-1 bg-slate-200 text-slate-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
               {incidents.length}
             </span>
@@ -1256,7 +1332,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Manual Breakdown Entry (नया ब्रेकडाउन दर्ज करें)</span>
+            <span>Manual Breakdown Entry</span>
           </button>
 
           <button
@@ -1268,7 +1344,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             }`}
           >
             <Phone className="w-3.5 h-3.5" />
-            <span>Contacts & Spare Catalog (संपर्क व स्पेयर पार्ट्स)</span>
+            <span>Contacts & Spare Catalog</span>
           </button>
 
           <button
@@ -1280,7 +1356,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5" />
-            <span>Spares Indent Status (स्पेयर पार्ट्स इंडेन्ट)</span>
+            <span>Spares Indent Status</span>
             {maintenanceArrivedCount > 0 ? (
               <span className="ml-1 bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full animate-bounce">
                 🎉 {maintenanceArrivedCount} Arrived
@@ -1309,10 +1385,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-base font-bold text-slate-800 m-0">
-                कोई मशीन बंद नहीं है — All Machines Running!
+                All Machines Running Smoothly!
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                जब भी कोई ऑपरेटर मशीन होल्ड/स्टॉप करेगा, तो वह यहाँ लाइव टाइमर और रिपेयर ऑप्शन के साथ दिखेगी।
+                Whenever an operator holds or stops a machine, it appears here with real-time downtime tracking and resolution actions.
               </p>
               <button
                 onClick={() => setActiveTab('NEW')}
@@ -1392,8 +1468,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               }`}
                             >
                               {incident.priority === 'Critical' || incident.machineStatus === 'Critical'
-                                ? 'CRITICAL (लाइन बंद)'
-                                : 'DOWN (मशीन डाउन)'}
+                                ? 'CRITICAL (Line Stopped)'
+                                : 'DOWN (Machine Stopped)'}
                             </span>
                           </div>
 
@@ -1464,7 +1540,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleStartRepair(incident)}
-                          className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                          className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                         >
                           <Wrench className="w-4 h-4" />
                           <span>Attend / Start Repair (अटेंड करें)</span>
@@ -1472,6 +1548,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         <button
                           onClick={() => {
                             setSelectedIncidentId(incident.id);
+                            if (incident.technicianName) {
+                              setRepairTechName(incident.technicianName);
+                            }
                           }}
                           className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
                         >
@@ -1492,10 +1571,46 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           </span>
                         </div>
 
+                        {/* PROMINENT ATTENDING TECHNICIAN BANNER: यह आदमी यहां पर काम कर रहा है */}
+                        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-500 rounded-xl p-3 shadow-xs">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="relative">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                                  <User className="w-5 h-5" />
+                                </div>
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1">
+                                  <span>👨‍🔧 यह आदमी यहां पर काम कर रहा है (Active Attending):</span>
+                                </div>
+                                <div className="text-sm font-black text-slate-900">
+                                  {incident.technicianName || incident.attendedBy || repairTechName}
+                                </div>
+                                <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-2">
+                                  <span>काम शुरू: {incident.attendingStartedAt ? new Date(incident.attendingStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}</span>
+                                  {incident.attendingStartedAt && (
+                                    <span>• {Math.max(1, Math.round((Date.now() - new Date(incident.attendingStartedAt).getTime()) / 60000))} मिनट से कार्य चालू</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttendingModalIncident(incident)}
+                              className="text-xs font-bold text-emerald-900 bg-white hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1.5 rounded-lg transition shadow-2xs cursor-pointer flex items-center gap-1"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>बदलें (Change Person)</span>
+                            </button>
+                          </div>
+                        </div>
+
                         {/* Technician Name Selection */}
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                            Technician / Engineer:
+                            Technician / Engineer Assigned:
                           </label>
                           <select
                             value={repairTechName}
@@ -1515,7 +1630,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         {/* Work Done / Action Taken */}
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                            Action Taken / Work Done (क्या काम किया):
+                            Action Taken / Work Done:
                           </label>
                           <textarea
                             rows={2}
@@ -1526,16 +1641,26 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           />
                         </div>
 
-                        {/* Spare Parts Replaced (User request: "कौन से स्पेयर पार्ट किया") */}
+                        {/* Spare Parts Replaced */}
                         <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-xl space-y-2">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-1">
                             <span className="text-xs font-bold text-amber-950 flex items-center gap-1">
                               <Package className="w-3.5 h-3.5 text-amber-700" />
-                              <span>Spare Parts Replaced (स्पेयर पार्ट्स का विवरण):</span>
+                              <span>Spare Parts Replaced (स्पेयर पार्ट रिप्लेसमेंट):</span>
                             </span>
-                            <span className="text-[10px] text-amber-700 font-semibold">
-                              {sparePartsList.length} Item(s)
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setIsCustomPartModalOpen(true)}
+                                className="text-[10px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>+ नया कस्टम पार्ट लिखें</span>
+                              </button>
+                              <span className="text-[10px] text-amber-700 font-semibold">
+                                {sparePartsList.length} Item(s)
+                              </span>
+                            </div>
                           </div>
 
                           {/* List of current spares */}
@@ -1575,46 +1700,174 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                             </p>
                           )}
 
-                          {/* Add Spare Part Inputs */}
-                          <div className="pt-2 border-t border-amber-200/80 grid grid-cols-12 gap-1.5">
-                            <div className="col-span-6">
-                              <select
-                                value={newPartName}
-                                onChange={(e) => setNewPartName(e.target.value)}
-                                className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs text-slate-800 outline-none"
-                              >
-                                {COMMON_SPARE_PARTS.map((sp) => (
-                                  <option key={sp} value={sp}>
-                                    {sp}
-                                  </option>
-                                ))}
-                                <option value="Custom Part">-- Other Custom Part --</option>
-                              </select>
+                          {/* Add Spare Part Inputs & Custom Part Buttons */}
+                          <div className="pt-2 border-t border-amber-200/80 space-y-1.5">
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-bold text-amber-950">नया स्पेयर जोड़ें:</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsCustomPartModalOpen(true)}
+                                  className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                  title="नया स्पेयर पार्ट दर्ज करने के लिए पॉपअप खोलें"
+                                >
+                                  <Plus className="w-3 h-3 text-amber-700" />
+                                  <span>कस्टम पार्ट पॉप-अप</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDirectPartInput(!isDirectPartInput)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                                    isDirectPartInput
+                                      ? 'bg-amber-600 text-white border-amber-700'
+                                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {isDirectPartInput ? '📋 लिस्ट से चुनें' : '✍️ सीधे नाम टाइप करें'}
+                                </button>
+                              </div>
                             </div>
-                            <div className="col-span-3">
-                              <input
-                                type="number"
-                                min="1"
-                                value={newPartQty}
-                                onChange={(e) => setNewPartQty(e.target.value)}
-                                placeholder="Qty"
-                                className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs text-slate-800 outline-none"
-                              />
-                            </div>
-                            <div className="col-span-3">
-                              <button
-                                type="button"
-                                onClick={handleAddSparePart}
-                                className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3" />
-                                <span>Add</span>
-                              </button>
+
+                            <div className="grid grid-cols-12 gap-1.5">
+                              <div className="col-span-6">
+                                {isDirectPartInput ? (
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={directPartNameInput}
+                                    onChange={(e) => setDirectPartNameInput(e.target.value)}
+                                    placeholder="पार्ट का नाम टाइप करें..."
+                                    className="w-full px-2 py-1.5 bg-white border-2 border-amber-400 rounded text-xs font-bold text-slate-900 outline-none"
+                                  />
+                                ) : (
+                                  <select
+                                    value={newPartName}
+                                    onChange={(e) => {
+                                      if (e.target.value === 'CUSTOM_PART_POPUP') {
+                                        setIsCustomPartModalOpen(true);
+                                      } else {
+                                        setNewPartName(e.target.value);
+                                      }
+                                    }}
+                                    className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs text-slate-800 outline-none font-medium"
+                                  >
+                                    <option value="CUSTOM_PART_POPUP">➕ नया कस्टम पार्ट लिखें (Custom Part Popup)...</option>
+                                    {availableSpareParts.map((sp) => (
+                                      <option key={sp} value={sp}>
+                                        {sp}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                              <div className="col-span-3">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={newPartQty}
+                                  onChange={(e) => setNewPartQty(e.target.value)}
+                                  placeholder="Qty"
+                                  className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs text-slate-800 outline-none font-bold"
+                                />
+                              </div>
+                              <div className="col-span-3">
+                                <button
+                                  type="button"
+                                  onClick={handleAddSparePart}
+                                  className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>Add</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Handover & Ready Button (User request: "वो रेडी करके रन वो दबाएगा, उधर से मेरी साइड से ओके है") */}
+                        {/* Breakdown Start / Stop Timing & Downtime Difference */}
+                        {(() => {
+                          const startMs = new Date(incident.breakdownStartTime).getTime();
+                          const stopMs = repairStopDate && repairStopTime
+                            ? new Date(`${repairStopDate}T${repairStopTime}:00`).getTime()
+                            : Date.now();
+                          const diffMinutes = Math.max(1, Math.round((stopMs - startMs) / 60000));
+                          const formattedDiff = formatDowntime(diffMinutes);
+
+                          return (
+                            <div className="bg-slate-100/90 border border-slate-300 p-3 rounded-xl space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                  <Clock className="w-4 h-4 text-orange-600" />
+                                  <span>Breakdown Timing & Duration Tracking (स्टार्ट / स्टॉप समय):</span>
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  Live Difference Calculation
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {/* Breakdown Start Time Display */}
+                                <div className="bg-white border border-slate-200 p-2 rounded-lg">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                                    Breakdown Start Time (शुरुआत का समय):
+                                  </span>
+                                  <div className="text-xs font-black text-slate-900 mt-0.5">
+                                    {new Date(incident.breakdownStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    <span className="text-[10px] font-medium text-slate-500 ml-1.5">
+                                      ({incident.breakdownDate || new Date(incident.breakdownStartTime).toLocaleDateString()})
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Breakdown Stop Time Entry */}
+                                <div className="bg-white border border-slate-200 p-2 rounded-lg">
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[10px] font-bold text-emerald-800 uppercase block">
+                                      Breakdown Stop Time (समाप्ति का समय):
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRepairStopDate(new Date().toISOString().split('T')[0]);
+                                        setRepairStopTime(new Date().toTimeString().slice(0, 5));
+                                      }}
+                                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                                    >
+                                      Set Now
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <input
+                                      type="date"
+                                      value={repairStopDate}
+                                      onChange={(e) => setRepairStopDate(e.target.value)}
+                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-800 outline-none"
+                                    />
+                                    <input
+                                      type="time"
+                                      value={repairStopTime}
+                                      onChange={(e) => setRepairStopTime(e.target.value)}
+                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-800 outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Calculated Downtime Difference */}
+                              <div className="bg-orange-50 border border-orange-300 px-3 py-2 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
+                                <div className="font-bold text-orange-950 flex items-center gap-1.5">
+                                  <Clock className="w-4 h-4 text-orange-700" />
+                                  <span>Downtime Difference (दोनों समय का अंतर):</span>
+                                </div>
+                                <div className="text-orange-900 font-black text-xs bg-orange-200/90 px-2.5 py-1 rounded-md border border-orange-300">
+                                  {formattedDiff} ({diffMinutes} Minutes)
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Handover & Ready Button */}
                         <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -1622,7 +1875,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                             className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                           >
                             <CheckCircle2 className="w-4 h-4" />
-                            <span>मशीन रेडी / मेरी साइड से ओके है</span>
+                            <span>Machine Ready / Certified OK</span>
                           </button>
 
                           <button
@@ -1697,7 +1950,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             </span>
           </div>
 
-          {/* Downtime Records Table (User request: "कितने टाइम कौन सा मशीन बंद हुआ, उसके रिकॉर्ड मेंटेनेंस लॉग से मिलना चाहिए") */}
+          {/* Downtime Records Table */}
           {filteredIncidents.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs">
               No maintenance records match your filters.
@@ -1708,9 +1961,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <thead className="bg-slate-100 text-slate-800 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">Ticket / Machine</th>
-                    <th className="py-2.5 px-3">Breakdown Start</th>
-                    <th className="py-2.5 px-3">Ready / Handover</th>
-                    <th className="py-2.5 px-3">Total Downtime</th>
+                    <th className="py-2.5 px-3">Breakdown Start (स्टार्ट समय)</th>
+                    <th className="py-2.5 px-3">Breakdown Stop (स्टॉप समय)</th>
+                    <th className="py-2.5 px-3">Difference / कुल अंतर</th>
                     <th className="py-2.5 px-3">Root Cause / Issue</th>
                     <th className="py-2.5 px-3">Action Taken</th>
                     <th className="py-2.5 px-3">Spare Parts Replaced</th>
@@ -1725,8 +1978,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                       hour: '2-digit',
                       minute: '2-digit'
                     });
-                    const readyTimeFormatted = inc.repairedAt
-                      ? new Date(inc.repairedAt).toLocaleTimeString([], {
+                    const stopTimestamp = inc.breakdownStopTime || inc.repairedAt;
+                    const readyTimeFormatted = stopTimestamp
+                      ? new Date(stopTimestamp).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit'
                         })
@@ -1742,27 +1996,44 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         </td>
 
                         <td className="py-3 px-3 whitespace-nowrap">
-                          <div className="font-medium text-slate-800">{startTimeFormatted}</div>
-                          <span className="text-[10px] text-slate-500">{inc.breakdownDate}</span>
+                          <div className="font-bold text-slate-800 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{startTimeFormatted}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">{inc.breakdownDate}</span>
                         </td>
 
                         <td className="py-3 px-3 whitespace-nowrap">
-                          <div className="font-medium text-slate-800">{readyTimeFormatted}</div>
+                          {stopTimestamp ? (
+                            <div>
+                              <div className="font-bold text-emerald-800 flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{readyTimeFormatted}</span>
+                              </div>
+                              <span className="text-[10px] text-emerald-600 font-medium">
+                                {new Date(stopTimestamp).toLocaleDateString()}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 animate-pulse">
+                              🔴 Breakdown Active
+                            </span>
+                          )}
                         </td>
 
-                        {/* Downtime duration pill */}
+                        {/* Downtime duration difference pill */}
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span
-                            className={`inline-flex items-center gap-1 font-black px-2 py-0.5 rounded-md text-[11px] ${
+                            className={`inline-flex items-center gap-1 font-black px-2.5 py-1 rounded-lg text-xs ${
                               durationMins > 60
-                                ? 'bg-red-100 text-red-800 border border-red-200'
+                                ? 'bg-red-100 text-red-900 border border-red-300'
                                 : durationMins > 30
-                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                             }`}
                           >
-                            <Clock className="w-3 h-3" />
-                            <span>{formatDowntime(durationMins)}</span>
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{formatDowntime(durationMins)} ({durationMins}m)</span>
                           </span>
                         </td>
 
@@ -1845,7 +2116,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
           <div className="flex items-center gap-2 text-orange-600 mb-1">
             <ShieldAlert className="w-5 h-5" />
             <h2 className="text-base font-bold text-slate-900 m-0">
-              Log Maintenance Breakdown / Machine Stop (नया मेंटेनेंस ब्रेकडाउन)
+              Log Maintenance Breakdown / Machine Stop
             </h2>
           </div>
           <p className="text-xs text-slate-500 mb-5">
@@ -1873,7 +2144,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Machine Status (मशीन स्थिति):
+                  Machine Status:
                 </label>
                 <select
                   value={manualMachineStatus}
@@ -1884,23 +2155,23 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
                 >
-                  <option value="Critical">🔴 Critical (क्रिटिकल - लाइन बंद)</option>
-                  <option value="Down">🛑 Down (मशीन डाउन - स्टॉप)</option>
+                  <option value="Critical">🔴 Critical (Line Stopped)</option>
+                  <option value="Down">🛑 Down (Machine Stopped)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Priority (प्राथमिकता):
+                  Priority:
                 </label>
                 <select
                   value={manualPriority}
                   onChange={(e) => setManualPriority(e.target.value as any)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
                 >
-                  <option value="Critical">🔴 Critical (लाइन बंद)</option>
-                  <option value="Urgent">🟠 Urgent (अति आवश्यक)</option>
-                  <option value="Normal">🟢 Normal (साधारण)</option>
+                  <option value="Critical">🔴 Critical (Line Stopped)</option>
+                  <option value="Urgent">🟠 Urgent</option>
+                  <option value="Normal">🟢 Normal</option>
                 </select>
               </div>
             </div>
@@ -1911,7 +2182,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <BellRing className={`w-4 h-4 ${manualAutoNotify ? 'text-orange-600 animate-pulse' : 'text-slate-400'}`} />
                 <div>
                   <div className="text-xs font-bold text-slate-900">
-                    Auto-Notify All Department Heads (विभाग प्रमुखों को तत्काल अलर्ट)
+                    Auto-Notify All Department Heads
                   </div>
                   <div className="text-[11px] text-slate-600">
                     Sends emergency line stoppage broadcast to {deptHeads.length} heads (Slitting, Cutting, Forming, QC, Packing, Dispatch, Stores, Plant Head)
@@ -1949,7 +2220,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                Problem Description & Symptoms (समस्या का विवरण):
+                Problem Description & Symptoms:
               </label>
               <textarea
                 rows={3}
@@ -1961,10 +2232,46 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+              <div>
+                <label className="block text-xs font-bold text-amber-950 uppercase mb-1 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Breakdown Start Date (तारीख):</span>
+                </label>
+                <input
+                  type="date"
+                  value={manualStartDate}
+                  onChange={(e) => setManualStartDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-amber-950 uppercase flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Breakdown Start Time (समय):</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setManualStartTime(new Date().toTimeString().slice(0, 5))}
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                  >
+                    Current Time
+                  </button>
+                </div>
+                <input
+                  type="time"
+                  value={manualStartTime}
+                  onChange={(e) => setManualStartTime(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Reported By (तकनीशियन या ऑपरेटर):
+                  Reported By:
                 </label>
                 <input
                   type="text"
@@ -1995,7 +2302,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span>Submit Breakdown & Pause Machine (स्टॉप करें)</span>
+                <span>Submit Breakdown & Pause Machine</span>
               </button>
             </div>
           </form>
@@ -2011,7 +2318,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div className="flex items-center gap-2 text-slate-900">
                 <Phone className="w-5 h-5 text-amber-600" />
                 <h3 className="text-sm font-bold m-0">
-                  Maintenance Team Directory (मेंटेनेंस संपर्क)
+                  Maintenance Team Directory
                 </h3>
               </div>
               <span className="text-xs text-slate-500">Quick-dial & WhatsApp</span>
@@ -2058,7 +2365,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div className="flex items-center gap-2 text-slate-900">
                 <Package className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-sm font-bold m-0">
-                  Frequent Spare Parts Catalog (स्टॉक स्पेयर पार्ट्स)
+                  Frequent Spare Parts Catalog
                 </h3>
               </div>
               <span className="text-xs text-slate-500">Fast Auto-fill</span>
@@ -2086,7 +2393,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <BellRing className="w-5 h-5 text-orange-600" />
                 <div>
                   <h3 className="text-sm font-bold m-0 flex items-center gap-2">
-                    <span>Department Heads Coordination Matrix (विभाग प्रमुख समन्वय मैट्रिक्स)</span>
+                    <span>Department Heads Coordination Matrix</span>
                     <span className="bg-orange-100 text-orange-800 text-[10px] font-black px-2 py-0.2 rounded-full">
                       Auto-Alert Subscribed
                     </span>
@@ -2144,7 +2451,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         </div>
       )}
 
-      {/* TAB 5: SPARE PARTS & MATERIAL REQUISITION STATUS (मटेरियल इंडेन्ट ट्रैकिंग) */}
+      {/* TAB 5: SPARE PARTS & MATERIAL REQUISITION STATUS */}
       {activeTab === 'REQUISITIONS' && (
         <div className="space-y-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -2152,7 +2459,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div>
                 <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-emerald-600" />
-                  <span>Maintenance Spares & Indents (स्पेयर पार्ट मांग व स्थिति)</span>
+                  <span>Maintenance Spares & Indents</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Track material requests sent to Purchase Department and acknowledge received store deliveries
@@ -2165,7 +2472,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>नया स्पेयर इंडेन्ट भरें (New Requisition)</span>
+                  <span>New Spares Requisition</span>
                 </button>
               )}
             </div>
@@ -2177,10 +2484,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   <ClipboardList className="w-7 h-7" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 m-0">
-                  कोई मटेरियल मांग नहीं है (No Spares Requisition)
+                  No Spares Requisition Found
                 </h4>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  यदि किसी मशीन के लिए कटर ब्लेड, हीटर, बेल्ट, ऑयल या कोई अन्य सामान चाहिए तो ऊपर बटन दबाकर परचेस डिपार्टमेंट को इंडेन्ट भेजें।
+                  If cutter blades, heaters, belts, oil or spares are needed for any machine, click above to raise an indent to the Purchase Department.
                 </p>
               </div>
             ) : (
@@ -2281,7 +2588,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>स्टोर से सामान मिल गया (Confirm Receipt)</span>
+                              <span>Acknowledge Delivery (Store Received)</span>
                             </button>
                           )}
                         </div>
@@ -2339,7 +2646,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   <div>
                     <span className="text-[10px] font-bold text-slate-500 uppercase block">Status</span>
                     <span className="font-extrabold text-red-700 text-sm">
-                      {activeBroadcastAlert.status.toUpperCase()} (लाइन बंद)
+                      {activeBroadcastAlert.status.toUpperCase()} (Line Stopped)
                     </span>
                   </div>
                   <div>
@@ -2387,7 +2694,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                     }}
                     className="text-xs text-orange-600 hover:text-orange-800 font-bold underline cursor-pointer"
                   >
-                    Copy Broadcast Text (क्लिपबोर्ड में कॉपी करें)
+                    Copy Broadcast Text
                   </button>
                 </div>
 
@@ -2428,7 +2735,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   onClick={() => setActiveBroadcastAlert(null)}
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-md"
                 >
-                  Confirm & Close Alert (पुष्टि करें)
+                  Confirm & Close Alert
                 </button>
               </div>
             </div>
@@ -2467,7 +2774,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                 <div>
                   <div className="text-xs font-bold text-slate-900">
-                    Auto-Notify Status: {autoNotifyEnabled ? 'ENABLED (सक्रिय)' : 'DISABLED (बंद)'}
+                    Auto-Notify Status: {autoNotifyEnabled ? 'ENABLED' : 'DISABLED'}
                   </div>
                   <div className="text-[11px] text-slate-500">
                     All {deptHeads.length} heads receive instant notifications when machine status is Critical or Down.
@@ -2527,6 +2834,26 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Custom Spare Part Modal */}
+      <CustomSparePartModal
+        isOpen={isCustomPartModalOpen}
+        onClose={() => setIsCustomPartModalOpen(false)}
+        onAddPart={handleAddCustomPart}
+      />
+
+      {/* Attending Technician / Maintenance Manager Confirmation Modal */}
+      {attendingModalIncident && (
+        <AttendingTechnicianModal
+          isOpen={!!attendingModalIncident}
+          onClose={() => setAttendingModalIncident(null)}
+          machineName={attendingModalIncident.machine}
+          incidentId={attendingModalIncident.id}
+          reason={attendingModalIncident.reason}
+          currentAttendant={attendingModalIncident.technicianName || attendingModalIncident.attendedBy}
+          onConfirmAttend={handleConfirmAttend}
+        />
       )}
     </div>
   );

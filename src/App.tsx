@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FactoryState, CurrentView, ProductType } from './types';
 import { INITIAL_STATE, LOCAL_STORAGE_KEY, DEFAULT_USERS } from './lib/constants';
+import { initializeFactoryState, persistFactoryState } from './lib/storage';
 
 // Header & Navigation Hub
 import { Header } from './components/Header';
@@ -39,6 +40,11 @@ import { StockDetailModal } from './components/StockDetailModal';
 import { StationDetailModal } from './components/StationDetailModal';
 import { BatchReportModal } from './components/BatchReportModal';
 import { MaterialRequisitionModal } from './components/MaterialRequisitionModal';
+import { PlantManpowerModal } from './components/PlantManpowerModal';
+import {
+  generateShiftChangeoverReportText,
+  triggerWhatsAppShiftNotification
+} from './lib/whatsappReports';
 
 export const App: React.FC = () => {
   // User Authentication / Current Operator Desk — Locked without valid login
@@ -84,6 +90,27 @@ export const App: React.FC = () => {
     }
     return INITIAL_STATE;
   });
+
+  // Asynchronous IndexedDB hydration on app start to retrieve deep storage without quota limitations
+  useEffect(() => {
+    let isMounted = true;
+    initializeFactoryState()
+      .then((loadedState) => {
+        if (isMounted && loadedState) {
+          if (loadedState.users?.admin && !loadedState.users.admin.perms?.includes('*')) {
+            loadedState.users.admin.perms = ['*'];
+          }
+          setState(loadedState);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Storage] Could not initialize from IndexedDB:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Keep active user's permissions synchronized with latest state.users
   useEffect(() => {
@@ -145,20 +172,93 @@ export const App: React.FC = () => {
   const [isRequisitionModalOpen, setIsRequisitionModalOpen] = useState(false);
   const [requisitionDefaultDept, setRequisitionDefaultDept] = useState<string | undefined>(undefined);
 
+  // Plant Manpower & Helper Allocation Modal state
+  const [isManpowerModalOpen, setIsManpowerModalOpen] = useState(false);
+
   // Arrived goods notifications (requester alert: material store me aa gaya hai)
   const arrivedRequisitions = (state.materialRequisitions || []).filter(
     (r) => r.status === 'RECEIVED' && !r.acknowledgedByRequester
   );
   const arrivedCount = arrivedRequisitions.length;
 
-  // Persistence effect
+  // Shift Changeover Auto Notification State
+  const [shiftChangeoverAlert, setShiftChangeoverAlert] = useState<{
+    shift: 'DAY' | 'NIGHT';
+    text: string;
+    triggerTime: string;
+  } | null>(null);
+
+  // Background Shift Changeover Auto Check Timer (every 30 seconds)
+  useEffect(() => {
+    const checkShiftTimer = () => {
+      const waConfig = state.whatsappConfig;
+      if (!waConfig) return;
+
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMins = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMins}`;
+      const todayStr = now.toISOString().split('T')[0];
+
+      // Day Shift Check
+      const dayTarget = waConfig.dayShiftReportTime || '20:00';
+      const isDayAutoEnabled = waConfig.autoSendShiftReportDay ?? waConfig.autoSend ?? true;
+      if (isDayAutoEnabled && currentTimeStr === dayTarget && waConfig.lastSentDayDate !== todayStr) {
+        const reportText = generateShiftChangeoverReportText(state, 'DAY');
+        setShiftChangeoverAlert({
+          shift: 'DAY',
+          text: reportText,
+          triggerTime: currentTimeStr
+        });
+
+        // Trigger webhook if configured
+        if (waConfig.webhookUrl) {
+          triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+        }
+
+        // Update lastSentDayDate
+        const updatedConfig = {
+          ...waConfig,
+          lastSentDayDate: todayStr
+        };
+        handleSaveState({ ...state, whatsappConfig: updatedConfig });
+      }
+
+      // Night Shift Check
+      const nightTarget = waConfig.nightShiftReportTime || '08:00';
+      const isNightAutoEnabled = waConfig.autoSendShiftReportNight ?? waConfig.autoSend ?? true;
+      if (isNightAutoEnabled && currentTimeStr === nightTarget && waConfig.lastSentNightDate !== todayStr) {
+        const reportText = generateShiftChangeoverReportText(state, 'NIGHT');
+        setShiftChangeoverAlert({
+          shift: 'NIGHT',
+          text: reportText,
+          triggerTime: currentTimeStr
+        });
+
+        // Trigger webhook if configured
+        if (waConfig.webhookUrl) {
+          triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+        }
+
+        // Update lastSentNightDate
+        const updatedConfig = {
+          ...waConfig,
+          lastSentNightDate: todayStr
+        };
+        handleSaveState({ ...state, whatsappConfig: updatedConfig });
+      }
+    };
+
+    const intervalId = setInterval(checkShiftTimer, 30000);
+    return () => clearInterval(intervalId);
+  }, [state]);
+
+  // Persistence effect: Writes to high-capacity IndexedDB and mirrors safely with auto-pruning to localStorage
   const handleSaveState = (nextState: FactoryState) => {
     setState(nextState);
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(nextState));
-    } catch (e) {
-      console.error('Failed to persist factory state', e);
-    }
+    persistFactoryState(nextState).catch((e) => {
+      console.error('[Storage] Failed to persist factory state:', e);
+    });
   };
 
   // Login handler
@@ -302,6 +402,7 @@ export const App: React.FC = () => {
           if (!currentUser) return;
           setCurrentView('HUB');
         }}
+        onNavigateAnalytics={currentUser ? () => handleNavigate('ANALYTICS') : undefined}
         onOpenDriveModal={currentUser ? () => setIsDriveOpen(true) : undefined}
         onOpenRequisitionModal={
           currentUser
@@ -312,11 +413,54 @@ export const App: React.FC = () => {
             : undefined
         }
         onOpenPasswordModal={currentUser ? () => setIsSelfPasswordOpen(true) : undefined}
+        onOpenManpowerModal={currentUser ? () => setIsManpowerModalOpen(true) : undefined}
         onLogout={currentUser ? handleLogout : undefined}
         onSwitchUser={currentUser ? handleLogout : undefined}
         arrivedCount={currentUser ? arrivedCount : 0}
         onOpenAdmin={currentUser ? () => handleNavigate('ADMIN') : undefined}
       />
+
+      {/* Shift Changeover WhatsApp Auto Notification Alert Banner */}
+      {shiftChangeoverAlert && (
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-[#1a365d] text-white px-4 py-3 shadow-lg flex items-center justify-between flex-wrap gap-3 text-xs border-b border-indigo-400 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">
+              {shiftChangeoverAlert.shift === 'DAY' ? '☀️' : '🌙'}
+            </span>
+            <div>
+              <div className="font-extrabold flex items-center gap-2">
+                <span>{shiftChangeoverAlert.shift} Shift Changeover Time Reached ({shiftChangeoverAlert.triggerTime})!</span>
+                <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded">
+                  All Machine & Operator Reports Ready
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-200 m-0">
+                Daily machine breakdown, operator names, crates output and WIP stock compiled for WhatsApp dispatch.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                triggerWhatsAppShiftNotification(
+                  state.whatsappConfig?.phone || '',
+                  shiftChangeoverAlert.text,
+                  state.whatsappConfig?.webhookUrl
+                );
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3.5 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>📱 Send Shift WhatsApp Now</span>
+            </button>
+            <button
+              onClick={() => setShiftChangeoverAlert(null)}
+              className="bg-indigo-950/80 hover:bg-indigo-950 text-indigo-200 px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer"
+            >
+              ✕ Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Real-time Material Arrival Announcement Strip (मटेरियल फैक्ट्री स्टोर में आ गया) - Only for logged-in operators */}
       {currentUser && arrivedCount > 0 && (
@@ -369,6 +513,7 @@ export const App: React.FC = () => {
                   setRequisitionDefaultDept(undefined);
                   setIsRequisitionModalOpen(true);
                 }}
+                onOpenManpowerModal={() => setIsManpowerModalOpen(true)}
                 onOpenAdmin={() => handleNavigate('ADMIN')}
               />
             )}
@@ -378,6 +523,8 @@ export const App: React.FC = () => {
             state={state}
             onBackToHub={() => setCurrentView('HUB')}
             onOpenStationModal={(m) => setStationDetailMachine(m)}
+            onNavigateAnalytics={() => handleNavigate('ANALYTICS')}
+            onSaveState={handleSaveState}
           />
         )}
 
@@ -469,6 +616,7 @@ export const App: React.FC = () => {
             onOpenStockDetailModal={(title, product, stageKey) =>
               setStockDetailParams({ title, product, stageKey })
             }
+            onSaveState={handleSaveState}
           />
         )}
 
@@ -700,6 +848,14 @@ export const App: React.FC = () => {
               setIsRequisitionModalOpen(false);
               setCurrentView('PURCHASE');
             }}
+          />
+
+          {/* Plant Floor Live Manpower & Helper Allocation Modal */}
+          <PlantManpowerModal
+            isOpen={isManpowerModalOpen}
+            onClose={() => setIsManpowerModalOpen(false)}
+            state={state}
+            onSaveState={handleSaveState}
           />
         </>
       )}

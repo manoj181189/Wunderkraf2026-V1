@@ -14,8 +14,8 @@ const app = express();
 const PORT = 3000;
 
 // Body parser
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '150mb' }));
+app.use(express.urlencoded({ extended: true, limit: '150mb' }));
 
 // Lazy Google GenAI initialization
 let aiClient: GoogleGenAI | null = null;

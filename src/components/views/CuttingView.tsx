@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Scissors, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Scissors, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
 import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
 import { PRODUCTS, DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobReelsSummary, getJobReelItemsBreakdown, getJobAllGsms } from '../../lib/utils';
@@ -15,6 +15,14 @@ interface CuttingViewProps {
   onOpenAttendModal?: (machineName: string) => void;
   onNavigateToTraceability?: (query: string) => void;
 }
+
+const DEFAULT_PCS_PER_KG_MAP: Record<string, number> = {
+  Spoon: 500,
+  Fork: 520,
+  Knife: 480,
+  'Dessert Spoon': 550,
+  Tea: 600
+};
 
 export const CuttingView: React.FC<CuttingViewProps> = ({
   state,
@@ -38,8 +46,14 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   const [loosePiecesInput, setLoosePiecesInput] = useState('0');
   const [pcsPerCrateOverride, setPcsPerCrateOverride] = useState<string>('');
   const [scrapKg, setScrapKg] = useState('0');
+  const [pcsPerKgInput, setPcsPerKgInput] = useState<string>('');
+  const [rejectedPcsInput, setRejectedPcsInput] = useState<string>('');
   const [selectedActiveBatchId, setSelectedActiveBatchId] = useState('');
   const [tableSearch, setTableSearch] = useState('');
+
+  // Assigned Helpers for Cutting Station
+  const [assignedHelpers, setAssignedHelpers] = useState<string[]>(['SUNIL_HELPER', 'DINESH_HELPER']);
+  const [newHelperInput, setNewHelperInput] = useState('');
 
   // Dialog states for Quick Actions (Replacing window.prompt)
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
@@ -91,6 +105,46 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
   const standardCutPcs = activeBatchObj?.job.pcsPerCrateCutting || (activeBatchObj ? state.crateCapacityMaster?.[activeBatchObj.job.product]?.cuttingPcs : 10000) || 10000;
   const effectiveCutPcs = pcsPerCrateOverride !== '' ? (parseInt(pcsPerCrateOverride, 10) || standardCutPcs) : standardCutPcs;
+
+  const defaultPcsPerKg = activeBatchObj?.job.cuttingPcsPerKg || activeBatchObj?.batch.pcsPerKg || DEFAULT_PCS_PER_KG_MAP[activeBatchObj?.job.product || ''] || 500;
+  const effectivePcsPerKg = pcsPerKgInput !== '' ? (parseFloat(pcsPerKgInput) || defaultPcsPerKg) : defaultPcsPerKg;
+
+  const handleScrapKgChange = (val: string) => {
+    setScrapKg(val);
+    const kg = parseFloat(val) || 0;
+    if (kg > 0 && effectivePcsPerKg > 0) {
+      setRejectedPcsInput(String(Math.round(kg * effectivePcsPerKg)));
+    } else if (val === '' || kg === 0) {
+      setRejectedPcsInput('0');
+    }
+  };
+
+  const handleRejectedPcsChange = (val: string) => {
+    setRejectedPcsInput(val);
+    const pcs = parseInt(val, 10) || 0;
+    if (pcs > 0 && effectivePcsPerKg > 0) {
+      setScrapKg((pcs / effectivePcsPerKg).toFixed(2));
+    } else if (val === '' || pcs === 0) {
+      setScrapKg('0');
+    }
+  };
+
+  const handlePcsPerKgChange = (val: string) => {
+    setPcsPerKgInput(val);
+    const rate = parseFloat(val) || defaultPcsPerKg;
+    const kg = parseFloat(scrapKg) || 0;
+    if (kg > 0 && rate > 0) {
+      setRejectedPcsInput(String(Math.round(kg * rate)));
+    }
+  };
+
+  // Live output numbers: Crates (in pcs) + Loose Pieces (-) Scrap/Rejected Pieces = Net Main Counter Output
+  const liveCratesDone = parseFloat(outputCrates) || 0;
+  const liveLooseDone = parseInt(loosePiecesInput, 10) || 0;
+  const liveScrapKgVal = parseFloat(scrapKg) || 0;
+  const liveRejectedPcsVal = rejectedPcsInput !== '' ? (parseInt(rejectedPcsInput, 10) || 0) : Math.round(liveScrapKgVal * effectivePcsPerKg);
+  const liveGrossCutPcs = Math.round(liveCratesDone * effectiveCutPcs) + liveLooseDone;
+  const liveNetCutPcs = Math.max(0, liveGrossCutPcs - liveRejectedPcsVal);
 
   const handleStartRun = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +222,8 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
         issuedQty: rollsCount,
         producedQty: 0,
         worker: operatorName.trim().toUpperCase(),
+        helpers: assignedHelpers,
+        helperCount: assignedHelpers.length,
         user: 'cut_user'
       };
 
@@ -212,25 +268,24 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
   const handleConfirmForwardPartial = () => {
     if (!activeBatchObj) return;
-    const qty = parseInt(forwardQtyInput, 10) || 0;
+    const qty = parseFloat(forwardQtyInput) || 0;
     if (qty <= 0) {
       alert('Please enter a valid quantity of cut crates to forward!');
       return;
     }
 
     const { job, batch } = activeBatchObj;
-    const forwardedPcs = qty * effectiveCutPcs;
+    const forwardedPcs = Math.round(qty * effectiveCutPcs);
     const inputRolls = batch.issuedQty || 0;
 
-    // Physical yield conservation check: each slit roll produces max ~12,000 to 14,000 blanks.
-    // Cap at 15,000 pieces per roll.
-    const maxPcsPerRoll = 15000;
+    // Physical yield conservation check: configurable from Admin settings
+    const maxPcsPerRoll = state.maxPiecesPerSlitRoll || 30000;
     const totalMaxTheoreticalInputPieces = (inputRolls > 0 ? inputRolls : 1) * maxPcsPerRoll;
     const prevProducedPieces = batch.producedPieces || 0;
     const cumulativeOutputPieces = prevProducedPieces + forwardedPcs;
     const cumulativeOutputCrates = (batch.producedQty || 0) + qty;
 
-    if (inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
+    if (state.strictAuditRollYield && inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
       const estimatedInputCratesEquivalent = Math.ceil(totalMaxTheoreticalInputPieces / effectiveCutPcs);
       setAuditMismatchError({
         outputPcs: cumulativeOutputPieces,
@@ -238,7 +293,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
         inputPcs: totalMaxTheoreticalInputPieces,
         inputCrates: estimatedInputCratesEquivalent,
         scrapPcs: 0,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${totalMaxTheoreticalInputPieces.toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalMaxTheoreticalInputPieces ?? 0).toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
       });
       return;
     }
@@ -350,14 +405,22 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     relievedByOperator: string;
     nextShift: 'DAY' | 'NIGHT' | string;
     handoverTime: string;
-    meterReading: number;
+    meterReading?: number;
     sliceProducedQty: number;
     sliceProducedPieces?: number;
+    sliceLoosePieces?: number;
     sliceScrapQty: number;
-    handoverNotes: string;
+    helpers?: string[];
+    handoverNotes?: string;
   }) => {
     if (!activeBatchObj) return;
     const { job, batch } = activeBatchObj;
+
+    const producedPiecesSlice =
+      handoverData.sliceProducedPieces ||
+      (Math.round(handoverData.sliceProducedQty * effectiveCutPcs) + (handoverData.sliceLoosePieces || 0));
+
+    const nextHelpers = handoverData.helpers && handoverData.helpers.length > 0 ? handoverData.helpers : assignedHelpers;
 
     const newSlice: OperatorRunSlice = {
       sliceId: `SLICE-CUT-${Date.now()}`,
@@ -366,12 +429,17 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       shift: batch.shift || 'DAY',
       startTime: batch.startTime,
       handoverTime: handoverData.handoverTime,
+      startMeterReading: batch.startMeterReading || batch.meterReading,
       endMeterReading: handoverData.meterReading,
       strokeCount: handoverData.meterReading,
       producedQty: handoverData.sliceProducedQty,
-      producedPieces: handoverData.sliceProducedPieces,
+      loosePieces: handoverData.sliceLoosePieces || 0,
+      producedPieces: producedPiecesSlice,
       scrapQty: handoverData.sliceScrapQty,
-      notes: handoverData.handoverNotes,
+      scrapKg: handoverData.sliceScrapQty,
+      notes: handoverData.handoverNotes || '',
+      helpers: batch.helpers || assignedHelpers,
+      helperCount: (batch.helpers || assignedHelpers)?.length || 0,
       handoverConfirmed: true
     };
 
@@ -382,13 +450,41 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           worker: handoverData.relievedByOperator,
           shift: handoverData.nextShift,
           meterReading: handoverData.meterReading,
+          startMeterReading: handoverData.meterReading,
+          producedQty: (b.producedQty || 0) + handoverData.sliceProducedQty,
+          producedPieces: (b.producedPieces || 0) + producedPiecesSlice,
+          scrapKg: (b.scrapKg || 0) + handoverData.sliceScrapQty,
+          loosePieces: 0, // Reset for incoming operator
+          helpers: nextHelpers,
+          helperCount: nextHelpers.length,
           slices: [...(b.slices || []), newSlice]
         };
       }
       return b;
     });
 
-    const updatedJobs = jobs.map((j) => (j.id === job.id ? { ...j, runningBatches: updatedBatches } : j));
+    const updatedJobs = jobs.map((j) => {
+      if (j.id !== job.id) return j;
+      return {
+        ...j,
+        availableCuttingCrates: (j.availableCuttingCrates || 0) + handoverData.sliceProducedQty,
+        totalCutPieces: (j.totalCutPieces || 0) + producedPiecesSlice,
+        runningBatches: updatedBatches
+      };
+    });
+
+    // Update Floor Workers roster if present
+    const updatedFloorWorkers = (state.floorWorkers || []).map((w) => {
+      if (w.assignedMachine === selectedMachine && w.role === 'OPERATOR') {
+        return {
+          ...w,
+          name: handoverData.relievedByOperator,
+          shift: handoverData.nextShift as 'DAY' | 'NIGHT',
+          isPresent: true
+        };
+      }
+      return w;
+    });
 
     const handoverLog: LogEntry = {
       jobId: job.id,
@@ -396,7 +492,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       stage: 'Cutting',
       machine: selectedMachine,
       shift: handoverData.nextShift,
-      action: `🔄 Shift Handover: Operator [${batch.worker}] handed over active run [${batch.batchId}] to [${handoverData.relievedByOperator}] (${handoverData.nextShift}). Locked slice: ${handoverData.sliceProducedQty} Cut Crates, ${handoverData.sliceScrapQty}kg Scrap, Meter: ${handoverData.meterReading || 'N/A'}.`,
+      action: `🔄 Shift Handover: Operator [${batch.worker}] handed over active run [${batch.batchId}] to [${handoverData.relievedByOperator}] (${handoverData.nextShift})${nextHelpers.length ? ` with ${nextHelpers.length} Helpers (${nextHelpers.join(', ')})` : ''}. Locked slice: ${handoverData.sliceProducedQty} Cut Crates, ${handoverData.sliceLoosePieces || 0} Loose Pcs, ${handoverData.sliceScrapQty}kg Scrap, Meter: ${handoverData.meterReading || 'N/A'}.`,
       worker: handoverData.relievedByOperator,
       user: 'cut_supervisor',
       rawDate: new Date().toISOString().split('T')[0],
@@ -406,13 +502,27 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     onSaveState({
       ...state,
       jobs: updatedJobs,
+      floorWorkers: updatedFloorWorkers.length > 0 ? updatedFloorWorkers : state.floorWorkers,
       logs: [handoverLog, ...(state.logs || [])]
     });
 
+    setOutputCrates('');
+    setLoosePiecesInput('0');
+    setScrapKg('0');
     setOperatorName(handoverData.relievedByOperator);
     setShift(handoverData.nextShift as 'DAY' | 'NIGHT');
+    setAssignedHelpers(nextHelpers);
     setIsShiftHandoverModalOpen(false);
-    alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping.`);
+
+    alert(
+      `✅ कटिंग शिफ्ट हैंडओवर सफलतापूर्वक संपन्न!\n\n` +
+      `निवर्तमान ऑपरेटर [${batch.worker}] के नाम सुरक्षित रिकॉर्ड:\n` +
+      `• पूर्ण क्रेट्स: ${handoverData.sliceProducedQty} Crates\n` +
+      `• लूज पीस: ${handoverData.sliceLoosePieces || 0} Pcs\n` +
+      `• कुल तैयार ब्लैंक्स: ${producedPiecesSlice.toLocaleString()} Pieces\n` +
+      `• रिजेक्शन स्क्रैप: ${handoverData.sliceScrapQty} KG\n\n` +
+      `मशीन [${selectedMachine}] का चालू कार्यभार ऑपरेटर ${handoverData.relievedByOperator} (${handoverData.nextShift} Shift)${nextHelpers.length > 0 ? ` + ${nextHelpers.length} Helpers (${nextHelpers.join(', ')})` : ''} को बिना काम रोके सौंप दिया गया है।`
+    );
   };
 
   const handleResume = () => {
@@ -458,9 +568,10 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
   const handleFinish = () => {
     if (!activeBatchObj) return alert('Select batch to finish!');
-    const cratesDone = parseInt(outputCrates, 10) || 0;
+    const cratesDone = parseFloat(outputCrates) || 0;
     const looseDone = parseInt(loosePiecesInput, 10) || 0;
     const scrapKgVal = parseFloat(scrapKg) || 0;
+    const rejectedPcsVal = rejectedPcsInput !== '' ? (parseInt(rejectedPcsInput, 10) || 0) : Math.round(scrapKgVal * effectivePcsPerKg);
 
     if (cratesDone <= 0 && looseDone <= 0) {
       alert('Please enter a valid output quantity of crates or pieces before finishing!');
@@ -468,26 +579,28 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     }
 
     const { job, batch } = activeBatchObj;
-    const totalCutPcs = cratesDone * effectiveCutPcs + looseDone;
+    // Main Counter Formula: Passed Crates + Loose Pieces (-) Scrap/Rejected Pieces = Net Main Counter Pieces
+    const grossCutPcs = Math.round(cratesDone * effectiveCutPcs) + looseDone;
+    const totalCutPcs = Math.max(0, grossCutPcs - rejectedPcsVal);
     const inputRolls = batch.issuedQty || 0;
 
-    // Physical yield conservation check
-    const maxPcsPerRoll = 15000;
+    // Physical yield conservation check: configurable from Admin settings
+    const maxPcsPerRoll = state.maxPiecesPerSlitRoll || 30000;
     const totalMaxTheoreticalInputPieces = (inputRolls > 0 ? inputRolls : 1) * maxPcsPerRoll;
     const prevProducedPieces = batch.producedPieces || 0;
     const prevProducedCrates = batch.producedQty || 0;
     const cumulativeOutputPieces = prevProducedPieces + totalCutPcs;
     const cumulativeOutputCrates = prevProducedCrates + cratesDone;
 
-    if (inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
+    if (state.strictAuditRollYield && inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
       const estimatedInputCratesEquivalent = Math.ceil(totalMaxTheoreticalInputPieces / effectiveCutPcs);
       setAuditMismatchError({
         outputPcs: cumulativeOutputPieces,
         outputCrates: cumulativeOutputCrates,
         inputPcs: totalMaxTheoreticalInputPieces,
         inputCrates: estimatedInputCratesEquivalent,
-        scrapPcs: 0,
-        details: `Audit Mismatch: Output quantity (${cumulativeOutputPieces.toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${totalMaxTheoreticalInputPieces.toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
+        scrapPcs: rejectedPcsVal,
+        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalMaxTheoreticalInputPieces ?? 0).toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
       });
       return;
     }
@@ -502,17 +615,41 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
         availableCuttingCrates: (j.availableCuttingCrates || 0) + cratesDone,
         totalCutPieces: (j.totalCutPieces || 0) + totalCutPcs,
         cuttingLoosePcs: (j.cuttingLoosePcs || 0) + looseDone,
+        cuttingScrapKg: (j.cuttingScrapKg || 0) + scrapKgVal,
+        cuttingScrapPcs: (j.cuttingScrapPcs || 0) + rejectedPcsVal,
+        cuttingPcsPerKg: effectivePcsPerKg,
         runningBatches: (j.runningBatches || []).map((b) => {
           if (b.batchId !== batch.batchId) return b;
+          const finalSlices = [...(b.slices || [])];
+          if (finalSlices.length > 0) {
+            finalSlices.push({
+              sliceId: `SLC-${Date.now()}-${finalSlices.length + 1}`,
+              operator: b.worker,
+              shift: b.shift,
+              producedQty: cratesDone,
+              producedPieces: totalCutPcs,
+              grossPieces: grossCutPcs,
+              scrapQty: scrapKgVal,
+              scrapPcs: rejectedPcsVal,
+              pcsPerKg: effectivePcsPerKg,
+              handoverTime: stopTime,
+              notes: 'Final Run Completion'
+            });
+          }
           return {
             ...b,
             status: 'Completed',
             endTime: stopTime,
             producedQty: (b.producedQty || 0) + cratesDone,
             pcsPerCrate: effectiveCutPcs,
-            producedPieces: totalCutPcs,
+            producedPieces: (b.producedPieces || 0) + totalCutPcs,
+            grossPieces: (b.grossPieces || 0) + grossCutPcs,
             loosePieces: looseDone,
-            scrapKg: scrapKgVal
+            scrapKg: (b.scrapKg || 0) + scrapKgVal,
+            scrapPcs: (b.scrapPcs || 0) + rejectedPcsVal,
+            rejectedPieces: (b.rejectedPieces || 0) + rejectedPcsVal,
+            pcsPerKg: effectivePcsPerKg,
+            slices: finalSlices
           };
         })
       };
@@ -524,7 +661,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       stage: 'Cutting',
       machine: selectedMachine,
       shift: batch.shift,
-      action: `⏹️ Finished Cutting Batch ${batch.batchId} (${cratesDone} Crates = ${totalCutPcs.toLocaleString()} Flat Blanks, Scrap: ${scrapKgVal} KG)`,
+      action: `⏹️ Finished Cutting Batch ${batch.batchId} (${cratesDone} Crates + ${looseDone} Loose = ${grossCutPcs.toLocaleString()} Gross - ${rejectedPcsVal.toLocaleString()} Scrap/Rejection [${scrapKgVal} KG @ ${effectivePcsPerKg} Pcs/KG] = ${totalCutPcs.toLocaleString()} Net Main Counter Flat Blanks)`,
       worker: batch.worker,
       user: 'cut_user',
       startTime: batch.startTime,
@@ -543,8 +680,10 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     setLoosePiecesInput('0');
     setPcsPerCrateOverride('');
     setScrapKg('0');
+    setRejectedPcsInput('');
+    setPcsPerKgInput('');
     setSelectedActiveBatchId('');
-    alert(`✅ Cutting Run Finished! Added ${cratesDone} Cut Crates (= ${totalCutPcs.toLocaleString()} Flat Blanks) to inventory.`);
+    alert(`✅ Cutting Run Finished!\nMain Counter: ${totalCutPcs.toLocaleString()} Net Flat Blanks (${cratesDone} Crates + ${looseDone} Loose - ${rejectedPcsVal.toLocaleString()} Rejected Pcs). Added to inventory.`);
   };
 
   const handleConfirmCancelRun = () => {
@@ -612,13 +751,13 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* VISUAL WORKSTATION FLOOR SELECTOR (मशीन फ्लोर डैशबोर्ड कार्ड्स) */}
+      {/* VISUAL WORKSTATION FLOOR SELECTOR */}
       {/* ========================================================================= */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
           <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
             <Scissors className="w-4 h-4 text-blue-600" />
-            Select Cutting Machine (मशीन चुनें):
+            Select Cutting Machine:
           </label>
           <span className="text-[11px] font-bold text-slate-500">
             Click any machine card to operate its template
@@ -702,7 +841,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
                 {isUnderRepair && (
                   <div className="mb-2 p-1.5 bg-amber-100/90 border border-amber-300 rounded text-[11px] text-amber-950 font-bold">
-                    👨‍🔧 कार्यरत: {activeInc?.technicianName}
+                    👨‍🔧 Working: {activeInc?.technicianName}
                   </div>
                 )}
 
@@ -829,6 +968,15 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Operator:</span>
                   <b>{activeBatchObj.batch.worker}</b> ({activeBatchObj.batch.shift || 'DAY'})
+                  <div className="mt-1">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-50 text-amber-950 border border-amber-300 px-1.5 py-0.5 rounded">
+                      🤝 {activeBatchObj.batch.helpers && activeBatchObj.batch.helpers.length > 0
+                        ? `${activeBatchObj.batch.helpers.length} Helpers (${activeBatchObj.batch.helpers.join(', ')})`
+                        : assignedHelpers.length > 0
+                        ? `${assignedHelpers.length} Helpers (${assignedHelpers.join(', ')})`
+                        : '2 Helpers (Sunil, Dinesh)'}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Start Time:</span>
@@ -898,63 +1046,172 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                     title="Job-level override: Change pieces per crate for this cutting job"
                   />
                   <span className="text-[10px] text-amber-900 font-extrabold bg-amber-200/80 px-2 py-0.5 rounded">
-                    Flat Blanks (सपाट नंग)
+                    Flat Blanks
                   </span>
                 </div>
               </div>
 
               {/* Live pieces calculation preview */}
-              {outputCrates && parseInt(outputCrates, 10) > 0 && (
+              {outputCrates && (parseFloat(outputCrates) || 0) > 0 && (
                 <div className="bg-white/95 border border-amber-300 px-3 py-2 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
                   <div className="font-bold text-slate-700">
-                    Calculated Total: <span className="text-emerald-700 font-black">{outputCrates} Crates</span> × {effectiveCutPcs.toLocaleString()} Pcs
+                    Current Shift Output: <span className="text-emerald-700 font-black">{outputCrates} Crates</span> × {(effectiveCutPcs ?? 0).toLocaleString()} Pcs
                     {parseInt(loosePiecesInput, 10) > 0 && <span> + {loosePiecesInput} Loose</span>}
                   </div>
                   <div className="text-amber-950 font-black bg-amber-100 px-2.5 py-1 rounded-md text-xs border border-amber-300">
-                    = {((parseInt(outputCrates, 10) || 0) * effectiveCutPcs + (parseInt(loosePiecesInput, 10) || 0)).toLocaleString()} Flat Blanks (कुल नंग)
+                    = {(Math.round((parseFloat(outputCrates) || 0) * effectiveCutPcs) + (parseInt(loosePiecesInput, 10) || 0)).toLocaleString()} Flat Blanks
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Shift Handover Guidance Notice if batch was relieved */}
+            {activeBatchObj?.batch && (activeBatchObj.batch.producedQty || 0) > 0 && (
+              <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-blue-950 flex items-center gap-1.5">
+                    <RotateCcw className="w-4 h-4 text-blue-600" />
+                    <span>Active Shift Handover on this Continuous Batch</span>
+                  </span>
+                  <span className="text-[10px] font-extrabold bg-blue-600 text-white px-2 py-0.5 rounded">
+                    Prior Output Locked: {activeBatchObj.batch.producedQty} Crates
+                  </span>
+                </div>
+                <p className="text-blue-900 text-[11px] m-0 leading-relaxed">
+                  👉 <b>Enter ONLY the new crates produced in YOUR current shift below.</b> Do not add the previous {activeBatchObj.batch.producedQty} crates. The system automatically calculates total batch output: <b>{activeBatchObj.batch.producedQty} + {parseFloat(outputCrates) || 0} = {((activeBatchObj.batch.producedQty || 0) + (parseFloat(outputCrates) || 0))} Crates</b>.
+                </p>
+              </div>
+            )}
+
             {/* Output and scrap entries */}
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <Scissors className="w-4 h-4 text-emerald-600" />
+                  <span>Output Reporting & Scrap/Rejection Counter Deduction (उत्पादन एवं स्क्रैप कटौती):</span>
+                </span>
+                <span className="text-[10px] font-bold text-slate-500">
+                  Main Counter Auto-Calculation
+                </span>
+              </div>
+
+              {/* Row 1: Production Additions (मेन काउंटर में प्लस होने वाली क्वांटिटी) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-200">
                 <div>
-                  <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                    Passed Cut Crates Output (कटिंग क्रेट तैयार):
+                  <label className="block text-xs font-bold text-emerald-900 uppercase mb-1 flex items-center gap-1">
+                    <Box className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Passed Cut Crates Output (Current Shift):</span>
                   </label>
                   <input
                     type="number"
+                    step="any"
+                    min="0"
                     value={outputCrates}
                     onChange={(e) => setOutputCrates(e.target.value)}
-                    placeholder="e.g. 6 Crates"
-                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                    placeholder="e.g. 5 or 0.5 Crates"
+                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
                   />
+                  <span className="text-[10px] text-emerald-700 mt-0.5 block font-medium">
+                    {liveCratesDone > 0 ? `= ${(Math.round(liveCratesDone * effectiveCutPcs)).toLocaleString()} Pcs (@ ${effectiveCutPcs.toLocaleString()} pcs/crate)` : 'Decimals allowed (e.g. 0.5, 1.5)'}
+                  </span>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-amber-800 uppercase mb-1">
-                    Loose Pieces (अतिरिक्त खुले नंग):
+                  <label className="block text-xs font-bold text-amber-900 uppercase mb-1 flex items-center gap-1">
+                    <span>+ Loose Pieces (लूज़ पीस - मेन काउंटर में प्लस होगा):</span>
                   </label>
                   <input
                     type="number"
                     value={loosePiecesInput}
                     onChange={(e) => setLoosePiecesInput(e.target.value)}
                     placeholder="0"
-                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
                   />
+                  <span className="text-[10px] text-amber-700 mt-0.5 block font-medium">
+                    Main counter me crate pieces ke sath PLUS (+) hoga
+                  </span>
                 </div>
+              </div>
+
+              {/* Row 2: Rejection / Scrap Deductions (माइनस होने वाला स्क्रैप/रिजेक्शन) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-200">
                 <div>
-                  <label className="block text-xs font-bold text-rose-700 uppercase mb-1">
-                    Edge Scrap (KG) (किनारी स्क्रैप):
+                  <label className="block text-xs font-bold text-rose-900 uppercase mb-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Edge Scrap / Rejection (KG):</span>
                   </label>
                   <input
                     type="number"
+                    step="any"
+                    min="0"
                     value={scrapKg}
-                    onChange={(e) => setScrapKg(e.target.value)}
-                    placeholder="e.g. 12"
-                    className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                    onChange={(e) => handleScrapKgChange(e.target.value)}
+                    placeholder="e.g. 2.5"
+                    className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-rose-500"
                   />
+                  <span className="text-[10px] text-rose-600 mt-0.5 block font-medium">
+                    Scrap weight in KG
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase mb-1 flex items-center justify-between">
+                    <span>Rate (Pcs / KG) [दर]:</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Default: {defaultPcsPerKg}</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={pcsPerKgInput}
+                    onChange={(e) => handlePcsPerKgChange(e.target.value)}
+                    placeholder={String(defaultPcsPerKg)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-slate-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block font-medium">
+                    1 KG में कितने पीस हैं ({activeBatchObj.job.product})
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-rose-900 uppercase mb-1 flex items-center gap-1">
+                    <span>- Rejected Pieces (रिजेक्ट पीस - माइनस होगा):</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={rejectedPcsInput}
+                    onChange={(e) => handleRejectedPcsChange(e.target.value)}
+                    placeholder={String(liveRejectedPcsVal)}
+                    className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-black text-rose-700 outline-none focus:border-rose-500"
+                  />
+                  <span className="text-[10px] text-rose-700 mt-0.5 block font-medium">
+                    Main counter se MINUS (-) hoga ({liveScrapKgVal} KG × {effectivePcsPerKg})
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 3: Live Main Counter Summary Breakdown */}
+              <div className="bg-slate-900 text-white p-3 rounded-xl space-y-2">
+                <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center justify-between">
+                  <span>Main Counter Live Calculation (मेन काउंटर लाइव हिसाब):</span>
+                  <span className="text-amber-400 font-mono text-[10px]">Crates + Loose - Scrap</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                  <span className="bg-emerald-900/80 text-emerald-300 px-2 py-1 rounded border border-emerald-700">
+                    Crates: {(Math.round(liveCratesDone * effectiveCutPcs)).toLocaleString()} Pcs
+                  </span>
+                  <span>+</span>
+                  <span className="bg-amber-900/80 text-amber-300 px-2 py-1 rounded border border-amber-700">
+                    Loose: {liveLooseDone.toLocaleString()} Pcs
+                  </span>
+                  <span>-</span>
+                  <span className="bg-rose-900/80 text-rose-300 px-2 py-1 rounded border border-rose-700">
+                    Scrap/Rejected: {liveRejectedPcsVal.toLocaleString()} Pcs
+                  </span>
+                  <span>=</span>
+                  <span className="bg-emerald-500 text-slate-950 font-black text-sm px-3 py-1 rounded shadow-md ml-auto">
+                    Main Counter: {liveNetCutPcs.toLocaleString()} Flat Blanks
+                  </span>
                 </div>
               </div>
 
@@ -1087,6 +1344,72 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             </div>
           </div>
 
+          {/* Helper Assignment for this Operator */}
+          <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-black text-amber-950 flex items-center gap-1.5 uppercase">
+                <span>🤝 ऑपरेटर के साथ नियुक्त हेल्पर (Assigned Helpers):</span>
+                <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                  {assignedHelpers.length} Helpers
+                </span>
+              </span>
+              <span className="text-[11px] text-amber-800 font-medium">
+                (उदा. ऑपरेटर + 2 हेल्पर साइड में दिखाई देंगे)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {assignedHelpers.map((h, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 bg-white border border-amber-300 text-amber-950 font-bold text-xs px-2.5 py-1 rounded-lg shadow-2xs"
+                >
+                  <span>Helper {idx + 1}: {h}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAssignedHelpers(assignedHelpers.filter((_, i) => i !== idx))}
+                    className="text-slate-400 hover:text-rose-600 transition cursor-pointer font-black"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={newHelperInput}
+                  onChange={(e) => setNewHelperInput(e.target.value)}
+                  placeholder="+ नया हेल्पर नाम..."
+                  className="px-2 py-1 bg-white border border-amber-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none w-36"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const val = newHelperInput.trim().toUpperCase();
+                      if (val && !assignedHelpers.includes(val)) {
+                        setAssignedHelpers([...assignedHelpers, val]);
+                        setNewHelperInput('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = newHelperInput.trim().toUpperCase();
+                    if (val && !assignedHelpers.includes(val)) {
+                      setAssignedHelpers([...assignedHelpers, val]);
+                      setNewHelperInput('');
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition cursor-pointer"
+                >
+                  + जोड़ें
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
               Select Slit Rolls Job from Queue:
@@ -1194,7 +1517,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700 uppercase">
-                Enter Slit Rolls to Issue (रोल संख्या) *:
+                Enter Slit Rolls to Issue (Roll Count) *:
               </label>
               <div className="flex items-center gap-1">
                 {[1, 2, 4, 6].map((num) => (
@@ -1241,10 +1564,10 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 m-0">
               <Layers className="w-5 h-5 text-teal-600" />
-              <span>Cutting Reels & Traceability Register (कटिंग रील व जॉब आईडी रजिस्टर)</span>
+              <span>Cutting Reels & Traceability Register</span>
             </h3>
             <p className="text-xs text-slate-500 m-0">
-              हर जॉब आईडी में प्रयुक्त रील नंबर, जीएसएम व आगे की स्टेज की ट्रेसेबिलिटी स्थिति
+              Reel number, GSM, and forward traceability status for each cutting job ID
             </p>
           </div>
           <div className="relative w-full sm:w-72">
@@ -1264,15 +1587,16 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
-                <th className="p-3 text-blue-900">Reel No. (रील नंबर)</th>
-                <th className="p-3 text-amber-900">GSM (जीएसएम)</th>
+                <th className="p-3 text-indigo-900">Date (तारीख)</th>
+                <th className="p-3 text-blue-900">Reel No.</th>
+                <th className="p-3 text-amber-900">GSM</th>
                 <th className="p-3">Paper Mill</th>
                 <th className="p-3">Product</th>
                 <th className="p-3">Remarks / Lot</th>
                 <th className="p-3 text-right">Cut Stock</th>
                 <th className="p-3 text-right">In / Out / Scrap (KG)</th>
                 <th className="p-3 text-center">Stage Status</th>
-                <th className="p-3 text-center">Traceability (ट्रेसेबिलिटी)</th>
+                <th className="p-3 text-center">Traceability</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1303,9 +1627,20 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   const totalInRolls = cutBatches.reduce((sum, b) => sum + (b.issuedQty || 0), 0);
                   const inKgEst = totalInRolls > 0 ? (totalInRolls * 12) : ((j.inputWeightKg || 200));
 
+                  const latestLog = (state.logs || []).filter((l) => l.jobId === j.id).slice(-1)[0];
+                  const entryDate = latestLog?.rawDate || (j.createdAt ? j.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+                  const entryTime = latestLog?.startTime || (latestLog?.timestamp ? latestLog.timestamp.split(',')[1]?.trim() : '');
+
                   return (
                     <tr key={j.id} className="hover:bg-slate-50 transition">
                       <td className="p-2.5 font-mono font-bold text-blue-800">{j.id}</td>
+                      <td className="p-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{entryDate}</span>
+                        </div>
+                        {entryTime && <div className="text-[10px] text-slate-400 font-mono ml-4">{entryTime}</div>}
+                      </td>
                       <td className="p-2.5">
                         <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
                           {allReels.map((r, idx) => (
@@ -1345,7 +1680,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                       <td className="p-2.5 text-right font-extrabold text-emerald-700">
                         {j.availableCuttingCrates || 0} Crates
                         <div className="text-[10px] text-emerald-600 font-semibold">
-                          ({totalCutPieces.toLocaleString()} Blanks)
+                          ({(totalCutPieces ?? 0).toLocaleString()} Blanks)
                         </div>
                       </td>
                       <td className="p-2.5 text-right font-mono text-xs">
@@ -1381,7 +1716,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                             setGenealogyModalJob(j);
                           }}
                           className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[11px] transition shadow-xs inline-flex items-center gap-1 cursor-pointer"
-                          title="ट्रेसेबिलिटी में देखें कि यह रील/लॉट कहाँ-कहाँ पहुँची"
+                          title="View genealogy traceability for this reel and batch lot"
                         >
                           <ShieldCheck className="w-3.5 h-3.5" />
                           <span>Trace Lot</span>
@@ -1432,7 +1767,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 <div className="mt-2 text-xs font-bold text-purple-900 bg-purple-100/70 p-2 rounded-lg border border-purple-200 flex items-center justify-between">
                   <span>Equates to Flat Pieces:</span>
                   <span className="font-black text-purple-950">
-                    {(parseInt(forwardQtyInput, 10) * effectiveCutPcs).toLocaleString()} Flat Blanks
+                    {((parseInt(forwardQtyInput, 10) || 0) * (effectiveCutPcs || 10000)).toLocaleString()} Flat Blanks
                   </span>
                 </div>
               )}
@@ -1559,7 +1894,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-black text-rose-950 uppercase tracking-wide m-0">
-                  ⚠️ AUDIT MISMATCH: ENTRY BLOCKED (ऑडिट विसंगति - प्रविष्टि रोकी गई)
+                  ⚠️ AUDIT MISMATCH: ENTRY BLOCKED
                 </h3>
                 <p className="text-xs text-rose-700 font-semibold m-0">
                   Multi-Stage Strict Quantity & Crate Conversion Integrity Audit
@@ -1576,7 +1911,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             {/* Side-by-side verification comparison */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-500 uppercase">1. Issued Input (इनपुट स्लिट रोल्स)</div>
+                <div className="text-[11px] font-bold text-slate-500 uppercase">1. Issued Input (Slit Rolls)</div>
                 <div className="text-xl font-black text-slate-800">
                   {activeBatchObj?.batch.issuedQty || 0} Slit Rolls
                 </div>
@@ -1584,20 +1919,20 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   Equiv: ~{auditMismatchError.inputCrates} Cut Crates max
                 </div>
                 <div className="font-black text-blue-900 text-sm pt-1.5 border-t border-slate-200">
-                  Max Yield: {auditMismatchError.inputPcs.toLocaleString()} Blanks
+                  Max Yield: {(auditMismatchError.inputPcs ?? 0).toLocaleString()} Blanks
                 </div>
               </div>
 
               <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-1.5">
-                <div className="text-[11px] font-bold text-rose-600 uppercase">2. Claimed Output (आउटपुट कटिंग)</div>
+                <div className="text-[11px] font-bold text-rose-600 uppercase">2. Claimed Output (Cutting)</div>
                 <div className="text-xl font-black text-rose-950">
                   {auditMismatchError.outputCrates} Cut Crates
                 </div>
                 <div className="text-rose-700 font-semibold">
-                  @ {effectiveCutPcs.toLocaleString()} Flat Blanks / Crate
+                  @ {(effectiveCutPcs ?? 0).toLocaleString()} Flat Blanks / Crate
                 </div>
                 <div className="font-black text-rose-950 text-sm pt-1.5 border-t border-rose-200">
-                  Total Claimed: {auditMismatchError.outputPcs.toLocaleString()} Blanks
+                  Total Claimed: {(auditMismatchError.outputPcs ?? 0).toLocaleString()} Blanks
                 </div>
               </div>
             </div>
@@ -1608,7 +1943,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 <span>Conservation of Paper & Zero Tolerance Audit Rule:</span>
               </div>
               <p className="m-0 leading-relaxed text-[11px]">
-                उत्पादित कटिंग ब्लैंक्स की कुल संख्या जारी किए गए स्लिट रोल्स की अधिकतम भौतिक क्षमता से अधिक नहीं हो सकती। शून्य सहिष्णुता (Zero Tolerance) के तहत प्रविष्टि अस्वीकार कर दी गई है।
+                The total number of cut blanks produced cannot exceed the maximum physical capacity of the issued slit rolls. Under Zero Tolerance policy, this entry has been blocked.
               </p>
             </div>
 
@@ -1619,7 +1954,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Acknowledge & Correct Quantities (संख्या सही करें)</span>
+                <span>Acknowledge & Correct Quantities</span>
               </button>
             </div>
           </div>
@@ -1644,8 +1979,24 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           machine={selectedMachine}
           stageName="Cutting"
           availableWorkers={cutWorkers}
+          availableHelpers={
+            state.floorWorkers?.filter((w) => w.department === 'Cutting' && w.role === 'HELPER').map((w) => w.name) || [
+              'SUNIL_HELPER',
+              'DINESH_HELPER',
+              'MUKESH_HELPER',
+              'RAMU_HELPER'
+            ]
+          }
           unitLabel="Cut Crates"
           piecesPerUnit={effectiveCutPcs}
+          initialProducedQty={parseFloat(outputCrates) || undefined}
+          initialLoosePieces={parseInt(loosePiecesInput, 10) || undefined}
+          initialScrapQty={parseFloat(scrapKg) || undefined}
+          initialHelpers={
+            activeBatchObj.batch.helpers && activeBatchObj.batch.helpers.length > 0
+              ? activeBatchObj.batch.helpers
+              : assignedHelpers
+          }
           onConfirmHandover={handleConfirmShiftHandover}
         />
       )}

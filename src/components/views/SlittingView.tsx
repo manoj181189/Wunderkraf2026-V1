@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw, Play, Pause, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Play, Pause, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
 import { FactoryState, Job, JobReelItem, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
 import { PRODUCTS, PAPER_BRANDS, DEPT_WORKERS, PRODUCT_PREFIX_MAP } from '../../lib/constants';
 import {
@@ -91,6 +91,9 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   const activeBatchObj =
     activeBatches.find((item) => item.batch?.batchId === selectedActiveBatchId) || activeBatches[0];
 
+  // Single Active Job restriction: Only 1 job can be 'Running' on Slitting-1 at any time
+  const currentRunningBatch = activeBatches.find((item) => item.batch.status === 'Running');
+
   const handleStartNewReel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!operatorName.trim()) {
@@ -98,9 +101,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       return;
     }
 
-    const runningCount = activeBatches.filter((b) => b.batch.status === 'Running').length;
-    if (runningCount >= 2) {
-      alert('⚠️ Maximum 2 concurrent slitting reels can run at once. Finish or hold one first.');
+    // Strict Single Active Job Constraint
+    if (currentRunningBatch) {
+      alert(
+        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर पहले से जॉब [${currentRunningBatch.job.id}] (रील: ${currentRunningBatch.batch.reelNo || currentRunningBatch.job.reelNo}) रनिंग स्थिति में है!\n\nएक मशीन पर एक समय में केवल एक ही एक्टिव जॉब चल सकता है। जब तक वर्तमान जॉब को 'Hold' या 'Complete' नहीं किया जाता, तब तक उसी मशीन पर कोई भी नया जॉब स्टार्ट (Run) नहीं होना चाहिए।\n\n👉 अगर इसी जॉब में अतिरिक्त रील जोड़नी है, तो 'Add Reel to Running Job' विकल्प का उपयोग करें (बिना जॉब रोके/होल्ड किए)।`
+      );
       return;
     }
 
@@ -232,6 +237,14 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       return;
     }
 
+    // If a job is currently running on Slitting-1, operator can only add reel to THAT running job!
+    if (currentRunningBatch && currentRunningBatch.job.id !== targetJob.id) {
+      alert(
+        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर अभी जॉब [${currentRunningBatch.job.id}] रनिंग है! आप केवल इसी एक्टिव जॉब [${currentRunningBatch.job.id}] में अतिरिक्त रील Add-on कर सकते हैं।\n\nकिसी अन्य जॉब [${targetJob.id}] को रन करने के लिए पहले वर्तमान जॉब को 'Hold' या 'Complete' करें!`
+      );
+      return;
+    }
+
     const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -339,6 +352,17 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     const { job, batch } = activeBatchObj;
     if (batch.status === 'Running') return alert('This job is already running on Slitting-1.');
 
+    // Single active job constraint: cannot resume if another job is currently Running on Slitting-1
+    const otherRunning = activeBatches.find(
+      (b) => b.batch.status === 'Running' && b.job.id !== job.id
+    );
+    if (otherRunning) {
+      alert(
+        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर पहले से जॉब [${otherRunning.job.id}] (रील: ${otherRunning.batch.reelNo || otherRunning.job.reelNo}) रनिंग स्थिति में है!\n\nएक समय में केवल एक ही जॉब रन हो सकता है। कृपया पहले जॉब [${otherRunning.job.id}] को Hold या Finish करें!`
+      );
+      return;
+    }
+
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const updatedJobs = jobs.map((j) => {
@@ -395,6 +419,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       shift: batch.shift || 'DAY',
       startTime: batch.startTime,
       handoverTime: handoverData.handoverTime,
+      startMeterReading: batch.startMeterReading || batch.meterReading,
       endMeterReading: handoverData.meterReading,
       strokeCount: handoverData.meterReading,
       producedQty: handoverData.sliceProducedQty,
@@ -410,13 +435,23 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           worker: handoverData.relievedByOperator,
           shift: handoverData.nextShift,
           meterReading: handoverData.meterReading,
+          startMeterReading: handoverData.meterReading,
+          producedQty: (b.producedQty || 0) + handoverData.sliceProducedQty,
+          scrapKg: (b.scrapKg || 0) + handoverData.sliceScrapQty,
           slices: [...(b.slices || []), newSlice]
         };
       }
       return b;
     });
 
-    const updatedJobs = jobs.map((j) => (j.id === job.id ? { ...j, runningBatches: updatedBatches } : j));
+    const updatedJobs = jobs.map((j) => {
+      if (j.id !== job.id) return j;
+      return {
+        ...j,
+        availableRolls: (j.availableRolls || 0) + handoverData.sliceProducedQty,
+        runningBatches: updatedBatches
+      };
+    });
 
     const handoverLog: LogEntry = {
       jobId: job.id,
@@ -437,10 +472,13 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       logs: [handoverLog, ...(state.logs || [])]
     });
 
+    setOutputRolls('');
+    setOutputWeightKg('');
+    setScrapKgInput('');
     setOperatorName(handoverData.relievedByOperator);
     setShift(handoverData.nextShift as 'DAY' | 'NIGHT');
     setIsShiftHandoverModalOpen(false);
-    alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping.`);
+    alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Slit Rolls locked to ${batch.worker}.`);
   };
 
   const handleCompleteSlitting = () => {
@@ -912,6 +950,52 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
 
       {/* Start New Slitting Reel Form */}
       <form onSubmit={handleStartNewReel} className="space-y-4">
+        {currentRunningBatch && (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-3.5 space-y-2 text-xs text-amber-950">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span className="font-extrabold uppercase tracking-wide text-amber-900">
+                  🔒 Single Active Job Policy (सिंगल एक्टिव जॉब प्रतिबंध):
+                </span>
+                <span className="bg-amber-200 text-amber-900 font-mono font-black px-2 py-0.5 rounded">
+                  Job {currentRunningBatch.job.id} ({currentRunningBatch.job.product})
+                </span>
+              </div>
+              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                Active Reel: {currentRunningBatch.batch.reelNo || currentRunningBatch.job.reelNo}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-900 m-0 leading-relaxed font-medium">
+              मशीन <b>Slitting-1</b> पर वर्तमान में जॉब <b>[{currentRunningBatch.job.id}]</b> एक्टिव रनिंग है। एक समय में केवल एक ही जॉब रन हो सकता है। नया जॉब शुरू करने से पहले वर्तमान जॉब को 'Hold' या 'Complete' करें, अथवा <b>बिना जॉब रोके</b> इसी एक्टिव जॉब में नया रील Add-on करें:
+            </p>
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddReelJobId(currentRunningBatch.job.id);
+                  setIsAddReelModalOpen(true);
+                }}
+                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>➕ Add-on Reel to Running Job [{currentRunningBatch.job.id}]</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenHoldModal('Slitting-1')}
+                className="py-1.5 px-3 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+              >
+                <Pause className="w-3.5 h-3.5" />
+                <span>Put Active Job on Hold</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-1">
           Start New Jumbo Reel Slitting:
         </h4>
@@ -1052,12 +1136,12 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
               onChange={(e) => setGsm(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
             >
-              <option value="240 GSM">240 GSM (Standard Cutlery)</option>
-              <option value="280 GSM">280 GSM (Heavy Export Grade)</option>
-              <option value="300 GSM">300 GSM (Reinforced Edge)</option>
-              <option value="320 GSM">320 GSM (High Tensile)</option>
-              <option value="350 GSM">350 GSM (Heavy Rigidity)</option>
-              <option value="400 GSM">400 GSM (Special Heavy)</option>
+              <option value="120 GSM">120 GSM (Standard Cutlery)</option>
+              <option value="60 GSM">60 GSM (Heavy Export Grade)</option>
+              <option value="115 GSM">115 GSM (Reinforced Edge)</option>
+              <option value="125 GSM">125 GSM (High Tensile)</option>
+              <option value="150 GSM">150 GSM (Heavy Rigidity)</option>
+              <option value="90 GSM">90 GSM (Special Heavy)</option>
               <option value="Custom">Custom GSM...</option>
             </select>
             {gsm === 'Custom' && (
@@ -1088,18 +1172,45 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 py-3 bg-[#2b6cb0] hover:bg-[#1a365d] text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            disabled={!!currentRunningBatch}
+            className={`flex-1 py-3 font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 ${
+              currentRunningBatch
+                ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
+                : 'bg-[#2b6cb0] hover:bg-[#1a365d] text-white cursor-pointer'
+            }`}
+            title={
+              currentRunningBatch
+                ? `मशीन Slitting-1 पर जॉब [${currentRunningBatch.job.id}] रनिंग है। एक समय में केवल एक जॉब रन हो सकता है।`
+                : 'Start Slitting (Auto-Generate Job ID)'
+            }
           >
-            <Play className="w-4 h-4 fill-white" />
-            <span>Start Slitting (Auto-Generate Job ID)</span>
+            <Play className={`w-4 h-4 ${currentRunningBatch ? 'fill-slate-400' : 'fill-white'}`} />
+            <span>
+              {currentRunningBatch
+                ? `🔒 Locked: Job [${currentRunningBatch.job.id}] Already Running`
+                : 'Start Slitting (Auto-Generate Job ID)'}
+            </span>
           </button>
           <button
             type="button"
-            onClick={() => setIsAddReelModalOpen(true)}
-            className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+            onClick={() => {
+              if (currentRunningBatch) {
+                setAddReelJobId(currentRunningBatch.job.id);
+              }
+              setIsAddReelModalOpen(true);
+            }}
+            className={`px-4 py-3 font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+              currentRunningBatch
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add to Existing Job</span>
+            <span>
+              {currentRunningBatch
+                ? `Add-on Reel to Running Job [${currentRunningBatch.job.id}]`
+                : 'Add to Existing Job'}
+            </span>
           </button>
         </div>
       </form>
@@ -1133,6 +1244,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-2.5">Job ID</th>
+                <th className="p-2.5 text-indigo-900">Date (तारीख)</th>
                 <th className="p-2.5 text-blue-900">Reel No. (रील नंबर)</th>
                 <th className="p-2.5 text-amber-900">GSM (जीएसएम)</th>
                 <th className="p-2.5">Paper Mill</th>
@@ -1170,9 +1282,21 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                   const outKg = j.outputWeightKg || 0;
                   const scrapKg = j.scrapKg || 0;
                   const scrapPct = j.scrapPercent || (inKg > 0 && scrapKg > 0 ? Number(((scrapKg / inKg) * 100).toFixed(1)) : 0);
+
+                  const latestLog = (state.logs || []).filter((l) => l.jobId === j.id).slice(-1)[0];
+                  const entryDate = latestLog?.rawDate || (j.createdAt ? j.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+                  const entryTime = latestLog?.startTime || (latestLog?.timestamp ? latestLog.timestamp.split(',')[1]?.trim() : '');
+
                   return (
                     <tr key={j.id} className="hover:bg-slate-50 transition">
                       <td className="p-2.5 font-mono font-bold text-blue-800">{j.id}</td>
+                      <td className="p-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{entryDate}</span>
+                        </div>
+                        {entryTime && <div className="text-[10px] text-slate-400 font-mono ml-4">{entryTime}</div>}
+                      </td>
                       <td className="p-2.5">
                         <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
                           {allReels.map((r, idx) => (
@@ -1267,19 +1391,36 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Job ID:</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700 uppercase">Select Job ID:</label>
+                {currentRunningBatch && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                    🟢 Active Running Job: {currentRunningBatch.job.id}
+                  </span>
+                )}
+              </div>
               <select
                 value={addReelJobId}
                 onChange={(e) => setAddReelJobId(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
               >
                 <option value="">-- SELECT JOB ID --</option>
-                {jobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.id} - {j.product} [{j.paperBrand || 'ITC'}] {getJobAllReels(j).length > 0 ? `(Reels: ${getJobAllReels(j).join(', ')})` : ''}
-                  </option>
-                ))}
+                {jobs.map((j) => {
+                  const isRunningNow = currentRunningBatch?.job.id === j.id;
+                  return (
+                    <option key={j.id} value={j.id}>
+                      {isRunningNow ? '⭐ [ACTIVE RUNNING] ' : ''}
+                      {j.id} - {j.product} [{j.paperBrand || 'ITC'}]{' '}
+                      {getJobAllReels(j).length > 0 ? `(Reels: ${getJobAllReels(j).join(', ')})` : ''}
+                    </option>
+                  );
+                })}
               </select>
+              {currentRunningBatch && addReelJobId && addReelJobId !== currentRunningBatch.job.id && (
+                <div className="mt-1.5 p-2 bg-amber-50 border border-amber-300 rounded text-[11px] text-amber-900 font-semibold">
+                  ⚠️ <b>सिंगल एक्टिव जॉब सूचना:</b> मशीन Slitting-1 पर अभी जॉब <b>{currentRunningBatch.job.id}</b> रनिंग स्थिति में है। जब तक वह Hold या Complete नहीं होता, तब तक केवल उसी एक्टिव जॉब <b>{currentRunningBatch.job.id}</b> में नई रील/एंट्री ऐड-ऑन की जा सकती है।
+                </div>
+              )}
               {addReelJobId && (() => {
                 const selectedJob = jobs.find((j) => j.id === addReelJobId);
                 if (!selectedJob) return null;

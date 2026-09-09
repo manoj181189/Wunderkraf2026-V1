@@ -95,18 +95,25 @@ export interface ProductCrateCapacity {
 export interface OperatorRunSlice {
   sliceId: string;
   operator: string;
-  relievedByOperator: string;
+  relievedByOperator?: string;
   shift: 'DAY' | 'NIGHT' | string;
-  startTime: string;
+  startTime?: string;
   handoverTime: string;
   startMeterReading?: number;
   endMeterReading?: number;
   strokeCount?: number;
   producedQty: number; // Crates / Rolls / Units produced during this operator's slice
+  loosePieces?: number; // Loose flat blanks / pieces produced during slice
   producedPieces?: number;
+  grossPieces?: number;
   scrapQty: number; // Scrap produced during this slice (kg or pcs)
+  scrapKg?: number;
+  scrapPcs?: number;
+  pcsPerKg?: number;
   notes?: string;
-  handoverConfirmed: boolean;
+  handoverConfirmed?: boolean;
+  helpers?: string[];
+  helperCount?: number;
 }
 
 export interface RunningBatch {
@@ -133,7 +140,11 @@ export interface RunningBatch {
   scrapKg?: number;
   scrapPercent?: number;
   scrapPcs?: number;
+  rejectedPieces?: number;
+  pcsPerKg?: number;
+  grossPieces?: number;
   worker: string;
+  operator?: string;
   user: string;
   holdReason?: string;
   parentBatchId?: string;
@@ -143,9 +154,12 @@ export interface RunningBatch {
   qcInspector?: string;
   qcAssignedCrates?: number;
   qcStatus?: 'Pending QC' | 'In Inspection' | 'Approved' | 'Rejected' | string;
+  startMeterReading?: number;
   meterReading?: number;
   totalStrokes?: number;
   slices?: OperatorRunSlice[];
+  helpers?: string[];
+  helperCount?: number;
 }
 
 export interface JobReelItem {
@@ -165,6 +179,8 @@ export interface JobReelItem {
 
 export interface Job {
   id: string;
+  createdAt?: string;
+  date?: string;
   product: ProductType;
   paperBrand?: string;
   reelNo?: string;
@@ -187,6 +203,9 @@ export interface Job {
   cuttingLoosePcs?: number;
   formingLoosePcs?: number;
   qcLoosePcs?: number;
+  cuttingScrapKg?: number;
+  cuttingScrapPcs?: number;
+  cuttingPcsPerKg?: number;
   inputWeightKg?: number;
   outputWeightKg?: number;
   scrapKg?: number;
@@ -247,6 +266,9 @@ export interface PackJob {
   dispatchLogs?: DispatchLog[];
   tracedLots?: Record<string, string>;
   issuedCrates?: Record<string, number>;
+  slices?: OperatorRunSlice[];
+  helpers?: string[];
+  helperCount?: number;
 }
 
 export interface LogEntry {
@@ -254,9 +276,12 @@ export interface LogEntry {
   product?: string;
   stage: string;
   machine: string;
+  station?: string;
   shift?: 'DAY' | 'NIGHT' | string;
   action: string;
   worker?: string;
+  operator?: string;
+  details?: string;
   user: string;
   startTime?: string;
   endTime?: string;
@@ -304,6 +329,12 @@ export interface WhatsAppConfig {
   lastSentKey?: string;
   webhookUrl?: string;
   customMessage?: string;
+  dayShiftReportTime?: string;
+  nightShiftReportTime?: string;
+  autoSendShiftReportDay?: boolean;
+  autoSendShiftReportNight?: boolean;
+  lastSentDayDate?: string;
+  lastSentNightDate?: string;
 }
 
 export interface SparePartItem {
@@ -313,6 +344,7 @@ export interface SparePartItem {
   unit?: string;
   cost?: number;
   notes?: string;
+  category?: string;
 }
 
 export interface MaintenanceContact {
@@ -328,6 +360,7 @@ export interface MaintenanceIncident {
   machine: string;
   stage: string;
   reason: string;
+  issue?: string;
   description?: string;
   reportedBy: string;
   maintenancePhone?: string;
@@ -341,6 +374,7 @@ export interface MaintenanceIncident {
   breakdownDate: string; // YYYY-MM-DD
   repairStartTime?: string;
   repairedAt?: string; // ISO string
+  breakdownStopTime?: string; // ISO string
   acknowledgedAt?: string; // ISO string
   totalDowntimeMinutes?: number;
   technicianName?: string;
@@ -405,12 +439,31 @@ export interface FactoryState {
   productPrefixMap?: Record<string, string>;
   maintenanceTechniciansMaster?: string[];
   maintenanceSparePartsMaster?: string[];
+  maxPiecesPerSlitRoll?: number;
+  strictAuditRollYield?: boolean;
+  maintenanceRightsMaster?: Record<string, string[]>;
   autoNotifyDeptHeadsOnCritical?: boolean;
   departmentHeads?: MaintenanceContact[];
   crateCapacityMaster?: Record<string, ProductCrateCapacity>;
   archivedJobs?: Job[];
   archivedLogs?: LogEntry[];
   lastBackupDate?: string;
+  floorWorkers?: FloorWorker[];
+}
+
+export type WorkforceRole = 'OPERATOR' | 'HELPER' | 'SUPERVISOR' | 'MAINTENANCE' | 'QC_INSPECTOR';
+
+export interface FloorWorker {
+  id: string;
+  name: string;
+  role: WorkforceRole;
+  department: 'Slitting' | 'Cutting' | 'Forming' | 'QC' | 'Packing' | 'Maintenance' | 'Admin' | string;
+  assignedMachine?: string; // e.g. "Cutting-1"
+  pairedWithOperator?: string; // If role is HELPER, which operator they assist
+  shift: 'DAY' | 'NIGHT' | string;
+  isPresent: boolean;
+  inTime?: string;
+  notes?: string;
 }
 
 export interface GroundingSource {

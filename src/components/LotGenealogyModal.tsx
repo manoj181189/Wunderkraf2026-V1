@@ -68,6 +68,19 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
     (pj) => pj.status !== 'Cancelled' && (pj.kitItems?.includes(job.product) || pj.customer)
   );
 
+  const jobLogs = (state.logs || []).filter((l) => l.jobId === job.id);
+  const getStageDate = (stageName: string) => {
+    const stageLog = jobLogs.filter((l) => l.stage?.toLowerCase().includes(stageName.toLowerCase())).slice(-1)[0];
+    if (stageLog?.rawDate) return { date: stageLog.rawDate, time: stageLog.startTime || stageLog.timestamp?.split(',')[1]?.trim() || '' };
+    return { date: job.createdAt ? job.createdAt.split('T')[0] : new Date().toISOString().split('T')[0], time: '' };
+  };
+
+  const slittingDate = getStageDate('slitting');
+  const cuttingDate = getStageDate('cutting');
+  const formingDate = getStageDate('forming');
+  const qcDate = getStageDate('qc');
+  const packingDate = getStageDate('packing');
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col">
@@ -161,9 +174,16 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                     <Scroll className="w-4 h-4 text-blue-600" />
                     <span className="font-extrabold text-xs text-blue-950 uppercase">Slitting Machine (स्लिटिंग स्टेज)</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
-                    Station: Slitting-1
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                      <Calendar className="w-3 h-3 text-blue-600" />
+                      <span>{slittingDate.date}</span>
+                      {slittingDate.time && <span className="text-slate-400 font-mono text-[9px]">({slittingDate.time})</span>}
+                    </div>
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
+                      Station: Slitting-1
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
@@ -206,9 +226,16 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                     <Scissors className="w-4 h-4 text-indigo-600" />
                     <span className="font-extrabold text-xs text-indigo-950 uppercase">Cutting Machine (कटिंग स्टेज)</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                    {cutBatches.length > 0 ? cutBatches.map(b => b.machine).join(', ') : 'Cutting-1 / 2'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                      <Calendar className="w-3 h-3 text-indigo-600" />
+                      <span>{cuttingDate.date}</span>
+                      {cuttingDate.time && <span className="text-slate-400 font-mono text-[9px]">({cuttingDate.time})</span>}
+                    </div>
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                      {cutBatches.length > 0 ? cutBatches.map(b => b.machine).join(', ') : 'Cutting-1 / 2'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
@@ -251,9 +278,16 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                     <Cog className="w-4 h-4 text-purple-600" />
                     <span className="font-extrabold text-xs text-purple-950 uppercase">Forming Machines (फॉर्मिंग स्टेज)</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full border border-purple-200">
-                    {formBatches.length > 0 ? Array.from(new Set(formBatches.map(b => b.machine))).join(', ') : 'Forming Stations'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                      <Calendar className="w-3 h-3 text-purple-600" />
+                      <span>{formingDate.date}</span>
+                      {formingDate.time && <span className="text-slate-400 font-mono text-[9px]">({formingDate.time})</span>}
+                    </div>
+                    <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full border border-purple-200">
+                      {formBatches.length > 0 ? Array.from(new Set(formBatches.map(b => b.machine))).join(', ') : 'Forming Stations'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
@@ -296,15 +330,22 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                     <SearchCheck className="w-4 h-4 text-emerald-600" />
                     <span className="font-extrabold text-xs text-emerald-950 uppercase">Quality Control (QC स्टेज)</span>
                   </div>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                    qcStageStatus === 'In Inspection'
-                      ? 'bg-amber-100 text-amber-900 border-amber-300'
-                      : qcStageStatus === 'Pending QC'
-                      ? 'bg-purple-100 text-purple-900 border-purple-300'
-                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                  }`}>
-                    {qcStageStatus}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                      <Calendar className="w-3 h-3 text-emerald-600" />
+                      <span>{qcDate.date}</span>
+                      {qcDate.time && <span className="text-slate-400 font-mono text-[9px]">({qcDate.time})</span>}
+                    </div>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                      qcStageStatus === 'In Inspection'
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : qcStageStatus === 'Pending QC'
+                        ? 'bg-purple-100 text-purple-900 border-purple-300'
+                        : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    }`}>
+                      {qcStageStatus}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
@@ -343,9 +384,15 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                     <Truck className="w-4 h-4 text-slate-700" />
                     <span className="font-extrabold text-xs text-slate-900 uppercase">Packing & Dispatch (पैकिंग व डिस्पैच)</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-slate-200 text-slate-800 px-2 py-0.5 rounded-full">
-                    {relevantPackJobs.length > 0 ? `${relevantPackJobs.length} Orders Linked` : 'Stock Available'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                      <Calendar className="w-3 h-3 text-slate-600" />
+                      <span>{packingDate.date}</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-slate-200 text-slate-800 px-2 py-0.5 rounded-full">
+                      {relevantPackJobs.length > 0 ? `${relevantPackJobs.length} Orders Linked` : 'Stock Available'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="text-xs text-slate-600">

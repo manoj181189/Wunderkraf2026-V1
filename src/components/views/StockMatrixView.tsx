@@ -13,26 +13,31 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
-  Boxes
+  Boxes,
+  Plus
 } from 'lucide-react';
 import { FactoryState, ProductType } from '../../types';
 import { PRODUCTS } from '../../lib/constants';
 import { exportToCSV, exportToJSON } from '../../lib/utils';
+import { OpeningStockModal } from '../OpeningStockModal';
 
 interface StockMatrixViewProps {
   state: FactoryState;
   onBackToHub: () => void;
   onOpenStockDetailModal: (title: string, product: ProductType, stageKey: string) => void;
+  onSaveState?: (nextState: FactoryState) => void;
 }
 
 export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
   state,
   onBackToHub,
-  onOpenStockDetailModal
+  onOpenStockDetailModal,
+  onSaveState
 }) => {
   const { jobs, packJobs = [] } = state;
   const productList = state.products && state.products.length > 0 ? state.products : PRODUCTS;
   const [searchTerm, setSearchTerm] = useState('');
+  const [isOpeningStockModalOpen, setIsOpeningStockModalOpen] = useState(false);
 
   // Filter products by search term
   const filteredProducts = productList.filter((prod) =>
@@ -111,7 +116,16 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {onSaveState && (
+            <button
+              onClick={() => setIsOpeningStockModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 px-3.5 py-2 rounded-xl transition cursor-pointer shadow-xs hover:shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>⚡ Quick Opening Stock (ओपनिंग स्टॉक दर्ज करें)</span>
+            </button>
+          )}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer border border-slate-200"
@@ -448,6 +462,16 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           Wunderkraf ERP Inventory Matrix v2.4
         </span>
       </div>
+
+      {/* Quick Opening Stock Entry Modal */}
+      {onSaveState && (
+        <OpeningStockModal
+          isOpen={isOpeningStockModalOpen}
+          onClose={() => setIsOpeningStockModalOpen(false)}
+          state={state}
+          onSaveState={onSaveState}
+        />
+      )}
     </div>
   );
 };
