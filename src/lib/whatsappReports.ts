@@ -5,7 +5,7 @@ export function generateShiftChangeoverReportText(
   targetShift: 'DAY' | 'NIGHT'
 ): string {
   const today = new Date().toISOString().split('T')[0];
-  const shiftTitle = targetShift === 'DAY' ? '☀️ DAY SHIFT (डे शिफ्ट)' : '🌙 NIGHT SHIFT (नाईट शिफ्ट)';
+  const shiftTitle = targetShift === 'DAY' ? '☀️ DAY SHIFT' : '🌙 NIGHT SHIFT';
 
   // 1. Gather all logs recorded for today & targetShift
   const shiftLogs = (state.logs || []).filter((l) => {

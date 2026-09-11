@@ -265,7 +265,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
               <span>Machine & Operator Performance Audit</span>
             </h2>
             <p className="text-xs text-slate-500 font-medium m-0">
-              मशीन व ऑपरेटर उत्पादन रिपोर्ट (8-दिन मशीन ऑडिट, 5-दिन/1-माह/6-माह ऑपरेटर परफ़ॉर्मेंस)
+              Machine & Operator Production Report (8-day Machine Audit, 5-day/1-month/6-month Operator Performance)
             </p>
           </div>
         </div>
@@ -302,7 +302,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           }`}
         >
           <Layers className="w-4 h-4 text-blue-300" />
-          <span>🏭 Machine Performance (मशीन 8-दिन ऑडिट)</span>
+          <span>🏭 Machine Performance (8-Day Audit)</span>
         </button>
 
         <button
@@ -314,7 +314,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           }`}
         >
           <Users className="w-4 h-4 text-violet-300" />
-          <span>👷 Operator Productivity (ऑपरेटर 5-दिन / 1-माह / 6-माह)</span>
+          <span>👷 Operator Productivity (5-day / 1-month / 6-month)</span>
         </button>
 
         <button
@@ -326,7 +326,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           }`}
         >
           <Award className="w-4 h-4 text-amber-200" />
-          <span>🏆 Operator Leaderboard (रैंकिंग तालिका)</span>
+          <span>🏆 Operator Leaderboard (Ranking Table)</span>
         </button>
 
         <button
@@ -338,7 +338,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           }`}
         >
           <Trash2 className="w-4 h-4 text-rose-300" />
-          <span>♻️ Scrap Recycling Desk (स्क्रैप रीसाइक्लिंग)</span>
+          <span>♻️ Scrap Recycling Desk</span>
         </button>
 
         <button
@@ -365,14 +365,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
               {/* Machine Selection Dropdown */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-bold text-blue-950 uppercase flex items-center gap-1.5">
-                  <Filter className="w-4 h-4 text-blue-700" /> Select Machine (मशीन चुनें):
+                  <Filter className="w-4 h-4 text-blue-700" /> Select Machine:
                 </span>
                 <select
                   value={selectedMachine}
                   onChange={(e) => setSelectedMachine(e.target.value)}
                   className="bg-white border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs outline-none cursor-pointer"
                 >
-                  <option value="ALL">All Machines (संपूर्ण फैक्ट्री मशीनें)</option>
+                  <option value="ALL">All Machines</option>
                   <optgroup label="Cutting Machines">
                     {machineList.filter((m) => m.toLowerCase().includes('cut')).map((m) => (
                       <option key={m} value={m}>{m}</option>
@@ -405,7 +405,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
                       : 'bg-white text-blue-900 border border-blue-300 hover:bg-blue-100'
                   }`}
                 >
-                  ⚡ 8 Days Output (8 दिन का प्रोडक्शन)
+                  ⚡ 8 Days Output (8 Day Production)
                 </button>
 
                 <button
@@ -512,7 +512,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
               <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">
-                Total Pieces Produced (कुल नंग)
+                Total Pieces Produced
               </span>
               <div className="text-2xl font-black text-blue-950 mt-1">
                 {machineStats.totalPieces.toLocaleString()}{' '}
@@ -525,7 +525,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
 
             <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
               <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">
-                Total Crates / Units (कुल कैरेट)
+                Total Crates / Units
               </span>
               <div className="text-2xl font-black text-emerald-950 mt-1">
                 {machineStats.totalCrates.toLocaleString()}{' '}
@@ -538,7 +538,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
 
             <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl p-4">
               <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wide">
-                Machine Scrap & Defects (स्क्रैप)
+                Machine Scrap & Defects
               </span>
               <div className="text-2xl font-black text-rose-950 mt-1">
                 {machineStats.totalScrapKg} <span className="text-xs font-bold text-rose-700">KG</span>
@@ -781,14 +781,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
               {/* Operator and Department Selectors */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-bold text-violet-950 uppercase flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4 text-violet-700" /> Select Operator (ऑपरेटर चुनें):
+                  <UserCheck className="w-4 h-4 text-violet-700" /> Select Operator:
                 </span>
                 <select
                   value={selectedOperator}
                   onChange={(e) => setSelectedOperator(e.target.value)}
                   className="bg-white border border-violet-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs outline-none cursor-pointer"
                 >
-                  <option value="ALL">All Operators (सभी ऑपरेटर)</option>
+                  <option value="ALL">All Operators</option>
                   {operatorList.map((op) => (
                     <option key={op} value={op}>{op}</option>
                   ))}
@@ -824,7 +824,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
                       : 'bg-white text-violet-900 border border-violet-300 hover:bg-violet-100'
                   }`}
                 >
-                  ⚡ 5 Days (5 दिन का उत्पादन)
+                  ⚡ 5 Days Output
                 </button>
 
                 <button
@@ -847,7 +847,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
                       : 'bg-white text-violet-900 border border-violet-300 hover:bg-violet-100'
                   }`}
                 >
-                  📅 1 Month (महीने दिन)
+                  📅 1 Month
                 </button>
 
                 {/* 6 Months Button Highlighted */}
@@ -859,7 +859,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
                       : 'bg-white text-violet-900 border border-violet-300 hover:bg-violet-100'
                   }`}
                 >
-                  📅 6 Months (छह महीने)
+                  📅 6 Months
                 </button>
 
                 <button
@@ -911,7 +911,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-xl p-4">
               <span className="text-[11px] font-bold text-violet-800 uppercase tracking-wide">
-                Total Operator Output (कुल उत्पादन)
+                Total Operator Output
               </span>
               <div className="text-2xl font-black text-violet-950 mt-1">
                 {operatorStats.totalPieces.toLocaleString()}{' '}
@@ -1131,7 +1131,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
             <div>
               <h3 className="text-sm font-black text-amber-950 flex items-center gap-2 m-0">
                 <Award className="w-5 h-5 text-amber-600" />
-                <span>Operator Productivity & Yield Leaderboard (ऑपरेटर रैंकिंग व उत्पादकता स्कोर)</span>
+                <span>Operator Productivity & Yield Leaderboard</span>
               </h3>
               <p className="text-xs text-amber-800 font-medium m-0 mt-0.5">
                 Ranking based on pieces produced, scrap discipline, and shift consistency.
@@ -1230,7 +1230,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ state, onBackToHub
             <div className="flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-rose-600" />
               <h4 className="text-sm font-bold text-slate-900 uppercase">
-                Paper Scrap Management & Recycling Sales (स्क्रैप रीसाइक्लिंग व बिक्री)
+                Paper Scrap Management & Recycling Sales
               </h4>
             </div>
             <div className="px-3 py-1 bg-rose-100 border border-rose-300 rounded-lg text-xs font-extrabold text-rose-900">

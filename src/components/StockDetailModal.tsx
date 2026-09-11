@@ -65,11 +65,11 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
   // Stage metadata & theme styling
   const stageConfig = {
     Rolls: {
-      name: 'Slit Rolls Stock (स्लिटिंग रोल्स)',
+      name: 'Slit Rolls Stock',
       badge: 'Stage 1 • Slit Rolls',
       color: 'indigo',
       unit: 'Rolls',
-      unitHindi: 'रोल्स',
+      unitHindi: 'Rolls',
       estPcsPerUnit: 4500,
       icon: Layers,
       bgLight: 'bg-indigo-50',
@@ -78,11 +78,11 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
       accentColor: '#4338ca'
     },
     Cutting: {
-      name: 'Cut Crates Stock (कटिंग क्रेट्स)',
+      name: 'Cut Crates Stock',
       badge: 'Stage 2 • Cut Crates',
       color: 'purple',
       unit: 'Crates',
-      unitHindi: 'क्रेट्स',
+      unitHindi: 'Crates',
       estPcsPerUnit: 5000,
       icon: Scissors,
       bgLight: 'bg-purple-50',
@@ -91,11 +91,11 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
       accentColor: '#7e22ce'
     },
     Forming: {
-      name: 'Formed Crates Stock (फॉर्मिंग क्रेट्स)',
+      name: 'Formed Crates Stock',
       badge: 'Stage 3 • Formed Crates',
       color: 'amber',
       unit: 'Crates',
-      unitHindi: 'क्रेट्स',
+      unitHindi: 'Crates',
       estPcsPerUnit: 4500,
       icon: Cog,
       bgLight: 'bg-amber-50',
@@ -104,11 +104,11 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
       accentColor: '#b45309'
     },
     QC: {
-      name: 'QC Approved Stock (क्यू.सी. पास क्रेट्स)',
+      name: 'QC Approved Stock',
       badge: 'Stage 4 • QC Approved',
       color: 'emerald',
       unit: 'Crates',
-      unitHindi: 'क्रेट्स',
+      unitHindi: 'Crates',
       estPcsPerUnit: 4500,
       icon: SearchCheck,
       bgLight: 'bg-emerald-50',
@@ -117,11 +117,11 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
       accentColor: '#047857'
     },
     Packed: {
-      name: 'Ready Packed Goods (डिस्पैच रेडी बॉक्सेस)',
+      name: 'Ready Packed Goods',
       badge: 'Stage 5 • Packed Boxes',
       color: 'blue',
       unit: 'Boxes',
-      unitHindi: 'बॉक्स',
+      unitHindi: 'Boxes',
       estPcsPerUnit: 1000,
       icon: PackageCheck,
       bgLight: 'bg-blue-50',
@@ -258,7 +258,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-slate-400 hover:text-rose-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-          title="Close Modal (बंद करें)"
+          title="Close Modal"
         >
           <X className="w-5 h-5" />
         </button>
@@ -282,8 +282,8 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 m-0">
-              प्रत्येक जॉब नंबर (Job ID), मदर रील (Reel No.), GSM और पेपर मिल के अनुसार सटीक स्टॉक
-              विवरण
+              Accurate stock by each Job ID, Mother Reel No, GSM and Paper Mill
+              Details
             </p>
           </div>
         </div>
@@ -292,20 +292,20 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4 shrink-0">
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 block">
-              Total In-Stock (कुल स्टॉक)
+              Total In-Stock
             </span>
             <div className="text-xl font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
               <span>{totalQty}</span>
               <span className="text-xs font-bold text-slate-600">{stageConfig.unit}</span>
             </div>
             <span className="text-[10px] text-slate-500 font-medium">
-              {totalLotsCount} अलग-अलग जॉब लॉट्स में
+in               {totalLotsCount} different job lots
             </span>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 block">
-              Active Job Lots (जॉब लॉट संख्या)
+              Active Job Lots
             </span>
             <div className="text-xl font-black text-blue-900 mt-0.5 flex items-baseline gap-1">
               <span>{totalLotsCount}</span>
@@ -316,7 +316,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 block">
-              Estimated Pieces (अनुमानित नग)
+              Estimated Pieces
             </span>
             <div className="text-xl font-black text-emerald-700 mt-0.5 flex items-baseline gap-1">
               <span>~{totalEstPieces.toLocaleString()}</span>
@@ -329,7 +329,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 block">
-              Paper Mills in Stock (कागज़ ब्रांड)
+              Paper Mills in Stock
             </span>
             <div className="text-xs font-black text-slate-800 mt-1 truncate">
               {normalizedStage === 'Packed'
@@ -351,7 +351,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Search by Job ID, Reel No, Brand, GSM... (खोजें)"
+              placeholder="Search by Job ID, Reel No, Brand, GSM..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition"
@@ -398,8 +398,8 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200 z-10">
                   <tr>
-                    <th className="p-3">Order ID (ऑर्डर नं.)</th>
-                    <th className="p-3">Customer (ग्राहक)</th>
+                    <th className="p-3">Order ID</th>
+                    <th className="p-3">Customer</th>
                     <th className="p-3">Kit / Product</th>
                     <th className="p-3 text-center">Available Boxes</th>
                     <th className="p-3 text-right">Est. Pcs</th>
@@ -453,8 +453,8 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
                     No Active Inventory in {stageConfig.name} for {product}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto leading-relaxed">
-                    इस स्टेज में {product} का कोई भी खुला स्टॉक उपलब्ध नहीं है। पहले उत्पादित किया गया
-                    मटेरियल अगली स्टेज में प्रोसेस हो चुका है।
+                    There is no active open stock available for {product} in this stage. Material produced
+                    previously has already been processed in the next stage.
                   </p>
                 </div>
 
@@ -492,9 +492,9 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200 z-10">
                   <tr>
-                    <th className="p-3">Job ID (जॉब नंबर)</th>
-                    <th className="p-3">Mother Reel No. (मदर रील नं.)</th>
-                    <th className="p-3">Paper Mill (कागज़ ब्रांड)</th>
+                    <th className="p-3">Job ID</th>
+                    <th className="p-3">Mother Reel No.</th>
+                    <th className="p-3">Paper Mill</th>
                     <th className="p-3">GSM</th>
                     <th className="p-3 text-center">
                       Available Stock ({stageConfig.unit})
@@ -668,7 +668,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
               onClick={onClose}
               className="px-4 py-1.5 bg-[#1a365d] hover:bg-[#2a4365] text-white font-extrabold text-xs rounded-xl transition cursor-pointer shadow-xs"
             >
-              Close (बंद करें)
+              Close
             </button>
           </div>
         </div>

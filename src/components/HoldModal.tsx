@@ -22,15 +22,6 @@ export const HoldModal: React.FC<HoldModalProps> = ({
     ? state.maintenanceContacts 
     : DEFAULT_MAINTENANCE_CONTACTS;
 
-  const [reason, setReason] = useState('Mechanical Heater / Tooling Issue');
-  const [remarks, setRemarks] = useState('');
-  const [operatorName, setOperatorName] = useState('Operator');
-  const [priority, setPriority] = useState<'Normal' | 'Urgent' | 'Critical'>('Urgent');
-  const [maintenancePhone, setMaintenancePhone] = useState(contacts[0]?.phone || '+91 98250 12345');
-  const [rerouteMachine, setRerouteMachine] = useState('');
-
-  if (!isOpen) return null;
-
   // Determine stage based on machine prefix
   let detectedStage = 'Production';
   if (stationName.startsWith('Cutting-')) detectedStage = 'Cutting';
@@ -38,6 +29,61 @@ export const HoldModal: React.FC<HoldModalProps> = ({
   else if (stationName.startsWith('Packing-') || stationName.startsWith('Manual-')) detectedStage = 'Packing';
   else if (stationName.startsWith('Slitting-')) detectedStage = 'Slitting';
   else if (stationName.startsWith('QC-')) detectedStage = 'QC';
+
+  const getDepartmentReasons = (stage: string) => {
+    switch (stage) {
+      case 'Cutting':
+        return [
+          'Blade Wear & Dull Cutters',
+          'Die Alignment Error',
+          'Paper Feed Jam / Web Slippage',
+          'Sensor Fault / Safety Barrier Trip',
+          'Motor Overload / Inverter Drive Trip'
+        ];
+      case 'Forming':
+        return [
+          'Temperature Deviation (Mould Heater)',
+          'Hydraulic / Pneumatic Pressure Loss',
+          'Speed Mismatch / Cycle Timing Error',
+          'Mould Tooling & Teflon Strip Damage',
+          'Paper Forming Wrinkle / Tear'
+        ];
+      case 'QC':
+        return [
+          'Leak Test Fail (Water Penetration)',
+          'Burst / Compression Test Fail',
+          'Dimension Out-of-Tolerance (Angle/Depth)',
+          'Visual Blemish / Print Ink Smudge / Spot',
+          'Rim Curl / Edge Flange Defect'
+        ];
+      case 'Slitting':
+        return [
+          'Rewind Tension / Core Slippage',
+          'Slitting Circular Blade Dull / Burr',
+          'Jumbo Reel Unwind Chuck Loose',
+          'Web Alignment Guide Sensor Drift'
+        ];
+      default:
+        return [
+          'Mechanical Heater / Tooling Issue',
+          'Electrical / Sensor Fault',
+          'Pneumatic / Hydraulic Pressure Drop',
+          'Routine Cleaning & Preventative Check',
+          'Other Technical Breakdown'
+        ];
+    }
+  };
+
+  const deptReasons = getDepartmentReasons(detectedStage);
+
+  const [reason, setReason] = useState(() => deptReasons[0]);
+  const [remarks, setRemarks] = useState('');
+  const [operatorName, setOperatorName] = useState('Operator');
+  const [priority, setPriority] = useState<'Normal' | 'Urgent' | 'Critical'>('Urgent');
+  const [maintenancePhone, setMaintenancePhone] = useState(contacts[0]?.phone || '+91 98250 12345');
+  const [rerouteMachine, setRerouteMachine] = useState('');
+
+  if (!isOpen) return null;
 
   // Candidate alternate machines for rerouting
   let candidateMachines: string[] = [];
@@ -142,9 +188,9 @@ export const HoldModal: React.FC<HoldModalProps> = ({
         `👤 *Reported By:* ${operatorName}\n` +
         `⏱️ *Time:* ${nowTime} (${todayStr})\n` +
         `🎫 *Ticket ID:* ${newIncident.id}\n\n` +
-        `🛠️ *Action Required:* Please visit workstation *${stationName}*, tap the link below or open the machine screen to click *"👨‍🔧 मैं अटेंड कर रहा हूँ"* so the entire factory sees you are repairing it.\n` +
+        `🛠️ *Action Required:* Please visit workstation *${stationName}*, tap the link below or open the machine screen to click *"👨‍🔧 I am Attending"* so the entire factory sees you are repairing it.\n` +
         `🔗 *Direct Quick Attend Link:* ${window.location.origin}/?attendMachine=${encodeURIComponent(stationName)}&incidentId=${newIncident.id}\n\n` +
-        `✅ When repaired, click "रिपेयर पूरा हुआ" to automatically set the machine back to RUNNING.`
+        `✅ When repaired, click "Repair Completed" to automatically set the machine back to RUNNING.`
       );
 
       const waUrl = cleanPhone 
@@ -210,11 +256,11 @@ export const HoldModal: React.FC<HoldModalProps> = ({
         <div className="flex items-center gap-2 text-red-600 mb-1">
           <PauseCircle className="w-6 h-6 shrink-0" />
           <h3 className="text-base font-bold m-0 text-slate-800">
-            Machine Stop & Maintenance Alert (मशीन स्टॉप व मेंटेनेंस अलर्ट)
+            Machine Stop & Maintenance Alert
           </h3>
         </div>
         <p className="text-xs text-slate-500 mb-4 ml-8">
-          मशीन बंद करने पर मेंटेनेंस टीम को तत्काल अलर्ट चला जाएगा और मेंटेनेंस डेस्क पर टिकट दर्ज होगा।
+          Stopping the machine will send an immediate alert to the maintenance team and create a ticket on the maintenance desk.
         </p>
 
         <div className="space-y-3.5">
@@ -234,16 +280,16 @@ export const HoldModal: React.FC<HoldModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                Priority Level (प्राथमिकता):
+                Priority Level:
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as any)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-red-500"
               >
-                <option value="Normal">🟢 Normal (साधारण)</option>
-                <option value="Urgent">🟠 Urgent (जरूरी)</option>
-                <option value="Critical">🔴 Critical (अति आवश्यक / लाइन जाम)</option>
+                <option value="Normal">🟢 Normal</option>
+                <option value="Urgent">🟠 Urgent</option>
+                <option value="Critical">🔴 Critical (Line Jam)</option>
               </select>
             </div>
           </div>
@@ -251,28 +297,32 @@ export const HoldModal: React.FC<HoldModalProps> = ({
           {/* Reason for Breakdown */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-              Reason for Hold / Breakdown (स्टॉप का कारण):
+              Reason for Hold / Breakdown:
             </label>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-red-500"
             >
-              <option value="Mechanical Heater / Tooling Issue">Mechanical Heater / Tooling Issue</option>
-              <option value="Electrical / Sensor Fault">Electrical / Sensor / Temp Controller Fault</option>
-              <option value="Pneumatic / Hydraulic Pressure Drop">Pneumatic / Air Pressure / Hydraulic Drop</option>
-              <option value="Die Alignment & Sharpness Check">Die Alignment & Blade Sharpness Check</option>
-              <option value="Raw Paper Roll Change / Setup">Raw Paper Roll Change / Setup Jam</option>
-              <option value="Routine Cleaning & Maintenance">Routine Cleaning & Preventative Check</option>
-              <option value="Operator Lunch / Tea Break">Operator Lunch / Tea Break</option>
-              <option value="Other Emergency Technical Fault">Other Emergency Technical Fault</option>
+              <optgroup label={`${detectedStage} Department Technical Failures`}>
+                {deptReasons.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="General & Routine Stops">
+                <option value="Operator Lunch / Tea Break">Operator Lunch / Tea Break</option>
+                <option value="Raw Material Supply Shortage">Raw Material Supply Shortage</option>
+                <option value="Other Emergency Technical Fault">Other Emergency Technical Fault</option>
+              </optgroup>
             </select>
           </div>
 
           {/* Remarks input */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-              Custom Description / Technical Details (विस्तृत जानकारी):
+              Custom Description / Technical Details:
             </label>
             <textarea
               rows={2}
@@ -287,7 +337,7 @@ export const HoldModal: React.FC<HoldModalProps> = ({
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
               <User className="w-3.5 h-3.5 text-slate-500" />
-              <span>Reporting Operator Name (ऑपरेटर का नाम):</span>
+              <span>Reporting Operator Name:</span>
             </label>
             <input
               type="text"
@@ -298,12 +348,12 @@ export const HoldModal: React.FC<HoldModalProps> = ({
             />
           </div>
 
-          {/* Maintenance Phone Number Input & Quick Contacts (User requirement: "नंबर एक डालने की सुविधा चाहिए") */}
+          {/* Maintenance Phone Number Input & Quick Contacts  */}
           <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-amber-900 flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5 text-amber-700" />
-                <span>Maintenance Phone Number (मेंटेनेंस नंबर):</span>
+                <span>Maintenance Phone Number:</span>
               </label>
               <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-medium">
                 WhatsApp / Call Alert
@@ -340,7 +390,7 @@ export const HoldModal: React.FC<HoldModalProps> = ({
               <Phone className="w-4 h-4 text-amber-600 absolute left-2.5 top-2.5" />
             </div>
             <p className="text-[10px] text-amber-700 mt-1">
-              * आप ऊपर से संपर्क चुन सकते हैं या नया फोन नंबर सीधे टाइप कर सकते हैं।
+              * You can select a contact from above or type a new phone number directly.
             </p>
           </div>
 
@@ -373,7 +423,7 @@ export const HoldModal: React.FC<HoldModalProps> = ({
             className="py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
           >
             <PauseCircle className="w-4 h-4 text-amber-400" />
-            <span>Stop Silently (केवल स्टॉप)</span>
+            <span>Stop Silently</span>
           </button>
           
           <button

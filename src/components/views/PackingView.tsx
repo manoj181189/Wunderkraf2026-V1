@@ -248,7 +248,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
   };
 
   // =========================================================================
-  // ACTION: ADD MORE CRATES TO RUNNING PACKING ORDER (उसी ऑर्डर में और क्रेट्स देना)
+  // ACTION: ADD MORE CRATES TO RUNNING PACKING ORDER (Add more crates to the same order)
   // =========================================================================
   const handleOpenAddMoreCratesModal = () => {
     if (!activeJob) return;
@@ -350,7 +350,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
       `• Machine: ${selectedMachine}\n` +
       `• Added: ${summaryText}\n` +
       `• Total Crates with Order: ${Object.values(mergedIssuedCrates).reduce((a, b) => a + b, 0)} Crates\n\n` +
-      `मशीन चालू है और नए क्रेट्स उसी ऑर्डर में जुड़ गए हैं।`
+      `Machine is running and new crates have been added to the same order.`
     );
   };
 
@@ -826,13 +826,13 @@ export const PackingView: React.FC<PackingViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* VISUAL WORKSTATION FLOOR SELECTOR (मशीन फ्लोर डैशबोर्ड कार्ड्स) */}
+      {/* VISUAL WORKSTATION FLOOR SELECTOR (Machine Floor Dashboard Cards) */}
       {/* ========================================================================= */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
           <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
             <Package className="w-4 h-4 text-emerald-600" />
-            1. Select Packing Workstation (मशीन चुनें):
+            1. Select Packing Workstation (Select Machine):
           </label>
           <span className="text-[11px] font-bold text-slate-500">
             Click on any station to view its live status & operate
@@ -1011,7 +1011,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
                       className="text-[10px] font-extrabold text-blue-800 hover:text-blue-950 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded cursor-pointer transition flex items-center gap-1 shadow-2xs"
                     >
                       <PlusCircle className="w-3 h-3" />
-                      <span>+ Add More Crates (और क्रेट्स जोड़ें)</span>
+                      <span>+ Add More Crates (Add More Crates)</span>
                     </button>
                     <button
                       type="button"
@@ -1104,7 +1104,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
             {/* Boxes Packed Input & Partial Forward Action */}
             <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2.5">
               <label className="block text-xs font-extrabold text-emerald-800 uppercase">
-                Boxes Packed in Current Session / Run (बॉक्स तैयार):
+                Boxes Packed in Current Session / Run (Boxes Ready):
               </label>
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <input
@@ -1125,7 +1125,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 m-0">
-                💡 <b>Note:</b> Forward Partial करने पर जितने बॉक्स आपने दर्ज किए हैं, वे तुरंत <b>Dispatch</b> में उपलब्ध हो जाएंगे और मशीन <b>चालू (RUNNING)</b> रहेगी। जब तक आप <b>"Complete Job"</b> नहीं दबाएंगे, मशीन नहीं रुकेगी।
+                💡 <b>Note:</b> When you do Forward Partial, the boxes you entered will immediately be available in <b>Dispatch</b> and the machine will remain <b>RUNNING</b>. The machine will not stop until you press <b>"Complete Job"</b>.
               </p>
             </div>
 
@@ -1502,7 +1502,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-600 m-0">
-              अगर आपने ज्यादा क्रेट इशू कर दिए थे और काम पूरा होने के बाद क्रेट बच गए हैं, तो यहाँ से सीधे QC स्टॉक में वापस जमा करें:
+              If you had issued excess crates and crates are left over after the work is complete, return them directly to QC stock from here:
             </p>
 
             <div className="space-y-3 text-xs">
@@ -1594,7 +1594,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-700 leading-relaxed m-0">
-              क्या आप <b>[{selectedMachine}]</b> पर चल रहे आर्डर <b>[{activeJob.id} — {activeJob.customer}]</b> के रन को रद्द और डिलीट करना चाहते हैं?
+              Do you want to cancel and delete the run of order <b>[{activeJob.id} — {activeJob.customer}]</b> currently running on <b>[{selectedMachine}]</b>?
             </p>
 
             {/* Issued Crates Return List Breakdown */}
@@ -1628,7 +1628,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
 
             <div className="text-[11px] text-slate-500">
-              ⚡ पुष्टि करने पर यह रनिंग एंट्री हट जाएगी, मशीन <b>IDLE</b> हो जाएगी और सारा मटेरियल सुरक्षित वापस QC स्टॉक में चला जाएगा।
+              ⚡ Upon confirmation, this running entry will be removed, the machine will become <b>IDLE</b>, and all material will be safely returned to QC stock.
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -1672,7 +1672,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-600 m-0">
-              मशीन में कोई तकनीकी या मटेरियल समस्या आने पर होल्ड कारण दर्ज करें ताकि मेंटेनेंस टीम को तुरंत अलर्ट मिल सके:
+              If there is any technical or material issue in the machine, enter the hold reason so the maintenance team gets alerted immediately:
             </p>
 
             <div className="space-y-3 text-xs">
@@ -1737,7 +1737,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
                 <div>
                   <h3 className="text-sm font-extrabold m-0">Add More Crates to Running Order</h3>
                   <p className="text-[11px] text-slate-500 m-0">
-                    उसी रनिंग आर्डर में अतिरिक्त QC क्रेट्स इशू करें
+                    Issue additional QC crates to the same running order
                   </p>
                 </div>
               </div>

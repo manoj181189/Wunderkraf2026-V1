@@ -86,7 +86,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase">
-                Plant 01 · Berlin-Kreuzberg Workshop
+                Plant 01 · Wünderkraf Manufacturing Unit
               </span>
               <span className="text-xs text-neutral-400 font-mono">
                 Cycle: Week 37 / Schedule Active
@@ -96,7 +96,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Wunderkraf Material & Production Cockpit
             </h1>
             <p className="text-sm text-neutral-400 mt-1 max-w-2xl">
-              Live multi-level material planning, real-time BOM netting, and shop floor capacity synchronization for handcrafted acoustic & mechanical hardware.
+              Live multi-level material planning, real-time BOM netting, and shop floor capacity synchronization for biodegradable paperware cutlery and tableware manufacturing.
             </p>
           </div>
 
@@ -214,7 +214,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 border-t border-neutral-800/80 pt-2.5">
             <span className="font-mono text-neutral-400">
-              Est. buy: ${mrpSummary.totalProcurementCost.toLocaleString()}
+              Est. buy: ₹{mrpSummary.totalProcurementCost.toLocaleString()}
             </span>
             <span className="text-amber-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
               Review <ArrowRight className="w-3 h-3" />
@@ -235,7 +235,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-extrabold text-neutral-100 font-mono">
-              ${Math.round(totalStockValue).toLocaleString()}
+              ₹{Math.round(totalStockValue).toLocaleString()}
             </span>
             <span className="text-xs text-neutral-400 font-mono">
               {inventory.length} SKUs
@@ -457,7 +457,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {po.poNumber}
                       </span>
                       <span className="font-mono text-neutral-300 font-semibold">
-                        ${po.totalAmount.toLocaleString()}
+                        ₹{po.totalAmount.toLocaleString()}
                       </span>
                     </div>
                     <div className="text-neutral-300 mt-1 font-medium line-clamp-1">

@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Scissors, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
-import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Scissors, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers, AlertCircle, Box, Wrench, Search, ShieldCheck, CheckCircle2, AlertTriangle, RotateCcw, Calendar, Clock, Droplets, Users, UserCheck, Recycle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry, GlueUsageEntry } from '../../types';
 import { PRODUCTS, DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobReelsSummary, getJobReelItemsBreakdown, getJobAllGsms } from '../../lib/utils';
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 import { ShiftHandoverModal } from '../ShiftHandoverModal';
+import { StationCrewModal } from '../StationCrewModal';
+import { GlueUsageModal } from '../GlueUsageModal';
+import { LiveFloorManpowerTracker } from '../LiveFloorManpowerTracker';
 
 interface CuttingViewProps {
   state: FactoryState;
@@ -50,6 +53,9 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   const [rejectedPcsInput, setRejectedPcsInput] = useState<string>('');
   const [selectedActiveBatchId, setSelectedActiveBatchId] = useState('');
   const [tableSearch, setTableSearch] = useState('');
+  const [actualGlueConsumed, setActualGlueConsumed] = useState<string>('');
+  const [showSpecModal, setShowSpecModal] = useState(false);
+  const [lastShownSpecBatchId, setLastShownSpecBatchId] = useState('');
 
   // Assigned Helpers for Cutting Station
   const [assignedHelpers, setAssignedHelpers] = useState<string[]>(['SUNIL_HELPER', 'DINESH_HELPER']);
@@ -80,8 +86,20 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   // Shift Handover Modal State
   const [isShiftHandoverModalOpen, setIsShiftHandoverModalOpen] = useState(false);
 
+  // Dialog states for Glue Usage & Station Crew Modals
+  const [isGlueModalOpen, setIsGlueModalOpen] = useState(false);
+  const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
+  const [showLiveManpowerRoster, setShowLiveManpowerRoster] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showGlueVarianceModal, setShowGlueVarianceModal] = useState(false);
+  const [pendingFinishData, setPendingFinishData] = useState<any>(null);
+
   // Pending queue of slit rolls
-  let pendingSlitJobs = jobs.filter((j) => (j.availableRolls || 0) > 0);
+  let pendingSlitJobs = jobs.filter((j) => {
+    const hasRolls = (j.availableRolls || 0) > 0;
+    const isReadyOrInProgress = j.status === 'READY_FOR_CUTTING' || j.status === 'CUTTING_IN_PROGRESS';
+    return hasRolls && isReadyOrInProgress;
+  });
   if (filterProduct) {
     pendingSlitJobs = pendingSlitJobs.filter((j) => j.product === filterProduct);
   }
@@ -103,46 +121,45 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   const activeBatchObj =
     activeBatches.find((item) => item.batch?.batchId === selectedActiveBatchId) || activeBatches[0];
 
+  useEffect(() => {
+    if (activeBatchObj && activeBatchObj.batch && activeBatchObj.batch.batchId) {
+      if (activeBatchObj.batch.batchId !== lastShownSpecBatchId) {
+        setShowSpecModal(true);
+        setLastShownSpecBatchId(activeBatchObj.batch.batchId);
+      }
+    } else {
+      setShowSpecModal(false);
+    }
+  }, [activeBatchObj?.batch.batchId, lastShownSpecBatchId]);
+
   const standardCutPcs = activeBatchObj?.job.pcsPerCrateCutting || (activeBatchObj ? state.crateCapacityMaster?.[activeBatchObj.job.product]?.cuttingPcs : 10000) || 10000;
   const effectiveCutPcs = pcsPerCrateOverride !== '' ? (parseInt(pcsPerCrateOverride, 10) || standardCutPcs) : standardCutPcs;
 
   const defaultPcsPerKg = activeBatchObj?.job.cuttingPcsPerKg || activeBatchObj?.batch.pcsPerKg || DEFAULT_PCS_PER_KG_MAP[activeBatchObj?.job.product || ''] || 500;
   const effectivePcsPerKg = pcsPerKgInput !== '' ? (parseFloat(pcsPerKgInput) || defaultPcsPerKg) : defaultPcsPerKg;
 
+  // CRITICAL USER DIRECTIVE:
+  // User requirement: Add separate cutting scrap. Extra material scrap from cutting should not minus from pieces. Only reject pieces will minus. Keep them separate.
+  // 1. Cutting Material Scrap (KG) = Extra paper scrap/trim. NEVER subtracted from pieces!
+  // 2. Rejected Pieces (Pcs) = Defective blanks. ONLY this is subtracted from gross pieces!
   const handleScrapKgChange = (val: string) => {
     setScrapKg(val);
-    const kg = parseFloat(val) || 0;
-    if (kg > 0 && effectivePcsPerKg > 0) {
-      setRejectedPcsInput(String(Math.round(kg * effectivePcsPerKg)));
-    } else if (val === '' || kg === 0) {
-      setRejectedPcsInput('0');
-    }
   };
 
   const handleRejectedPcsChange = (val: string) => {
     setRejectedPcsInput(val);
-    const pcs = parseInt(val, 10) || 0;
-    if (pcs > 0 && effectivePcsPerKg > 0) {
-      setScrapKg((pcs / effectivePcsPerKg).toFixed(2));
-    } else if (val === '' || pcs === 0) {
-      setScrapKg('0');
-    }
   };
 
   const handlePcsPerKgChange = (val: string) => {
     setPcsPerKgInput(val);
-    const rate = parseFloat(val) || defaultPcsPerKg;
-    const kg = parseFloat(scrapKg) || 0;
-    if (kg > 0 && rate > 0) {
-      setRejectedPcsInput(String(Math.round(kg * rate)));
-    }
   };
 
-  // Live output numbers: Crates (in pcs) + Loose Pieces (-) Scrap/Rejected Pieces = Net Main Counter Output
+  // Live output numbers: Crates (in pcs) + Loose Pieces (-) ONLY Rejected Pieces = Net Main Counter Output
+  // Cutting Material Scrap (in KG) is extra scrap recorded separately and NEVER subtracted from pieces!
   const liveCratesDone = parseFloat(outputCrates) || 0;
   const liveLooseDone = parseInt(loosePiecesInput, 10) || 0;
   const liveScrapKgVal = parseFloat(scrapKg) || 0;
-  const liveRejectedPcsVal = rejectedPcsInput !== '' ? (parseInt(rejectedPcsInput, 10) || 0) : Math.round(liveScrapKgVal * effectivePcsPerKg);
+  const liveRejectedPcsVal = parseInt(rejectedPcsInput, 10) || 0;
   const liveGrossCutPcs = Math.round(liveCratesDone * effectiveCutPcs) + liveLooseDone;
   const liveNetCutPcs = Math.max(0, liveGrossCutPcs - liveRejectedPcsVal);
 
@@ -233,6 +250,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           ...j,
           tracedLots: { ...(j.tracedLots || {}), Cutting: batchId, Slitting: j.tracedLots?.Slitting || slitBatchId },
           availableRolls: (j.availableRolls || 0) - rollsCount,
+          status: 'CUTTING_IN_PROGRESS',
           runningBatches: [...(j.runningBatches || []), newBatch]
         };
       });
@@ -515,14 +533,87 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     setIsShiftHandoverModalOpen(false);
 
     alert(
-      `✅ कटिंग शिफ्ट हैंडओवर सफलतापूर्वक संपन्न!\n\n` +
-      `निवर्तमान ऑपरेटर [${batch.worker}] के नाम सुरक्षित रिकॉर्ड:\n` +
-      `• पूर्ण क्रेट्स: ${handoverData.sliceProducedQty} Crates\n` +
-      `• लूज पीस: ${handoverData.sliceLoosePieces || 0} Pcs\n` +
-      `• कुल तैयार ब्लैंक्स: ${producedPiecesSlice.toLocaleString()} Pieces\n` +
-      `• रिजेक्शन स्क्रैप: ${handoverData.sliceScrapQty} KG\n\n` +
-      `मशीन [${selectedMachine}] का चालू कार्यभार ऑपरेटर ${handoverData.relievedByOperator} (${handoverData.nextShift} Shift)${nextHelpers.length > 0 ? ` + ${nextHelpers.length} Helpers (${nextHelpers.join(', ')})` : ''} को बिना काम रोके सौंप दिया गया है।`
+      `✅ Cutting Shift Handover completed successfully!
+
+` +
+      `Outgoing Operator [${batch.worker}] secured record:
+` +
+      `• Full Crates: ${handoverData.sliceProducedQty} Crates\n` +
+      `• Loose Pieces: ${handoverData.sliceLoosePieces || 0} Pcs\n` +
+      `• Total Prepared Blanks: ${producedPiecesSlice.toLocaleString()} Pieces\n` +
+      `• Rejection Scrap: ${handoverData.sliceScrapQty} KG\n\n` +
+      `Machine [${selectedMachine}] ongoing charge operator ${handoverData.relievedByOperator} (${handoverData.nextShift} Shift)${nextHelpers.length > 0 ? ` + ${nextHelpers.length} Helpers (${nextHelpers.join(', ')})` : ''} without stopping work.`
     );
+  };
+
+  const handleConfirmCrew = (operator: string, helpers: string[]) => {
+    setOperatorName(operator);
+    setAssignedHelpers(helpers);
+    setIsCrewModalOpen(false);
+
+    // If there is an active batch on this machine, update it immediately
+    if (activeBatchObj) {
+      const { job, batch } = activeBatchObj;
+      const updatedJobs = jobs.map((j) => {
+        if (j.id !== job.id) return j;
+        return {
+          ...j,
+          runningBatches: (j.runningBatches || []).map((b) => {
+            if (b.batchId !== batch.batchId) return b;
+            return {
+              ...b,
+              worker: operator.trim().toUpperCase(),
+              helpers: helpers,
+              helperCount: helpers.length
+            };
+          })
+        };
+      });
+
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const updatedWorkers = (state.floorWorkers || []).map((w) => {
+        if (w.name.toUpperCase() === operator.trim().toUpperCase()) {
+          return {
+            ...w,
+            assignedMachine: selectedMachine,
+            isPresent: true,
+            status: 'PRODUCING' as const,
+            inTime: w.inTime || nowTime
+          };
+        }
+        if (helpers.some((h) => h.toUpperCase() === w.name.toUpperCase())) {
+          return {
+            ...w,
+            assignedMachine: selectedMachine,
+            pairedWithOperator: operator.trim().toUpperCase(),
+            isPresent: true,
+            status: 'PRODUCING' as const,
+            inTime: w.inTime || nowTime
+          };
+        }
+        return w;
+      });
+
+      const crewLog: LogEntry = {
+        jobId: job.id,
+        product: job.product,
+        stage: 'Cutting',
+        machine: selectedMachine,
+        shift: batch.shift,
+        action: `👥 Station Crew Assigned: Operator [${operator}] with ${helpers.length} Helpers (${helpers.join(', ')}) on ${selectedMachine} for Batch [${batch.batchId}]`,
+        worker: operator,
+        user: 'cut_supervisor',
+        rawDate: new Date().toISOString().split('T')[0],
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+      };
+
+      onSaveState({
+        ...state,
+        jobs: updatedJobs,
+        floorWorkers: updatedWorkers.length > 0 ? updatedWorkers : state.floorWorkers,
+        logs: [crewLog, ...(state.logs || [])]
+      });
+    }
   };
 
   const handleResume = () => {
@@ -566,124 +657,238 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
     alert(`▶️ Job [${job.id}] resumed to RUNNING on ${selectedMachine}!`);
   };
 
+
+  const executeFinishJob = (overrideVariance = false) => {
+    try {
+      setIsSaving(true);
+      if (!activeBatchObj) throw new Error('Select batch to finish!');
+      
+      const cratesDone = parseFloat(outputCrates) || 0;
+      const looseDone = parseInt(loosePiecesInput, 10) || 0;
+      const materialScrapKgVal = parseFloat(scrapKg) || 0;
+      const rejectedPcsVal = parseInt(rejectedPcsInput, 10) || 0;
+      const glueUsedVal = parseFloat(actualGlueConsumed) || 0;
+
+      const { job, batch } = activeBatchObj;
+
+      const grossCutPcs = Math.round(cratesDone * effectiveCutPcs) + looseDone;
+      const totalCutPcs = Math.max(0, grossCutPcs - rejectedPcsVal);
+      const inputRolls = batch.issuedQty || 0;
+
+      const STANDARD_GLUE_KG_PER_1000 = 0.15;
+      const expectedGlueKg = (totalCutPcs / 1000) * STANDARD_GLUE_KG_PER_1000;
+      
+      if (!overrideVariance && glueUsedVal > 0 && expectedGlueKg > 0) {
+        const deviationPct = Math.abs(glueUsedVal - expectedGlueKg) / expectedGlueKg;
+        if (deviationPct > 0.25) {
+          setPendingFinishData({ expectedGlueKg, glueUsedVal, deviationPct });
+          setShowGlueVarianceModal(true);
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      const maxPcsPerRoll = state.maxPiecesPerSlitRoll || 30000;
+      const totalMaxTheoreticalInputPieces = (inputRolls > 0 ? inputRolls : 1) * maxPcsPerRoll;
+      const prevProducedPieces = batch.producedPieces || 0;
+      const prevProducedCrates = batch.producedQty || 0;
+      const cumulativeOutputPieces = prevProducedPieces + totalCutPcs;
+      const cumulativeOutputCrates = prevProducedCrates + cratesDone;
+
+      if (state.strictAuditRollYield && inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
+        const estimatedInputCratesEquivalent = Math.ceil(totalMaxTheoreticalInputPieces / effectiveCutPcs);
+        setAuditMismatchError({
+          outputPcs: cumulativeOutputPieces,
+          outputCrates: cumulativeOutputCrates,
+          inputPcs: totalMaxTheoreticalInputPieces,
+          inputCrates: estimatedInputCratesEquivalent,
+          scrapPcs: rejectedPcsVal,
+          details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalMaxTheoreticalInputPieces ?? 0).toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      const stopTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const brandToDeduct = job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)';
+
+      const updatedJobs = jobs.map((j) => {
+        if (j.id !== job.id) return j;
+        return {
+          ...j,
+          pcsPerCrateCutting: effectiveCutPcs,
+          availableCuttingCrates: (j.availableCuttingCrates || 0) + cratesDone,
+          totalCutPieces: (j.totalCutPieces || 0) + totalCutPcs,
+          cuttingLoosePcs: (j.cuttingLoosePcs || 0) + looseDone,
+          cuttingScrapKg: (j.cuttingScrapKg || 0) + materialScrapKgVal,
+          cuttingMaterialScrapKg: (j.cuttingMaterialScrapKg || 0) + materialScrapKgVal,
+          cuttingRejectedPcs: (j.cuttingRejectedPcs || 0) + rejectedPcsVal,
+          cuttingScrapPcs: (j.cuttingScrapPcs || 0) + rejectedPcsVal,
+          cuttingPcsPerKg: effectivePcsPerKg,
+          glueUsageKg: (j.glueUsageKg || 0) + glueUsedVal,
+          glueBrand: brandToDeduct,
+          runningBatches: (j.runningBatches || []).map((b) => {
+            if (b.batchId !== batch.batchId) return b;
+            const finalSlices = [...(b.slices || [])];
+            if (finalSlices.length > 0) {
+              finalSlices.push({
+                sliceId: `SLC-${Date.now()}-${finalSlices.length + 1}`,
+                operator: b.worker,
+                shift: b.shift,
+                producedQty: cratesDone,
+                producedPieces: totalCutPcs,
+                grossPieces: grossCutPcs,
+                scrapQty: materialScrapKgVal,
+                scrapPcs: rejectedPcsVal,
+                cuttingMaterialScrapKg: materialScrapKgVal,
+                rejectedPieces: rejectedPcsVal,
+                pcsPerKg: effectivePcsPerKg,
+                handoverTime: stopTime,
+                notes: 'Final Run Completion'
+              });
+            }
+            return {
+              ...b,
+              status: 'Completed',
+              endTime: stopTime,
+              producedQty: (b.producedQty || 0) + cratesDone,
+              pcsPerCrate: effectiveCutPcs,
+              producedPieces: (b.producedPieces || 0) + totalCutPcs,
+              grossPieces: (b.grossPieces || 0) + grossCutPcs,
+              loosePieces: looseDone,
+              scrapKg: (b.scrapKg || 0) + materialScrapKgVal,
+              cuttingMaterialScrapKg: (b.cuttingMaterialScrapKg || 0) + materialScrapKgVal,
+              scrapPcs: (b.scrapPcs || 0) + rejectedPcsVal,
+              rejectedPieces: (b.rejectedPieces || 0) + rejectedPcsVal,
+              pcsPerKg: effectivePcsPerKg,
+              glueBrand: brandToDeduct,
+              glueUsageKg: (b.glueUsageKg || 0) + glueUsedVal,
+              slices: finalSlices
+            };
+          })
+        };
+      });
+
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      let glueDeductedMsg = '';
+      const updatedRequisitions = (state.materialRequisitions || []).map((req) => {
+        if (
+          glueUsedVal > 0 &&
+          req.status === 'RECEIVED' &&
+          (req.itemName.toLowerCase().includes(brandToDeduct.toLowerCase()) ||
+            req.itemCategory.toLowerCase().includes('adhesive') ||
+            req.itemName.toLowerCase().includes('glue')) &&
+          (req.receivedQty || 0) >= glueUsedVal
+        ) {
+          glueDeductedMsg = ` (Deducted ${glueUsedVal} KG from Warehouse PO Stock Requisition ${req.id})`;
+          return {
+            ...req,
+            receivedQty: Math.max(0, (req.receivedQty || 0) - glueUsedVal)
+          };
+        }
+        return req;
+      });
+
+      let nextGlueLogs = [...(state.glueUsageLogs || [])];
+      if (glueUsedVal > 0) {
+        const newGlueEntry: GlueUsageEntry = {
+          id: `GLUE-${Date.now()}`,
+          date: dateStr,
+          time: timeStr,
+          shift: batch.shift || shift,
+          machine: selectedMachine,
+          stage: 'Cutting',
+          jobId: job.id,
+          batchId: batch.batchId,
+          product: job.product,
+          glueBrand: brandToDeduct,
+          quantityKg: glueUsedVal,
+          operator: batch.worker || operatorName,
+          user: 'cut_user',
+          createdAt: now.toISOString()
+        };
+        nextGlueLogs = [newGlueEntry, ...nextGlueLogs];
+      }
+
+      const newLog = {
+        jobId: job.id,
+        product: job.product,
+        stage: 'Cutting',
+        machine: selectedMachine,
+        shift: batch.shift,
+        action: `⏹️ Finished Cutting Batch ${batch.batchId} (${cratesDone} Crates + ${looseDone} Loose = ${grossCutPcs.toLocaleString()} Gross - ${rejectedPcsVal.toLocaleString()} Rejected Pcs = ${totalCutPcs.toLocaleString()} Net Passed Cut Blanks | Extra Paper Scrap: ${materialScrapKgVal} KG [Added separately to scrap, not minus from pieces])${glueUsedVal > 0 ? ` | Adhesive Glue Consumed: ${glueUsedVal} KG of ${brandToDeduct}${glueDeductedMsg}` : ''}`,
+        worker: batch.worker,
+        user: 'cut_user',
+        startTime: batch.startTime,
+        endTime: stopTime,
+        rawDate: dateStr,
+        timestamp: now.toLocaleString()
+      };
+
+      onSaveState({
+        ...state,
+        jobs: updatedJobs,
+        glueUsageLogs: nextGlueLogs,
+        materialRequisitions: updatedRequisitions,
+        logs: [...state.logs, newLog]
+      });
+
+      setOutputCrates('');
+      setLoosePiecesInput('0');
+      setPcsPerCrateOverride('');
+      setScrapKg('0');
+      setRejectedPcsInput('');
+      setPcsPerKgInput('');
+      setActualGlueConsumed('');
+      setSelectedActiveBatchId('');
+      alert(`✅ Cutting Run Finished!\nMain Counter: ${totalCutPcs.toLocaleString()} Net Flat Blanks (${cratesDone} Crates + ${looseDone} Loose - ${rejectedPcsVal.toLocaleString()} Rejected Pcs). Added to inventory.${glueUsedVal > 0 ? `\n• Glue Consumed: ${glueUsedVal} KG of ${brandToDeduct} recorded and deducted from inventory.` : ''}`);
+    } catch (err: any) {
+      console.error("Database Save Failed:", err);
+      alert(`Database Save Failed: ${err.message}. Please check console or retry.`);
+    } finally {
+      setIsSaving(false);
+      setShowGlueVarianceModal(false);
+      setPendingFinishData(null);
+    }
+  };
+
   const handleFinish = () => {
     if (!activeBatchObj) return alert('Select batch to finish!');
+    
+    // VALIDATIONS
+    if (!activeBatchObj.batch.worker) {
+      alert('Cannot finish job: Operator Name is required.');
+      return;
+    }
+    
+    const hasHelpers = activeBatchObj.batch.helpers && activeBatchObj.batch.helpers.length > 0;
+    if (!hasHelpers) {
+      alert('Cannot finish job: Helper assignment is required.');
+      return;
+    }
+    
     const cratesDone = parseFloat(outputCrates) || 0;
     const looseDone = parseInt(loosePiecesInput, 10) || 0;
-    const scrapKgVal = parseFloat(scrapKg) || 0;
-    const rejectedPcsVal = rejectedPcsInput !== '' ? (parseInt(rejectedPcsInput, 10) || 0) : Math.round(scrapKgVal * effectivePcsPerKg);
-
+    
     if (cratesDone <= 0 && looseDone <= 0) {
-      alert('Please enter a valid output quantity of crates or pieces before finishing!');
+      alert('Cannot finish job: Actual Sheets Cut (Crates or Loose pieces) is required or invalid.');
+      return;
+    }
+    
+    if (actualGlueConsumed.trim() === '' || isNaN(parseFloat(actualGlueConsumed))) {
+      alert('Cannot finish job: Actual Glue Consumed (KG) is required or invalid.');
+      return;
+    }
+    
+    if (scrapKg.trim() === '' || isNaN(parseFloat(scrapKg))) {
+      alert('Cannot finish job: Cutting Skeleton Scrap (KG) is required or invalid.');
       return;
     }
 
-    const { job, batch } = activeBatchObj;
-    // Main Counter Formula: Passed Crates + Loose Pieces (-) Scrap/Rejected Pieces = Net Main Counter Pieces
-    const grossCutPcs = Math.round(cratesDone * effectiveCutPcs) + looseDone;
-    const totalCutPcs = Math.max(0, grossCutPcs - rejectedPcsVal);
-    const inputRolls = batch.issuedQty || 0;
-
-    // Physical yield conservation check: configurable from Admin settings
-    const maxPcsPerRoll = state.maxPiecesPerSlitRoll || 30000;
-    const totalMaxTheoreticalInputPieces = (inputRolls > 0 ? inputRolls : 1) * maxPcsPerRoll;
-    const prevProducedPieces = batch.producedPieces || 0;
-    const prevProducedCrates = batch.producedQty || 0;
-    const cumulativeOutputPieces = prevProducedPieces + totalCutPcs;
-    const cumulativeOutputCrates = prevProducedCrates + cratesDone;
-
-    if (state.strictAuditRollYield && inputRolls > 0 && cumulativeOutputPieces > totalMaxTheoreticalInputPieces) {
-      const estimatedInputCratesEquivalent = Math.ceil(totalMaxTheoreticalInputPieces / effectiveCutPcs);
-      setAuditMismatchError({
-        outputPcs: cumulativeOutputPieces,
-        outputCrates: cumulativeOutputCrates,
-        inputPcs: totalMaxTheoreticalInputPieces,
-        inputCrates: estimatedInputCratesEquivalent,
-        scrapPcs: rejectedPcsVal,
-        details: `Audit Mismatch: Output quantity (${(cumulativeOutputPieces ?? 0).toLocaleString()} pcs across ${cumulativeOutputCrates} crates) exceeds issued input quantity (${(totalMaxTheoreticalInputPieces ?? 0).toLocaleString()} pcs across ${estimatedInputCratesEquivalent} crates). Entry blocked.`
-      });
-      return;
-    }
-
-    const stopTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const updatedJobs = jobs.map((j) => {
-      if (j.id !== job.id) return j;
-      return {
-        ...j,
-        pcsPerCrateCutting: effectiveCutPcs,
-        availableCuttingCrates: (j.availableCuttingCrates || 0) + cratesDone,
-        totalCutPieces: (j.totalCutPieces || 0) + totalCutPcs,
-        cuttingLoosePcs: (j.cuttingLoosePcs || 0) + looseDone,
-        cuttingScrapKg: (j.cuttingScrapKg || 0) + scrapKgVal,
-        cuttingScrapPcs: (j.cuttingScrapPcs || 0) + rejectedPcsVal,
-        cuttingPcsPerKg: effectivePcsPerKg,
-        runningBatches: (j.runningBatches || []).map((b) => {
-          if (b.batchId !== batch.batchId) return b;
-          const finalSlices = [...(b.slices || [])];
-          if (finalSlices.length > 0) {
-            finalSlices.push({
-              sliceId: `SLC-${Date.now()}-${finalSlices.length + 1}`,
-              operator: b.worker,
-              shift: b.shift,
-              producedQty: cratesDone,
-              producedPieces: totalCutPcs,
-              grossPieces: grossCutPcs,
-              scrapQty: scrapKgVal,
-              scrapPcs: rejectedPcsVal,
-              pcsPerKg: effectivePcsPerKg,
-              handoverTime: stopTime,
-              notes: 'Final Run Completion'
-            });
-          }
-          return {
-            ...b,
-            status: 'Completed',
-            endTime: stopTime,
-            producedQty: (b.producedQty || 0) + cratesDone,
-            pcsPerCrate: effectiveCutPcs,
-            producedPieces: (b.producedPieces || 0) + totalCutPcs,
-            grossPieces: (b.grossPieces || 0) + grossCutPcs,
-            loosePieces: looseDone,
-            scrapKg: (b.scrapKg || 0) + scrapKgVal,
-            scrapPcs: (b.scrapPcs || 0) + rejectedPcsVal,
-            rejectedPieces: (b.rejectedPieces || 0) + rejectedPcsVal,
-            pcsPerKg: effectivePcsPerKg,
-            slices: finalSlices
-          };
-        })
-      };
-    });
-
-    const newLog = {
-      jobId: job.id,
-      product: job.product,
-      stage: 'Cutting',
-      machine: selectedMachine,
-      shift: batch.shift,
-      action: `⏹️ Finished Cutting Batch ${batch.batchId} (${cratesDone} Crates + ${looseDone} Loose = ${grossCutPcs.toLocaleString()} Gross - ${rejectedPcsVal.toLocaleString()} Scrap/Rejection [${scrapKgVal} KG @ ${effectivePcsPerKg} Pcs/KG] = ${totalCutPcs.toLocaleString()} Net Main Counter Flat Blanks)`,
-      worker: batch.worker,
-      user: 'cut_user',
-      startTime: batch.startTime,
-      endTime: stopTime,
-      rawDate: new Date().toISOString().split('T')[0],
-      timestamp: new Date().toLocaleString()
-    };
-
-    onSaveState({
-      ...state,
-      jobs: updatedJobs,
-      logs: [...state.logs, newLog]
-    });
-
-    setOutputCrates('');
-    setLoosePiecesInput('0');
-    setPcsPerCrateOverride('');
-    setScrapKg('0');
-    setRejectedPcsInput('');
-    setPcsPerKgInput('');
-    setSelectedActiveBatchId('');
-    alert(`✅ Cutting Run Finished!\nMain Counter: ${totalCutPcs.toLocaleString()} Net Flat Blanks (${cratesDone} Crates + ${looseDone} Loose - ${rejectedPcsVal.toLocaleString()} Rejected Pcs). Added to inventory.`);
+    executeFinishJob(false);
   };
 
   const handleConfirmCancelRun = () => {
@@ -748,7 +953,48 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             </p>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsGlueModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 px-3 py-1.5 rounded-lg transition cursor-pointer shadow-2xs"
+            title="Record Glue Usage"
+          >
+            <Droplets className="w-4 h-4 text-teal-600" />
+            <span>💧 Adhesive Glue (Glue Tracker)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowLiveManpowerRoster((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-3 py-1.5 rounded-lg transition cursor-pointer shadow-2xs"
+            title="View & Change Floor Manpower Roster"
+          >
+            <Users className="w-4 h-4 text-blue-600" />
+            <span>👥 Live Manpower (Floor Roster)</span>
+          </button>
+        </div>
       </div>
+
+      {/* Optional Expandable Live Floor Manpower Roster */}
+      {showLiveManpowerRoster && (
+        <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 space-y-3 relative shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <h4 className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-blue-600" />
+              <span>Live Cutting Floor Manpower Roster (Live Station Crew & Floor Manpower)</span>
+            </h4>
+            <button
+              type="button"
+              onClick={() => setShowLiveManpowerRoster(false)}
+              className="text-slate-500 hover:text-slate-800 text-xs font-bold px-2.5 py-1 bg-white border border-slate-300 rounded-lg cursor-pointer"
+            >
+              Close ✕
+            </button>
+          </div>
+          <LiveFloorManpowerTracker state={state} onSaveState={onSaveState} />
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* VISUAL WORKSTATION FLOOR SELECTOR */}
@@ -936,6 +1182,10 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   <span className="font-extrabold text-sm text-blue-950">
                     {activeBatchObj.job.id} — <span className="text-slate-800">{activeBatchObj.job.product}</span>
                   </span>
+                  <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-600 font-medium">
+                    <span>Layers: <b className="text-slate-800">{activeBatchObj.job.targetLayers || 'N/A'}</b></span>
+                    <span>GSM: <b className="text-slate-800">{activeBatchObj.job.targetGsm || activeBatchObj.job.gsm || 'N/A'}</b></span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {(() => {
@@ -966,7 +1216,17 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700 bg-white/80 p-2.5 rounded-lg border border-slate-200">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Operator:</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Operator:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCrewModalOpen(true)}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-extrabold flex items-center gap-0.5 cursor-pointer"
+                      title="Change / Assign Crew & Helper"
+                    >
+                      <Users className="w-3 h-3" /> Change Crew
+                    </button>
+                  </div>
                   <b>{activeBatchObj.batch.worker}</b> ({activeBatchObj.batch.shift || 'DAY'})
                   <div className="mt-1">
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-50 text-amber-950 border border-amber-300 px-1.5 py-0.5 rounded">
@@ -978,14 +1238,42 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                     </span>
                   </div>
                 </div>
+
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Start Time:</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Adhesive Glue:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsGlueModalOpen(true)}
+                      className="text-[10px] text-teal-600 hover:text-teal-800 font-extrabold flex items-center gap-0.5 cursor-pointer"
+                      title="Record Glue Usage"
+                    >
+                      <Droplets className="w-3 h-3" /> + Record
+                    </button>
+                  </div>
+                  <div className="text-xs font-bold text-teal-950 flex items-center gap-1">
+                    <Droplets className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="truncate">
+                      {activeBatchObj.batch.glueBrand
+                        ? `${activeBatchObj.batch.glueBrand} (${activeBatchObj.batch.glueUsageKg || 0} KG)`
+                        : 'No Glue Logged'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    {state.glueUsageLogs && state.glueUsageLogs.filter((l) => l.machine === selectedMachine).length > 0
+                      ? `${state.glueUsageLogs.filter((l) => l.machine === selectedMachine).length} entries logged on ${selectedMachine}`
+                      : 'Click + Record to record drum'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Start Time & Input:</span>
                   <b>{activeBatchObj.batch.startTime || '-'}</b>
+                  <div className="text-xs font-bold text-blue-700 mt-0.5">
+                    Issued: {activeBatchObj.batch.issuedQty} Rolls
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Issued In Batch:</span>
-                  <b className="text-blue-700">{activeBatchObj.batch.issuedQty} Rolls</b>
-                </div>
+
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Batch Status:</span>
                   <b
@@ -995,6 +1283,9 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   >
                     {activeBatchObj.batch.status.toUpperCase()}
                   </b>
+                  <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                    ID: {activeBatchObj.batch.batchId}
+                  </div>
                 </div>
               </div>
 
@@ -1088,14 +1379,14 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                   <Scissors className="w-4 h-4 text-emerald-600" />
-                  <span>Output Reporting & Scrap/Rejection Counter Deduction (उत्पादन एवं स्क्रैप कटौती):</span>
+                  <span>Output Reporting & Scrap/Rejection Counter Deduction:</span>
                 </span>
                 <span className="text-[10px] font-bold text-slate-500">
                   Main Counter Auto-Calculation
                 </span>
               </div>
 
-              {/* Row 1: Production Additions (मेन काउंटर में प्लस होने वाली क्वांटिटी) */}
+              {/* Row 1: Production Additions (Quantity to be added to main counter) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-200">
                 <div>
                   <label className="block text-xs font-bold text-emerald-900 uppercase mb-1 flex items-center gap-1">
@@ -1118,7 +1409,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-amber-900 uppercase mb-1 flex items-center gap-1">
-                    <span>+ Loose Pieces (लूज़ पीस - मेन काउंटर में प्लस होगा):</span>
+                    <span>+ Loose Pieces (Loose Pieces - Will be added to main counter):</span>
                   </label>
                   <input
                     type="number"
@@ -1133,89 +1424,148 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 </div>
               </div>
 
-              {/* Row 2: Rejection / Scrap Deductions (माइनस होने वाला स्क्रैप/रिजेक्शन) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-200">
-                <div>
-                  <label className="block text-xs font-bold text-rose-900 uppercase mb-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Edge Scrap / Rejection (KG):</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={scrapKg}
-                    onChange={(e) => handleScrapKgChange(e.target.value)}
-                    placeholder="e.g. 2.5"
-                    className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-rose-500"
-                  />
-                  <span className="text-[10px] text-rose-600 mt-0.5 block font-medium">
-                    Scrap weight in KG
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 uppercase mb-1 flex items-center justify-between">
-                    <span>Rate (Pcs / KG) [दर]:</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Default: {defaultPcsPerKg}</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={pcsPerKgInput}
-                    onChange={(e) => handlePcsPerKgChange(e.target.value)}
-                    placeholder={String(defaultPcsPerKg)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-slate-500"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-0.5 block font-medium">
-                    1 KG में कितने पीस हैं ({activeBatchObj.job.product})
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-rose-900 uppercase mb-1 flex items-center gap-1">
-                    <span>- Rejected Pieces (रिजेक्ट पीस - माइनस होगा):</span>
-                  </label>
+              {/* Row 2: Rejection Pieces (Deducted) vs Material Scrap KG (Separate Scrap, Not Deducted from Pieces) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* 1. Defective / Rejected Pieces: MINUS from pieces */}
+                <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-300 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-rose-950 uppercase flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>1. Rejected Pieces:</span>
+                    </label>
+                    <span className="text-[10px] font-black text-rose-800 bg-rose-200 px-2 py-0.5 rounded-md border border-rose-300">
+                      MINUS (-) FROM PIECES
+                    </span>
+                  </div>
                   <input
                     type="number"
                     min="0"
                     value={rejectedPcsInput}
                     onChange={(e) => handleRejectedPcsChange(e.target.value)}
-                    placeholder={String(liveRejectedPcsVal)}
-                    className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-black text-rose-700 outline-none focus:border-rose-500"
+                    placeholder="0"
+                    className="w-full px-3 py-2 bg-white border border-rose-400 rounded-lg text-sm font-black text-rose-800 outline-none focus:border-rose-600 shadow-2xs"
                   />
-                  <span className="text-[10px] text-rose-700 mt-0.5 block font-medium">
-                    Main counter se MINUS (-) hoga ({liveScrapKgVal} KG × {effectivePcsPerKg})
+                  <span className="text-[11px] text-rose-800 font-semibold block leading-tight">
+                    ⚠️ <b>Only these rejected pieces will be minus (-) from prepared pieces.</b> (Both will not mix)
                   </span>
+                </div>
+
+                {/* 2. Cutting Material Scrap (KG): Extra Paper Scrap, NOT deducted from pieces */}
+                <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-300 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-amber-950 uppercase flex items-center gap-1.5">
+                      <Recycle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>2. Cutting Material Scrap KG:</span>
+                    </label>
+                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                      EXTRA SCRAP (NOT MINUS FROM PCS)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={scrapKg}
+                      onChange={(e) => handleScrapKgChange(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 bg-white border border-amber-400 rounded-lg text-sm font-black text-amber-950 outline-none focus:border-amber-600 shadow-2xs"
+                    />
+                    <span className="text-xs font-black text-amber-900 shrink-0 bg-amber-200/80 px-2 py-2 rounded-lg border border-amber-300">
+                      KG
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-amber-900 font-semibold block leading-tight">
+                    ℹ️ <b>Extra paper scrap from cutting will directly add to scrap account. It will not be minus from pieces.</b>
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 2.5: Adhesive/Glue Inline Consumption Input */}
+              <div className="bg-teal-50/70 p-3.5 rounded-xl border border-teal-300 space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-teal-950 uppercase flex items-center gap-1.5">
+                    <Droplets className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span>3. Actual Glue Consumed KG *:</span>
+                  </label>
+                  <span className="text-[10px] font-black text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md border border-teal-300">
+                    INLINE RAW MATERIAL CONSUMPTION
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={actualGlueConsumed}
+                    onChange={(e) => setActualGlueConsumed(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 bg-white border border-teal-400 rounded-lg text-sm font-black text-teal-950 outline-none focus:border-teal-600 shadow-2xs"
+                  />
+                  <span className="text-xs font-black text-teal-900 shrink-0 bg-teal-200/80 px-2 py-2 rounded-lg border border-teal-300">
+                    KG
+                  </span>
+                </div>
+                <div className="text-[11px] text-teal-900 font-semibold flex items-center justify-between">
+                  <span>ℹ️ Planned Glue Brand: <b>{activeBatchObj.job.targetGlueBrand || activeBatchObj.batch.glueBrand || 'Pidilite W-10 (Food Grade Adhesive)'}</b> (Read-Only)</span>
+                  <span className="text-[10px] bg-teal-100/80 text-teal-800 border border-teal-200 rounded px-1.5 py-0.5 font-bold">Auto-Deducts from Stock</span>
                 </div>
               </div>
 
               {/* Row 3: Live Main Counter Summary Breakdown */}
-              <div className="bg-slate-900 text-white p-3 rounded-xl space-y-2">
-                <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center justify-between">
-                  <span>Main Counter Live Calculation (मेन काउंटर लाइव हिसाब):</span>
-                  <span className="text-amber-400 font-mono text-[10px]">Crates + Loose - Scrap</span>
+              <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-2.5">
+                <div className="text-[11px] font-extrabold text-slate-300 uppercase flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Main Counter Live Calculation:</span>
+                  </span>
+                  <span className="text-amber-300 font-mono text-[10px] bg-slate-800 px-2 py-0.5 rounded">
+                    Crates + Loose - Only rejected pieces
+                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                  <span className="bg-emerald-900/80 text-emerald-300 px-2 py-1 rounded border border-emerald-700">
+                  <span className="bg-emerald-950 text-emerald-300 px-2.5 py-1 rounded-md border border-emerald-700">
                     Crates: {(Math.round(liveCratesDone * effectiveCutPcs)).toLocaleString()} Pcs
                   </span>
-                  <span>+</span>
-                  <span className="bg-amber-900/80 text-amber-300 px-2 py-1 rounded border border-amber-700">
+                  <span className="text-slate-400 font-bold">+</span>
+                  <span className="bg-amber-950 text-amber-300 px-2.5 py-1 rounded-md border border-amber-700">
                     Loose: {liveLooseDone.toLocaleString()} Pcs
                   </span>
-                  <span>-</span>
-                  <span className="bg-rose-900/80 text-rose-300 px-2 py-1 rounded border border-rose-700">
-                    Scrap/Rejected: {liveRejectedPcsVal.toLocaleString()} Pcs
+                  <span className="text-slate-400 font-bold">-</span>
+                  <span className="bg-rose-950 text-rose-300 px-2.5 py-1 rounded-md border border-rose-700">
+                    Rejected: {liveRejectedPcsVal.toLocaleString()} Pcs
                   </span>
-                  <span>=</span>
-                  <span className="bg-emerald-500 text-slate-950 font-black text-sm px-3 py-1 rounded shadow-md ml-auto">
-                    Main Counter: {liveNetCutPcs.toLocaleString()} Flat Blanks
+                  <span className="text-slate-400 font-bold">=</span>
+                  <span className="bg-emerald-500 text-slate-950 font-black text-sm px-3.5 py-1 rounded-lg shadow-md">
+                    Net Output: {liveNetCutPcs.toLocaleString()} Flat Blanks
                   </span>
+                  <div className="w-full sm:w-auto ml-auto pt-1 sm:pt-0">
+                    <span className="bg-amber-400/20 text-amber-200 border border-amber-400/30 px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1">
+                      <Recycle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Separate Cutting Scrap: <b>{liveScrapKgVal} KG</b> (Not minus from pieces)</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsCrewModalOpen(true)}
+                  className="py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  title="Change Station Crew & Helper"
+                >
+                  <Users className="w-3.5 h-3.5" /> Crew & Helper
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsGlueModalOpen(true)}
+                  className="py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  title="Enter Adhesive Glue Usage"
+                >
+                  <Droplets className="w-3.5 h-3.5" /> Glue Usage
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1239,7 +1589,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsShiftHandoverModalOpen(true)}
-                  className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  className="py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                   title="Handover machine to incoming shift operator without stopping the batch"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Shift Handover
@@ -1258,13 +1608,22 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 >
                   <Play className="w-3.5 h-3.5" /> Resume
                 </button>
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  className="py-2.5 bg-[#2f855a] hover:bg-[#276749] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                >
-                  <Square className="w-3.5 h-3.5" /> Finish Run
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={handleFinish}
+                    disabled={isSaving}
+                    className="py-2.5 bg-[#2f855a] hover:bg-[#276749] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed w-full"
+                  >
+                    <Square className="w-3.5 h-3.5" /> {isSaving ? 'Saving...' : 'Finish Run'}
+                  </button>
+                  {isSaving && (
+                    <span className="text-[10px] text-slate-500 text-center">Processing...</span>
+                  )}
+                  {(!outputCrates && !loosePiecesInput) && (
+                    <span className="text-[10px] text-rose-500 text-center">Please fill Actual Sheets Cut</span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsCancelConfirmOpen(true)}
@@ -1332,7 +1691,8 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
               <select
                 value={filterProduct}
                 onChange={(e) => setFilterProduct(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                disabled={!!selectedPendingJobId}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 <option value="">-- ALL PRODUCTS --</option>
                 {(state.products && state.products.length > 0 ? state.products : PRODUCTS).map((p) => (
@@ -1348,14 +1708,24 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-black text-amber-950 flex items-center gap-1.5 uppercase">
-                <span>🤝 ऑपरेटर के साथ नियुक्त हेल्पर (Assigned Helpers):</span>
+                <span>🤝 Assigned Helpers with Operator:</span>
                 <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
                   {assignedHelpers.length} Helpers
                 </span>
               </span>
-              <span className="text-[11px] text-amber-800 font-medium">
-                (उदा. ऑपरेटर + 2 हेल्पर साइड में दिखाई देंगे)
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCrewModalOpen(true)}
+                  className="text-xs font-extrabold text-blue-800 bg-white hover:bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs flex items-center gap-1"
+                >
+                  <Users className="w-3.5 h-3.5 text-blue-600" />
+                  <span>👥 Crew & Helper Popup (Modal)</span>
+                </button>
+                <span className="text-[11px] text-amber-800 font-medium">
+                  (e.g. Operator + 2 Helpers will appear on side)
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-1.5 items-center">
@@ -1380,7 +1750,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   type="text"
                   value={newHelperInput}
                   onChange={(e) => setNewHelperInput(e.target.value)}
-                  placeholder="+ नया हेल्पर नाम..."
+                  placeholder="+ New helper name..."
                   className="px-2 py-1 bg-white border border-amber-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none w-36"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -1404,7 +1774,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   }}
                   className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition cursor-pointer"
                 >
-                  + जोड़ें
+                  + Add
                 </button>
               </div>
             </div>
@@ -1449,12 +1819,61 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                       Selected Job #{selectedPendingJob.id}
                     </span>
                     <span className="font-extrabold text-slate-900 text-sm">{selectedPendingJob.product}</span>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium ml-2 border-l border-blue-200 pl-2">
+                      <span>Layers: <b className="text-slate-800">{selectedPendingJob.targetLayers || '9 Layers'}</b></span>
+                      <span>GSM: <b className="text-slate-800">{selectedPendingJob.targetGsm || selectedPendingJob.gsm || 'N/A'}</b></span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-600 font-medium">Available Slit Rolls:</span>
                     <span className="font-black text-sm text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-300">
                       {selectedPendingJob.availableRolls} Rolls
                     </span>
+                  </div>
+                </div>
+
+                {/* STRICT OPERATIONAL HARD-LOCK SPECIFICATION CARD */}
+                <div className="bg-white/95 p-3 rounded-xl border border-blue-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <span className="text-[10px] font-black uppercase text-blue-950 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-blue-700" />
+                      PPC Master Specification Hard-Lock
+                    </span>
+                    <span className="text-[10px] font-extrabold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-blue-600" /> 100% Read-Only (Bound to Job #{selectedPendingJob.id})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                        Target Product (Locked):
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{selectedPendingJob.product}</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                        Layer Configuration:
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                        <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{selectedPendingJob.targetLayers || '9 Layers'} (PPC Master Spec)</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                        GSM Specification:
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{selectedPendingJob.targetGsm || selectedPendingJob.gsm || '280 GSM'}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1503,11 +1922,26 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 text-[11px] text-blue-900 bg-blue-100/70 p-2 rounded-lg">
-                  <span className="font-bold">Paper Spec:</span>
-                  <span>{selectedPendingJob.paperBrand || 'ITC CyberXL'} • {selectedPendingJob.gsm || '280 GSM'}</span>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-blue-200 text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-800 font-bold">
+                    <span className="text-slate-500 uppercase">📄 Specified Paper:</span>
+                    <span className="text-blue-900 font-extrabold bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
+                      {selectedPendingJob.paperBrand || 'ITC'} • {selectedPendingJob.gsm || '280 GSM'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-800 font-bold">
+                    <span className="text-slate-500 uppercase">💧 Adhesive/Glue:</span>
+                    <span className="text-teal-900 font-extrabold bg-teal-100 px-2 py-0.5 rounded border border-teal-200">
+                      {selectedPendingJob.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 italic block leading-snug">
+                    🔒 Pre-defined BOM specifications pre-filled from Planning Desk (PPC). Operator cannot change glue brand.
+                  </span>
                   {selectedPendingJob.customRemark && (
-                    <span className="text-slate-600 italic">({selectedPendingJob.customRemark})</span>
+                    <div className="text-[11px] text-slate-600 italic mt-1 border-t border-slate-100 pt-1">
+                      Note: {selectedPendingJob.customRemark}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1587,7 +2021,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
-                <th className="p-3 text-indigo-900">Date (तारीख)</th>
+                <th className="p-3 text-indigo-900">Date</th>
                 <th className="p-3 text-blue-900">Reel No.</th>
                 <th className="p-3 text-amber-900">GSM</th>
                 <th className="p-3">Paper Mill</th>
@@ -1999,6 +2433,156 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
           }
           onConfirmHandover={handleConfirmShiftHandover}
         />
+      )}
+
+      {/* Station Crew Assignment Modal */}
+      <StationCrewModal
+        isOpen={isCrewModalOpen}
+        onClose={() => setIsCrewModalOpen(false)}
+        machine={selectedMachine}
+        stage="Cutting"
+        shift={shift}
+        currentOperator={activeBatchObj?.batch.worker || operatorName}
+        currentHelpers={
+          activeBatchObj?.batch.helpers && activeBatchObj.batch.helpers.length > 0
+            ? activeBatchObj.batch.helpers
+            : assignedHelpers
+        }
+        state={state}
+        onConfirmCrew={handleConfirmCrew}
+      />
+
+      {/* Glue Usage Modal */}
+      <GlueUsageModal
+        isOpen={isGlueModalOpen}
+        onClose={() => setIsGlueModalOpen(false)}
+        state={state}
+        onSaveState={onSaveState}
+        defaultMachine={selectedMachine}
+        defaultStage="Cutting"
+        defaultJobId={activeBatchObj?.job.id || selectedPendingJobId}
+        defaultBatchId={activeBatchObj?.batch.batchId}
+      />
+
+      {/* Adhesive Specification & Pre-Filled BOM Card Modal */}
+      {showSpecModal && activeBatchObj && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-teal-200 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 border-b border-teal-100 pb-3">
+              <Droplets className="w-6 h-6 text-teal-600" />
+              <div>
+                <h3 className="text-sm font-extrabold text-teal-950 m-0">Adhesive & Glue Specifications</h3>
+                <p className="text-[11px] text-slate-500 m-0">BOM allocation defined by Planning Desk (PPC)</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="grid grid-cols-2 gap-1 text-[11px]">
+                  <span className="text-slate-500">Job ID:</span>
+                  <span className="font-extrabold text-slate-900">{activeBatchObj.job.id}</span>
+                  <span className="text-slate-500">Product:</span>
+                  <span className="font-bold text-slate-900">{activeBatchObj.job.product}</span>
+                  <span className="text-slate-500">Pre-defined Brand:</span>
+                  <span className="font-black text-teal-800 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded text-[10px] w-fit">
+                    {activeBatchObj.job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-teal-50/70 p-3.5 rounded-xl border border-teal-300 space-y-1.5">
+                <label className="text-xs font-black text-teal-950 uppercase flex items-center gap-1.5">
+                  <span>Enter Actual Glue Consumed (KG) *:</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={actualGlueConsumed}
+                    onChange={(e) => setActualGlueConsumed(e.target.value)}
+                    placeholder="e.g. 12.5"
+                    className="w-full px-3 py-2 bg-white border border-teal-400 rounded-lg text-sm font-black text-teal-950 outline-none focus:border-teal-600 shadow-2xs"
+                  />
+                  <span className="text-xs font-black text-teal-900 shrink-0 bg-teal-200/80 px-2.5 py-2 rounded-lg border border-teal-300">
+                    KG
+                  </span>
+                </div>
+                <p className="text-[10px] text-teal-800 m-0 font-medium leading-normal">
+                  💡 This is read-only pre-filled specification. Operator only inputs actual consumption weight.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowSpecModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Close & Finish Later
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const val = parseFloat(actualGlueConsumed) || 0;
+                  if (val <= 0) {
+                    alert('⚠️ Please enter a valid quantity of glue consumed!');
+                    return;
+                  }
+                  setShowSpecModal(false);
+                  alert(`✅ Specification Confirmed!\n• Planned Brand: ${activeBatchObj.job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)'}\n• Actual Glue: ${val} KG will be logged upon completing the cutting run.`);
+                }}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-700 rounded-xl cursor-pointer shadow-xs flex items-center gap-1"
+              >
+                <Check className="w-4 h-4" /> Save Specification & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+          {/* Glue Variance Modal */}
+      {showGlueVarianceModal && pendingFinishData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
+            <div className="bg-amber-500 text-white p-4">
+              <h3 className="font-extrabold text-sm uppercase flex items-center gap-2">
+                ⚠️ Glue Variance Alert
+              </h3>
+            </div>
+            <div className="p-5 space-y-4 text-xs text-slate-700">
+              <p>The amount of glue entered significantly deviates from the standard BOM expectation (±25%).</p>
+              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 grid grid-cols-2 gap-2">
+                <div className="font-bold">Expected:</div>
+                <div>{pendingFinishData.expectedGlueKg.toFixed(2)} KG</div>
+                <div className="font-bold">Entered:</div>
+                <div className="text-amber-700 font-extrabold">{pendingFinishData.glueUsedVal} KG</div>
+                <div className="font-bold">Deviation:</div>
+                <div className="text-rose-600 font-extrabold">{(pendingFinishData.deviationPct * 100).toFixed(1)}%</div>
+              </div>
+              <p className="font-bold">Are you sure you want to proceed and record this variance?</p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGlueVarianceModal(false);
+                  setPendingFinishData(null);
+                }}
+                className="px-4 py-2 text-slate-600 font-bold bg-white border border-slate-300 rounded-lg"
+              >
+                Cancel / Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => executeFinishJob(true)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg"
+              >
+                Proceed with Variance
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

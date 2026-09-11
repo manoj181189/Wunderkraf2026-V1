@@ -25,7 +25,7 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!partName.trim()) {
-      alert('⚠️ कृपया स्पेयर पार्ट का नाम दर्ज करें (Please enter spare part name)');
+      alert('⚠️ Please enter spare part name');
       return;
     }
 
@@ -79,10 +79,10 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-black tracking-wide uppercase m-0">
-                ➕ नया कस्टम स्पेयर पार्ट दर्ज करें (Add Custom Spare Part)
+                ➕ Add Custom Spare Part
               </h3>
               <p className="text-[11px] text-amber-100 font-medium m-0">
-                नया स्पेयर पार्ट का नाम, मात्रा व विवरण टाइप करें
+                Type new spare part name, quantity, and description
               </p>
             </div>
           </div>
@@ -100,8 +100,8 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
           {/* Spare Part Name */}
           <div>
             <label className="block text-xs font-black text-slate-800 uppercase mb-1 flex items-center justify-between">
-              <span>स्पेयर पार्ट का नाम (Spare Part Name): *</span>
-              <span className="text-[10px] text-rose-600 font-bold">अनिवार्य (Required)</span>
+              <span>Spare Part Name: *</span>
+              <span className="text-[10px] text-rose-600 font-bold">Required</span>
             </label>
             <input
               type="text"
@@ -109,11 +109,11 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
               autoFocus
               value={partName}
               onChange={(e) => setPartName(e.target.value)}
-              placeholder="उदा. Brass Bush 32mm / Heater Coil 2000W / Cutter Blade 160mm"
+              placeholder="e.g. Brass Bush 32mm / Heater Coil 2000W / Cutter Blade 160mm"
               className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-amber-300 focus:border-amber-600 rounded-xl text-xs font-bold text-slate-900 outline-none transition"
             />
             <span className="text-[10px] text-slate-500 mt-1 block">
-              जो पार्ट लिस्ट में नहीं मिल रहा है, उसका सटीक नाम यहाँ लिखें
+              Write the exact name of the part that is not in the list here
             </span>
           </div>
 
@@ -121,7 +121,7 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 flex items-center gap-1">
               <Wrench className="w-3.5 h-3.5 text-amber-600" />
-              <span>कैटेगरी / विभाग (Category):</span>
+              <span>Category / Department:</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
               {quickCategories.map((cat) => (
@@ -145,7 +145,7 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
           <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200">
             <div>
               <label className="block text-xs font-bold text-amber-950 uppercase mb-1">
-                संख्या / मात्रा (Qty): *
+                Quantity (Qty): *
               </label>
               <input
                 type="number"
@@ -159,7 +159,7 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-amber-950 uppercase mb-1">
-                इकाई (Unit):
+                Unit:
               </label>
               <select
                 value={unit}
@@ -178,13 +178,13 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
           {/* Notes / Specifications */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              पार्ट नंबर / स्पेसिफिकेशन / नोट्स (Part No. / Specs - Optional):
+              Part No. / Specs - Optional:
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="उदा. Model: Festo 24V DC / Size: 160mm x 25mm / Bin #B-04"
+              placeholder="e.g. Model: Festo 24V DC / Size: 160mm x 25mm / Bin #B-04"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:border-amber-600 focus:bg-white"
             />
           </div>
@@ -196,14 +196,14 @@ export const CustomSparePartModal: React.FC<CustomSparePartModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
             >
-              रद्द करें (Cancel)
+              Cancel
             </button>
             <button
               type="submit"
               className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>✅ यह स्पेयर पार्ट जोड़ें (Add to List)</span>
+              <span>✅ Add this spare part (Add to List)</span>
             </button>
           </div>
         </form>

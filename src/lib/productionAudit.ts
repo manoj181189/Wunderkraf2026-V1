@@ -332,7 +332,7 @@ export function aggregateMachineStats(
     : 100;
 
   return {
-    machineName: selectedMachine === 'ALL' ? 'All Factory Machines (संपूर्ण फ्लीट)' : selectedMachine,
+    machineName: selectedMachine === 'ALL' ? 'All Factory Machines' : selectedMachine,
     totalPieces,
     totalCrates: Math.round(totalCrates * 10) / 10,
     totalScrapKg: Math.round(totalScrapKg * 10) / 10,
@@ -465,7 +465,7 @@ export function aggregateOperatorStats(
   const avgPiecesPerRun = filtered.length > 0 ? Math.round(totalPieces / filtered.length) : 0;
 
   return {
-    operatorName: selectedOperator === 'ALL' ? 'All Operators (सभी ऑपरेटर)' : selectedOperator,
+    operatorName: selectedOperator === 'ALL' ? 'All Operators' : selectedOperator,
     totalPieces,
     totalCrates: Math.round(totalCrates * 10) / 10,
     totalScrapKg: Math.round(totalScrapKg * 10) / 10,

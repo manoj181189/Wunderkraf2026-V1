@@ -104,7 +104,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim()) {
-      alert('कृपया मटेरियल या स्पेयर पार्ट का नाम दर्ज करें (Item name required)');
+      alert('Please enter material or spare part name (Item name required)');
       return;
     }
 
@@ -155,7 +155,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
       logs: nextLogs
     });
 
-    setFormSuccessMessage(`इंडेन्ट #${reqId} सफलतापूर्वक परचेस डिपार्टमेंट को भेज दिया गया है!`);
+    setFormSuccessMessage(`Indent #${reqId} successfully submitted to Purchase Department!`);
     setItemName('');
     setPartNo('');
     setQty(1);
@@ -233,11 +233,11 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   Material Requisition & Purchase Tracking
                 </h2>
                 <span className="bg-amber-400 text-slate-900 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow-xs">
-                  इंडेन्ट सिस्टम
+                  Indent System
                 </span>
               </div>
               <p className="text-xs text-blue-100 mt-0.5">
-                किसी भी प्लांट डेस्क से तुरंत मटेरियल व स्पेयर पार्ट डिमांड भेजें और लाइव आगमन ट्रैक करें
+                Instantly send material and spare part demand from any plant desk and track live arrival
               </p>
             </div>
           </div>
@@ -256,7 +256,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
             <div className="flex items-center gap-2 text-emerald-900 font-semibold">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <span>
-                🎉 <strong>{arrivedCount} मटेरियल स्टोर में आ चुका है!</strong> (Ready for collection at Factory Store)
+                🎉 <strong>{arrivedCount} Material has arrived in the store!</strong> (Ready for collection at Factory Store)
               </span>
             </div>
             <button
@@ -266,7 +266,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
               }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-md font-bold text-[11px] transition cursor-pointer"
             >
-              देखें कौन सा माल आया है →
+              See what goods have arrived →
             </button>
           </div>
         )}
@@ -283,7 +283,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
               }`}
             >
               <PlusCircle className="w-4 h-4 text-blue-600" />
-              <span>1. नया इंडेन्ट भरें (Raise Requisition)</span>
+              <span>1. Raise Requisition</span>
             </button>
 
             <button
@@ -295,7 +295,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
               }`}
             >
               <Clock className="w-4 h-4 text-amber-600" />
-              <span>2. मेरे इंडेन्ट्स व माल आगमन स्थिति (Live Status)</span>
+              <span>2. My Indents & Goods Arrival (Live Status)</span>
               {arrivedCount > 0 && (
                 <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">
                   {arrivedCount} New
@@ -312,7 +312,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
               }}
               className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition my-1 cursor-pointer"
             >
-              <span>परचेस डिपार्टमेंट डेस्क खोलें</span>
+              <span>Open Purchase Department Desk</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
@@ -338,19 +338,19 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      डिपार्टमेंट / मशीन डेस्क (Department)*
+                      Department / Machine Desk*
                     </label>
                     <select
                       value={dept}
                       onChange={(e) => setDept(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500"
                     >
-                      <option value="Maintenance">Maintenance (मेंटेनेंस / टूलींग)</option>
-                      <option value="Forming">Forming Desk (फॉर्मिंग मशीन)</option>
-                      <option value="Cutting">Cutting Desk (कटिंग स्टेशन)</option>
-                      <option value="Slitting">Slitting Desk (स्लिटिंग मशीन)</option>
-                      <option value="QC">QC Desk (क्वालिटी इंस्पेक्शन)</option>
-                      <option value="Packing">Packing Station (पैकिंग डेस्क)</option>
+                      <option value="Maintenance">Maintenance / Tooling</option>
+                      <option value="Forming">Forming Desk</option>
+                      <option value="Cutting">Cutting Desk</option>
+                      <option value="Slitting">Slitting Desk</option>
+                      <option value="QC">QC Desk</option>
+                      <option value="Packing">Packing Station</option>
                       <option value="Warehouse">Warehouse & Raw Material Store</option>
                       <option value="General">General Plant & Admin Utility</option>
                     </select>
@@ -358,7 +358,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      मटेरियल कैटेगरी (Item Category)*
+                      Item Category*
                     </label>
                     <select
                       value={category}
@@ -385,11 +385,11 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      मटेरियल / स्पेयर पार्ट का नाम (Item Description)*
+                      Item Description*
                     </label>
                     <input
                       type="text"
-                      placeholder="उदा. Band Heater 1500W, BOPP Brown Tape, Cutting Blade, Hydraulic Oil, etc."
+                      placeholder="e.g. Band Heater 1500W, BOPP Brown Tape, Cutting Blade, Hydraulic Oil, etc."
                       value={itemName}
                       onChange={(e) => setItemName(e.target.value)}
                       required
@@ -400,7 +400,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                     <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-amber-500" />
-                        त्वरित सुझाव:
+                        Quick Suggestions:
                       </span>
                       {quickItems.slice(0, 5).map((qItem) => (
                         <button
@@ -418,11 +418,11 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        पार्ट नंबर / स्पेसिफिकेशन (Part No / Size)
+                        Part No / Size
                       </label>
                       <input
                         type="text"
-                        placeholder="उदा. K-Type, 160mm, 280 GSM, 65 Micron"
+                        placeholder="e.g. K-Type, 160mm, 280 GSM, 65 Micron"
                         value={partNo}
                         onChange={(e) => setPartNo(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500"
@@ -431,7 +431,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        मात्रा (Required Quantity)*
+                        Required Quantity*
                       </label>
                       <input
                         type="number"
@@ -446,20 +446,20 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        इकाई (Unit)*
+                        Unit*
                       </label>
                       <select
                         value={unit}
                         onChange={(e) => setUnit(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500"
                       >
-                        <option value="Pcs">Pcs / Nos (नग)</option>
-                        <option value="KG">KG (किलो)</option>
-                        <option value="Box">Box / Cartons (बॉक्सेज)</option>
-                        <option value="Rolls">Rolls (रोल्स)</option>
-                        <option value="Litre">Litre (लीटर)</option>
-                        <option value="Set">Set (सेट)</option>
-                        <option value="Meters">Meters (मीटर)</option>
+                        <option value="Pcs">Pcs / Nos</option>
+                        <option value="KG">KG</option>
+                        <option value="Box">Box / Cartons</option>
+                        <option value="Rolls">Rolls</option>
+                        <option value="Litre">Litre</option>
+                        <option value="Set">Set</option>
+                        <option value="Meters">Meters</option>
                       </select>
                     </div>
                   </div>
@@ -467,7 +467,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        प्राथमिकता / तात्कालिकता (Urgency Priority)*
+                        Urgency Priority*
                       </label>
                       <select
                         value={urgency}
@@ -481,25 +481,25 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                         }`}
                       >
                         <option value="CRITICAL_BREAKDOWN">
-                          🚨 Emergency / Machine Stopped (मशीन बंद है - तत्काल चाहिए)
+                          🚨 Emergency / Machine Stopped
                         </option>
                         <option value="URGENT">
-                          ⚡ Urgent / Stock Exhausted (स्टॉक खत्म - 24 घंटे में)
+                          ⚡ Urgent / Stock Exhausted (Within 24 Hours)
                         </option>
                         <option value="NORMAL">
-                          📦 Normal / Planned Maintenance (सामान्य - 2-3 दिन)
+                          📦 Normal / Planned Maintenance (2-3 Days)
                         </option>
-                        <option value="LOW">⏳ Low / Routine Stock Up (नियमित)</option>
+                        <option value="LOW">⏳ Low / Routine Stock Up</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        किस मशीन या काम के लिए चाहिए (Machine / Purpose)
+                        Machine / Purpose
                       </label>
                       <input
                         type="text"
-                        placeholder="उदा. Forming-1 Upper Mould, Slitting Cutter, Dispatch Box"
+                        placeholder="e.g. Forming-1 Upper Mould, Slitting Cutter, Dispatch Box"
                         value={purpose}
                         onChange={(e) => setPurpose(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500"
@@ -510,11 +510,11 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        मांगकर्ता का नाम (Requested By)*
+                        Requested By*
                       </label>
                       <input
                         type="text"
-                        placeholder="ऑपरेटर / सुपरवाइजर का नाम"
+                        placeholder="Operator / Supervisor Name"
                         value={requestedBy}
                         onChange={(e) => setRequestedBy(e.target.value)}
                         required
@@ -524,11 +524,11 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        विशेष टिप्पणी (Remarks / Notes)
+                        Remarks / Notes
                       </label>
                       <input
                         type="text"
-                        placeholder="सप्लायर या मॉडल सम्बन्धी कोई खास निर्देश..."
+                        placeholder="Any specific supplier or model instructions..."
                         value={remarks}
                         onChange={(e) => setRemarks(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500"
@@ -545,14 +545,14 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   onClick={onClose}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                 >
-                  रद्द करें
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition cursor-pointer active:scale-95"
                 >
                   <Send className="w-4 h-4" />
-                  <span>सबमिट करें और परचेस को भेजें (Submit Requisition)</span>
+                  <span>Submit Requisition</span>
                 </button>
               </div>
             </form>
@@ -566,7 +566,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                   <Search className="w-4 h-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="मटेरियल, इंडेन्ट नंबर, वेंडर या नाम से खोजें..."
+                    placeholder="Search by material, indent number, vendor or name..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-hidden"
@@ -579,7 +579,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                     onChange={(e) => setDeptFilter(e.target.value)}
                     className="bg-slate-50 border border-slate-300 rounded-md px-2.5 py-1 text-xs font-semibold text-slate-700"
                   >
-                    <option value="ALL">सभी डिपार्टमेंट (All Depts)</option>
+                    <option value="ALL">All Depts</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Forming">Forming</option>
                     <option value="Cutting">Cutting</option>
@@ -593,10 +593,10 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                     onChange={(e) => setStatusFilter(e.target.value as any)}
                     className="bg-slate-50 border border-slate-300 rounded-md px-2.5 py-1 text-xs font-semibold text-slate-700"
                   >
-                    <option value="ALL">सभी स्टेटस (All Status)</option>
-                    <option value="PENDING">⏳ Pending Review (जांच में)</option>
-                    <option value="PO_ISSUED">🚚 Ordered / PO Issued (ऑर्डर किया)</option>
-                    <option value="RECEIVED">✅ Arrived at Store (माल आ गया)</option>
+                    <option value="ALL">All Statuses</option>
+                    <option value="PENDING">⏳ Pending Review</option>
+                    <option value="PO_ISSUED">🚚 Ordered / PO Issued</option>
+                    <option value="RECEIVED">✅ Arrived at Store</option>
                     <option value="REJECTED">❌ Rejected</option>
                   </select>
                 </div>
@@ -605,7 +605,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
               {/* List of Requisitions */}
               {filteredRequisitions.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 text-xs">
-                  कोई मटेरियल इंडेन्ट नहीं मिला। ऊपर "नया इंडेन्ट भरें" बटन से नया रिक्विजिशन सबमिट करें।
+                  No material indents found. Submit a new requisition using the "Request New Indent" button above.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -645,19 +645,19 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                             {isArrived && (
                               <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 py-1 rounded-md border border-emerald-300 animate-pulse">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>माल आ गया है (Arrived at Store)</span>
+                                <span>Arrived at Store</span>
                               </span>
                             )}
                             {isOrdered && (
                               <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 font-bold text-xs px-2.5 py-1 rounded-md border border-blue-200">
                                 <Package className="w-3.5 h-3.5 text-blue-600" />
-                                <span>PO जारी / वेंडर को ऑर्डर भेजा</span>
+                                <span>PO Issued / Ordered from Vendor</span>
                               </span>
                             )}
                             {isPending && (
                               <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 font-bold text-xs px-2.5 py-1 rounded-md border border-amber-200">
                                 <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                <span>परचेस रिव्यू में पेंडिंग</span>
+                                <span>Pending in Purchase Review</span>
                               </span>
                             )}
                           </div>
@@ -675,7 +675,7 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                               )}
                             </div>
                             <div className="text-xs text-slate-600 mt-0.5">
-                              मकसद: <span className="font-semibold">{req.machineOrPurpose || 'General'}</span> | मांगकर्ता: <span className="font-semibold">{req.requestedBy}</span>
+                              Purpose: <span className="font-semibold">{req.machineOrPurpose || 'General'}</span> | Requester: <span className="font-semibold">{req.requestedBy}</span>
                             </div>
                           </div>
 
@@ -691,16 +691,16 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                           </div>
                         </div>
 
-                        {/* Arrived Details Banner (विशेष रूप से जब माल आ गया हो) */}
+                        {/* Arrived Details Banner (Displayed when material has arrived) */}
                         {isArrived && (
                           <div className="mt-2.5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 flex items-center justify-between flex-wrap gap-3">
                             <div className="space-y-0.5">
                               <div className="font-bold flex items-center gap-1 text-emerald-900">
                                 <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>स्टोर लोकेशन: <strong>{req.storageLocationOrBin || 'Main Factory Store'}</strong></span>
+                                <span>Storage Location: <strong>{req.storageLocationOrBin || 'Main Factory Store'}</strong></span>
                               </div>
                               <div className="text-[11px] text-emerald-800">
-                                प्राप्त तिथि: <strong>{req.receivedDate}</strong> {req.receivedTime || ''} | मात्रा: <strong>{req.receivedQty || req.quantity} {req.unit}</strong> | GRN/बिल: <strong>{req.grnOrBillNo || 'N/A'}</strong>
+                                Received Date: <strong>{req.receivedDate}</strong> {req.receivedTime || ''} | Quantity: <strong>{req.receivedQty || req.quantity} {req.unit}</strong> | GRN/Bill: <strong>{req.grnOrBillNo || 'N/A'}</strong>
                               </div>
                             </div>
 
@@ -711,12 +711,12 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-xs hover:shadow transition cursor-pointer"
                               >
                                 <Check className="w-4 h-4" />
-                                <span>मुझे प्राप्त हो गया (Acknowledge Receipt)</span>
+                                <span>Acknowledge Receipt</span>
                               </button>
                             ) : (
                               <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1 bg-emerald-100/80 px-2 py-1 rounded">
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>फ्लोर द्वारा प्राप्त कर लिया गया</span>
+                                <span>Acknowledged by Shop Floor</span>
                               </span>
                             )}
                           </div>
@@ -726,10 +726,10 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
                         {isOrdered && (
                           <div className="mt-2.5 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between flex-wrap gap-2">
                             <div>
-                              वेंडर: <strong>{req.vendorName || 'Selected Vendor'}</strong> | PO No: <strong>{req.poNumber || 'N/A'}</strong>
+                              Vendor: <strong>{req.vendorName || 'Selected Vendor'}</strong> | PO No: <strong>{req.poNumber || 'N/A'}</strong>
                             </div>
                             <div className="text-[11px] font-semibold text-blue-700">
-                              अनुमानित डिलीवरी: <strong>{req.expectedDeliveryDate || 'Soon'}</strong>
+                              Estimated Delivery: <strong>{req.expectedDeliveryDate || 'Soon'}</strong>
                             </div>
                           </div>
                         )}
@@ -745,13 +745,13 @@ export const MaterialRequisitionModal: React.FC<MaterialRequisitionModalProps> =
         {/* Modal Footer */}
         <div className="bg-slate-100 border-t border-slate-200 px-5 py-3 flex items-center justify-between text-xs text-slate-500">
           <div>
-            कुल इंडेन्ट्स: <span className="font-bold text-slate-800">{requisitions.length}</span> | माल आया हुआ: <span className="font-bold text-emerald-700">{requisitions.filter(r => r.status === 'RECEIVED').length}</span>
+            Total Indents: <span className="font-bold text-slate-800">{requisitions.length}</span> | Goods Received: <span className="font-bold text-emerald-700">{requisitions.filter(r => r.status === 'RECEIVED').length}</span>
           </div>
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-white hover:bg-slate-200 border border-slate-300 rounded-lg font-bold text-slate-700 transition cursor-pointer"
           >
-            बंद करें (Close)
+            Close
           </button>
         </div>
       </div>

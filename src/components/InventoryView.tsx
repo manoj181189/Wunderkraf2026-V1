@@ -114,8 +114,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <option value="all">All Categories ({inventory.length})</option>
             <option value="raw_material">Raw Materials</option>
             <option value="sub_assembly">Sub-Assemblies</option>
-            <option value="electronic">Electronics & Audio</option>
-            <option value="hardware">Hardware & Fasteners</option>
+            <option value="electronic">Adhesive & Consumables</option>
+            <option value="hardware">Hardware & Tooling</option>
             <option value="finished_good">Finished Goods</option>
           </select>
 
@@ -262,12 +262,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                     {/* Unit Cost */}
                     <td className="py-3 px-3 text-right text-neutral-300">
-                      ${item.unitCost.toFixed(2)}
+                      ₹{item.unitCost.toFixed(2)}
                     </td>
 
                     {/* Total Value */}
                     <td className="py-3 px-3 text-right font-bold text-neutral-200">
-                      ${(item.onHand * item.unitCost).toFixed(0)}
+                      ₹{(item.onHand * item.unitCost).toFixed(0)}
                     </td>
 
                     {/* Quick Adjust Button */}

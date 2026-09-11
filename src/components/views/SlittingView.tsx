@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw, Play, Pause, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Play, Pause, Lock, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
 import { FactoryState, Job, JobReelItem, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
 import { PRODUCTS, PAPER_BRANDS, DEPT_WORKERS, PRODUCT_PREFIX_MAP } from '../../lib/constants';
 import {
@@ -15,6 +15,8 @@ import {
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 import { ShiftHandoverModal } from '../ShiftHandoverModal';
+import { StationCrewModal } from '../StationCrewModal';
+import { Users } from 'lucide-react';
 
 interface SlittingViewProps {
   state: FactoryState;
@@ -24,6 +26,7 @@ interface SlittingViewProps {
   onOpenAttendModal?: (machineName: string) => void;
   onOpenVoiceModalForTarget?: (callback: (text: string) => void) => void;
   onNavigateToTraceability?: (query: string) => void;
+  preSelectedPlanId?: string;
 }
 
 export const SlittingView: React.FC<SlittingViewProps> = ({
@@ -33,17 +36,41 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   onOpenHoldModal,
   onOpenAttendModal,
   onOpenVoiceModalForTarget,
-  onNavigateToTraceability
+  onNavigateToTraceability,
+  preSelectedPlanId
 }) => {
-  const { jobs, seriesConfig, shiftConfig } = state;
+  const { jobs, seriesConfig, shiftConfig, productionPlans = [], motherReelInventory = [] } = state;
   const productList = state.products && state.products.length > 0 ? state.products : PRODUCTS;
   const paperBrandList = state.paperBrands && state.paperBrands.length > 0 ? state.paperBrands : PAPER_BRANDS;
   const slitWorkers = state.deptWorkers?.['Slitting'] || DEPT_WORKERS['Slitting'] || ['SLIT_RAMESH', 'SLIT_SURESH'];
 
-  const [product, setProduct] = useState<ProductType>(productList[0] || 'Spoon');
-  const [paperBrand, setPaperBrand] = useState(paperBrandList[0] || 'ITC');
+  // Planning & Mother Reel Link
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(preSelectedPlanId || '');
+  const [selectedMotherReelId, setSelectedMotherReelId] = useState<string>('');
+  const [actualSlitLengthMeters, setActualSlitLengthMeters] = useState<string>('');
+
+  const [product, setProduct] = useState<ProductType>(() => {
+    if (preSelectedPlanId) {
+      const p = productionPlans.find((plan) => plan.id === preSelectedPlanId);
+      if (p) return p.product;
+    }
+    return productList[0] || 'Spoon';
+  });
+  const [paperBrand, setPaperBrand] = useState(() => {
+    if (preSelectedPlanId) {
+      const p = productionPlans.find((plan) => plan.id === preSelectedPlanId);
+      if (p && p.paperBrand) return p.paperBrand;
+    }
+    return paperBrandList[0] || 'ITC';
+  });
   const [operatorName, setOperatorName] = useState(slitWorkers[0] || 'SLIT_RAMESH');
-  const [shift, setShift] = useState<'DAY' | 'NIGHT'>(() => getCurrentExpectedShift(shiftConfig));
+  const [shift, setShift] = useState<'DAY' | 'NIGHT'>(() => {
+    if (preSelectedPlanId) {
+      const p = productionPlans.find((plan) => plan.id === preSelectedPlanId);
+      if (p && p.assignedShift) return p.assignedShift;
+    }
+    return getCurrentExpectedShift(shiftConfig);
+  });
   
   // Separate Reel Number, GSM, and Remarks
   const [reelNo, setReelNo] = useState('');
@@ -51,6 +78,21 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   const [customGsm, setCustomGsm] = useState('');
   const [reelRemarks, setReelRemarks] = useState('');
   const [jumboWeightKg, setJumboWeightKg] = useState('200');
+
+  const [isHotFoilLayer, setIsHotFoilLayer] = useState(false);
+  const [addReelIsHotFoilLayer, setAddReelIsHotFoilLayer] = useState(false);
+
+  // Printed Roll States
+  const [isPrintedRoll, setIsPrintedRoll] = useState(false);
+  const [printedRollDesign, setPrintedRollDesign] = useState('');
+  const [printedRollIcon, setPrintedRollIcon] = useState('Sparkles');
+
+  // Add Reel Printed Roll States
+  const [addReelIsPrintedRoll, setAddReelIsPrintedRoll] = useState(false);
+  const [addReelPrintedRollDesign, setAddReelPrintedRollDesign] = useState('');
+  const [addReelPrintedRollIcon, setAddReelPrintedRollIcon] = useState('Sparkles');
+
+  const [isLengthWarningModalOpen, setIsLengthWarningModalOpen] = useState(false);
 
   const [outputRolls, setOutputRolls] = useState('');
   const [outputWeightKg, setOutputWeightKg] = useState('');
@@ -65,6 +107,8 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
 
   // Shift Handover Modal State
   const [isShiftHandoverModalOpen, setIsShiftHandoverModalOpen] = useState(false);
+  const [assignedHelpers, setAssignedHelpers] = useState<string[]>([]);
+  const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
 
   // Modals
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
@@ -94,6 +138,51 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   // Single Active Job restriction: Only 1 job can be 'Running' on Slitting-1 at any time
   const currentRunningBatch = activeBatches.find((item) => item.batch.status === 'Running');
 
+  
+  const handleConfirmCrew = (operator: string, helpers: string[]) => {
+    setOperatorName(operator);
+    setAssignedHelpers(helpers);
+    setIsCrewModalOpen(false);
+
+    if (activeBatchObj) {
+      const { job, batch } = activeBatchObj;
+      const updatedJobs = jobs.map((j) => {
+        if (j.id !== job.id) return j;
+        return {
+          ...j,
+          runningBatches: (j.runningBatches || []).map((b) => {
+            if (b.batchId !== batch.batchId) return b;
+            return {
+              ...b,
+              worker: operator.trim().toUpperCase(),
+              helpers: helpers,
+              helperCount: helpers.length
+            };
+          })
+        };
+      });
+
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newLog: LogEntry = {
+        jobId: job.id,
+        product: job.product,
+        stage: 'Slitting',
+        machine: 'Slitting-1',
+        action: `👥 Station Crew Assigned: Operator [${operator}] with ${helpers.length} Helpers (${helpers.join(', ')}) on Slitting-1 for Batch [${batch.batchId}]`,
+        worker: operator,
+        user: 'slit_supervisor',
+        rawDate: new Date().toISOString().split('T')[0],
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+      };
+
+      onSaveState({
+        ...state,
+        jobs: updatedJobs,
+        logs: [newLog, ...(state.logs || [])]
+      });
+    }
+  };
+
   const handleStartNewReel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!operatorName.trim()) {
@@ -101,10 +190,22 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       return;
     }
 
+    // Strict PPC Job Requirement
+    if (!selectedPlanId) {
+      alert('⚠️ Mandatory: You must select a Scheduled PPC Plan to start slitting. Direct runs are disabled.');
+      return;
+    }
+
     // Strict Single Active Job Constraint
     if (currentRunningBatch) {
       alert(
-        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर पहले से जॉब [${currentRunningBatch.job.id}] (रील: ${currentRunningBatch.batch.reelNo || currentRunningBatch.job.reelNo}) रनिंग स्थिति में है!\n\nएक मशीन पर एक समय में केवल एक ही एक्टिव जॉब चल सकता है। जब तक वर्तमान जॉब को 'Hold' या 'Complete' नहीं किया जाता, तब तक उसी मशीन पर कोई भी नया जॉब स्टार्ट (Run) नहीं होना चाहिए।\n\n👉 अगर इसी जॉब में अतिरिक्त रील जोड़नी है, तो 'Add Reel to Running Job' विकल्प का उपयोग करें (बिना जॉब रोके/होल्ड किए)।`
+        `⚠️ Single Active Job Constraint:
+
+Job [${currentRunningBatch.job.id}] (Reel: ${currentRunningBatch.batch.reelNo || currentRunningBatch.job.reelNo}) is already running on machine [Slitting-1]!
+
+Only one active job can run on a machine at a time. Until the current job is Held or Completed, no new job should be started (Run) on that machine.
+
+👉 If you need to add an extra reel to this same job, use the 'Add Reel to Running Job' option (without stopping/holding the job).`
       );
       return;
     }
@@ -152,7 +253,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       scrapKg: 0,
       scrapPercent: 0,
       worker: operatorName.trim().toUpperCase(),
-      user: 'slit_user'
+      user: 'slit_user',
+      isHotFoilLayer: isHotFoilLayer || undefined,
+      isPrintedRoll: isPrintedRoll || undefined,
+      printedRollDesign: isPrintedRoll ? printedRollDesign : undefined,
+      printedRollIcon: isPrintedRoll ? printedRollIcon : undefined
     };
 
     const initialReelItem: JobReelItem = {
@@ -163,7 +268,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       paperBrand,
       batchId,
       startTime: nowTime,
-      worker: operatorName.trim().toUpperCase()
+      worker: operatorName.trim().toUpperCase(),
+      isHotFoilLayer: isHotFoilLayer || undefined,
+      isPrintedRoll: isPrintedRoll || undefined,
+      printedRollDesign: isPrintedRoll ? printedRollDesign : undefined,
+      printedRollIcon: isPrintedRoll ? printedRollIcon : undefined
     };
 
     const newJob: Job = {
@@ -176,6 +285,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       gsm: effectiveGsm,
       customRemark: reelRemarks.trim(),
       stage: 'Slitting',
+      status: 'SLITTING_IN_PROGRESS',
       availableRolls: 0,
       availableCuttingCrates: 0,
       availableFormingCrates: 0,
@@ -184,7 +294,16 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       outputWeightKg: 0,
       scrapKg: 0,
       scrapPercent: 0,
-      runningBatches: [newBatch]
+      runningBatches: [newBatch],
+      planId: selectedPlanId || undefined,
+      targetLayers: selectedPlanId ? productionPlans.find(p => p.id === selectedPlanId)?.targetLayers : undefined,
+      targetLengthMeters: selectedPlanId ? productionPlans.find(p => p.id === selectedPlanId)?.targetLengthMeters : undefined,
+      targetGlueBrand: selectedPlanId ? productionPlans.find(p => p.id === selectedPlanId)?.adhesiveBrand : undefined,
+      targetScrapLimitPct: selectedPlanId ? productionPlans.find(p => p.id === selectedPlanId)?.targetScrapLimitPct : undefined,
+      motherReelsAllocated: !isHotFoilLayer && selectedMotherReelId ? [selectedMotherReelId] : undefined,
+      printedRollRequired: isPrintedRoll || undefined,
+      printedRollDesign: isPrintedRoll ? printedRollDesign : undefined,
+      printedRollIcon: isPrintedRoll ? printedRollIcon : undefined
     };
 
     const newLog = {
@@ -193,7 +312,9 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       stage: 'Slitting',
       machine: 'Slitting-1',
       shift,
-      action: `🚀 Started New Slitting Reel [${effectiveReelNo}] | Jumbo Weight: ${parsedJumboWeight} KG | GSM: ${effectiveGsm} | Mill: ${paperBrand} (${reelRemarks || 'Standard Reel'}) | Job: ${newJobId} | Worker: ${operatorName.toUpperCase()}`,
+      action: isHotFoilLayer
+        ? `🚀 Started Specialty Hot Foil / Hot Layer Reel [${effectiveReelNo}] | Weight: ${parsedJumboWeight} KG | Job: ${newJobId} | Worker: ${operatorName.toUpperCase()}`
+        : `🚀 Started New Slitting Reel [${effectiveReelNo}] | Jumbo Weight: ${parsedJumboWeight} KG | GSM: ${effectiveGsm} | Mill: ${paperBrand} (${reelRemarks || 'Standard Reel'}) | Job: ${newJobId} | Worker: ${operatorName.toUpperCase()}` + (selectedPlanId ? ` | Linked Plan: ${selectedPlanId}` : ''),
       worker: operatorName.toUpperCase(),
       user: 'slit_user',
       startTime: nowTime,
@@ -206,6 +327,27 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       [product]: currentSeq + 1
     };
 
+    const updatedPlans = productionPlans.map((p) => {
+      if (p.id === selectedPlanId) {
+        return { ...p, status: 'In-Progress' as const, jobId: newJobId };
+      }
+      return p;
+    });
+
+    const updatedMotherReels = isHotFoilLayer
+      ? motherReelInventory
+      : motherReelInventory.map((mr) => {
+          if (mr.id === selectedMotherReelId) {
+            return {
+              ...mr,
+              status: 'In-Use' as const,
+              allocatedJobId: newJobId,
+              allocatedDate: new Date().toISOString().split('T')[0]
+            };
+          }
+          return mr;
+        });
+
     onSaveState({
       ...state,
       jobs: [newJob, ...state.jobs],
@@ -213,11 +355,16 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       seriesConfig: {
         ...seriesConfig,
         productSeqs: nextSeqs
-      }
+      },
+      productionPlans: updatedPlans,
+      motherReelInventory: updatedMotherReels
     });
 
     setReelNo('');
     setReelRemarks('');
+    setSelectedPlanId('');
+    setSelectedMotherReelId('');
+    setIsHotFoilLayer(false);
     setSelectedActiveBatchId(batchId);
     alert(`✅ New Slitting Reel Started!\nJob ID: [${newJobId}]\nReel No: [${effectiveReelNo}]\nGSM: [${effectiveGsm}]\non Slitting-1.`);
   };
@@ -240,7 +387,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     // If a job is currently running on Slitting-1, operator can only add reel to THAT running job!
     if (currentRunningBatch && currentRunningBatch.job.id !== targetJob.id) {
       alert(
-        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर अभी जॉब [${currentRunningBatch.job.id}] रनिंग है! आप केवल इसी एक्टिव जॉब [${currentRunningBatch.job.id}] में अतिरिक्त रील Add-on कर सकते हैं।\n\nकिसी अन्य जॉब [${targetJob.id}] को रन करने के लिए पहले वर्तमान जॉब को 'Hold' या 'Complete' करें!`
+        `⚠️ Single Active Job Constraint:
+
+Job [${currentRunningBatch.job.id}] is currently running on machine [Slitting-1]! You can only add-on extra reels to this active job [${currentRunningBatch.job.id}].
+
+To run another job [${targetJob.id}], first Hold or Complete the current job!`
       );
       return;
     }
@@ -270,7 +421,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       scrapKg: 0,
       scrapPercent: 0,
       worker: addReelWorker.trim().toUpperCase(),
-      user: 'slit_user'
+      user: 'slit_user',
+      isHotFoilLayer: addReelIsHotFoilLayer || undefined,
+      isPrintedRoll: addReelIsPrintedRoll || undefined,
+      printedRollDesign: addReelIsPrintedRoll ? addReelPrintedRollDesign : undefined,
+      printedRollIcon: addReelIsPrintedRoll ? addReelPrintedRollIcon : undefined
     };
 
     const existingReels = getJobAllReels(targetJob);
@@ -290,7 +445,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       batchId,
       startTime: nowTime,
       worker: addReelWorker.trim().toUpperCase(),
-      customRemark: addReelRemarks.trim()
+      customRemark: addReelRemarks.trim(),
+      isHotFoilLayer: addReelIsHotFoilLayer || undefined,
+      isPrintedRoll: addReelIsPrintedRoll || undefined,
+      printedRollDesign: addReelIsPrintedRoll ? addReelPrintedRollDesign : undefined,
+      printedRollIcon: addReelIsPrintedRoll ? addReelPrintedRollIcon : undefined
     };
 
     const existingReelsList = targetJob.reelsList && targetJob.reelsList.length > 0
@@ -306,6 +465,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           ? `${j.customRemark}; ${addReelRemarks.trim()}`
           : addReelRemarks.trim()
         : j.customRemark;
+      const hasPrintedRoll = j.printedRollRequired || addReelIsPrintedRoll;
       return {
         ...j,
         reelNo: combinedReelNoStr,
@@ -316,7 +476,10 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
         gsmsSummary: combinedGsmStr,
         customRemark: combinedRemarks,
         inputWeightKg: (j.inputWeightKg || 0) + parsedAddWeight,
-        runningBatches: [...(j.runningBatches || []), newBatch]
+        runningBatches: [...(j.runningBatches || []), newBatch],
+        printedRollRequired: hasPrintedRoll || undefined,
+        printedRollDesign: hasPrintedRoll ? (j.printedRollDesign || addReelPrintedRollDesign) : undefined,
+        printedRollIcon: hasPrintedRoll ? (j.printedRollIcon || addReelPrintedRollIcon) : undefined
       };
     });
 
@@ -326,7 +489,9 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       stage: 'Slitting Re-open',
       machine: 'Slitting-1',
       shift,
-      action: `➕ Added Reel [${effectiveReelNo}] (Weight: ${parsedAddWeight} KG | GSM: ${effectiveGsm}) to Existing Job ${targetJob.id} | Worker: ${addReelWorker.toUpperCase()}`,
+      action: addReelIsHotFoilLayer
+        ? `➕ Added Specialty Hot Foil / Hot Layer Reel [${effectiveReelNo}] (Weight: ${parsedAddWeight} KG) to Existing Job ${targetJob.id} | Worker: ${addReelWorker.toUpperCase()}`
+        : `➕ Added Reel [${effectiveReelNo}] (Weight: ${parsedAddWeight} KG | GSM: ${effectiveGsm}) to Existing Job ${targetJob.id} | Worker: ${addReelWorker.toUpperCase()}`,
       worker: addReelWorker.toUpperCase(),
       user: 'slit_user',
       startTime: nowTime,
@@ -343,6 +508,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     setIsAddReelModalOpen(false);
     setAddReelNo('');
     setAddReelRemarks('');
+    setAddReelIsHotFoilLayer(false);
     setSelectedActiveBatchId(batchId);
     alert(`✅ Added Reel [${effectiveReelNo}] (Batch ${batchId}) to existing job [${targetJob.id}]!`);
   };
@@ -358,7 +524,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     );
     if (otherRunning) {
       alert(
-        `⚠️ सिंगल एक्टिव जॉब प्रतिबंध (Single Active Job Constraint):\n\nमशीन [Slitting-1] पर पहले से जॉब [${otherRunning.job.id}] (रील: ${otherRunning.batch.reelNo || otherRunning.job.reelNo}) रनिंग स्थिति में है!\n\nएक समय में केवल एक ही जॉब रन हो सकता है। कृपया पहले जॉब [${otherRunning.job.id}] को Hold या Finish करें!`
+        `⚠️ Single Active Job Constraint:
+
+Job [${otherRunning.job.id}] (Reel: ${otherRunning.batch.reelNo || otherRunning.job.reelNo}) is already running on machine [Slitting-1]!
+
+Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id}] first!`
       );
       return;
     }
@@ -401,6 +571,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
 
   const handleConfirmShiftHandover = (handoverData: {
     relievedByOperator: string;
+    helpers?: string[];
     nextShift: 'DAY' | 'NIGHT' | string;
     handoverTime: string;
     meterReading: number;
@@ -412,6 +583,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     if (!activeBatchObj) return;
     const { job, batch } = activeBatchObj;
 
+    const nextHelpers = handoverData.helpers && handoverData.helpers.length > 0 ? handoverData.helpers : assignedHelpers;
     const newSlice: OperatorRunSlice = {
       sliceId: `SLICE-SLIT-${Date.now()}`,
       operator: batch.worker,
@@ -476,12 +648,14 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     setOutputWeightKg('');
     setScrapKgInput('');
     setOperatorName(handoverData.relievedByOperator);
+    if (handoverData.helpers && handoverData.helpers.length > 0) setAssignedHelpers(handoverData.helpers);
+    if (handoverData.helpers && handoverData.helpers.length > 0) setAssignedHelpers(handoverData.helpers);
     setShift(handoverData.nextShift as 'DAY' | 'NIGHT');
     setIsShiftHandoverModalOpen(false);
     alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Slit Rolls locked to ${batch.worker}.`);
   };
 
-  const handleCompleteSlitting = () => {
+  const handleCompleteSlitting = (bypassWarning = false) => {
     if (!activeBatchObj) return alert('No active slitting batch to finish!');
     const rollsCount = parseInt(outputRolls, 10) || 0;
     const weightKg = parseFloat(outputWeightKg) || 0;
@@ -493,16 +667,39 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
     }
 
     const { job, batch } = activeBatchObj;
+
+    // Compare actual length (meters) against planned target length
+    const actualLen = parseFloat(actualSlitLengthMeters) || 0;
+    const targetLen = job.planId
+      ? (productionPlans.find((p) => p.id === job.planId)?.targetLengthMeters || 0)
+      : 0;
+
+    // Check for ±5% deviation
+    if (targetLen > 0 && !bypassWarning) {
+      const minLength = targetLen * 0.95;
+      const maxLength = targetLen * 1.05;
+      if (actualLen < minLength || actualLen > maxLength) {
+        setIsLengthWarningModalOpen(true);
+        return;
+      }
+    }
     const inputWeight = batch.inputWeightKg || job.inputWeightKg || 200;
 
     // Strict physical impossibility check
     if (weightKg > inputWeight) {
       alert(
-        `⛔ भौतिक रूप से असंभव (Physical Impossibility Error)!\n\n` +
-        `• जंबो रील इनपुट वजन: ${inputWeight} KG\n` +
-        `• दर्ज किया गया आउटपुट वजन: ${weightKg} KG\n\n` +
-        `200 KG रॉ मटेरियल दिया तो 210 KG आउटपुट कैसे बन सकता है? आउटपुट वजन कभी भी इनपुट वजन (${inputWeight} KG) से अधिक नहीं हो सकता। कम हो सकता है वेस्टेज होके।\n\n` +
-        `कृपया कांटे का सही वजन देखकर दर्ज करें!`
+        `⛔ Physical Impossibility Error!
+
+` +
+        `• Jumbo Reel Input Weight: ${inputWeight} KG
+` +
+        `• Entered Output Weight: ${weightKg} KG
+
+` +
+        `If 200 KG raw material was given, how can output be 210 KG? Output weight can never exceed input weight (${inputWeight} KG). It can be less due to wastage.
+
+` +
+        `Please check the correct scale weight and enter!`
       );
       return;
     }
@@ -512,10 +709,10 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
 
     if (weightKg + finalScrapKg > inputWeight + 0.1) {
       alert(
-        `⛔ वजन असंतुलन (Weight Balance Error)!\n\n` +
-        `आउटपुट वजन (${weightKg} KG) + वेस्टेज स्क्रैप (${finalScrapKg} KG) = ${(weightKg + finalScrapKg).toFixed(1)} KG\n` +
-        `यह कुल इनपुट वजन (${inputWeight} KG) से अधिक है!\n\n` +
-        `कृपया सही आउटपुट और स्क्रैप वजन दर्ज करें!`
+        `⛔ Weight Balance Error!\n\n` +
+        `Output weight (${weightKg} KG) + Wastage scrap (${finalScrapKg} KG) = ${(weightKg + finalScrapKg).toFixed(1)} KG\n` +
+        `This total input weight (${inputWeight} KG) is greater than!\n\n` +
+        `Please enter correct output and scrap weight!`
       );
       return;
     }
@@ -557,6 +754,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
         reelsList: updatedReelsList,
         availableRolls: (j.availableRolls || 0) + rollsCount,
         stage: 'Slitting Completed',
+        status: 'READY_FOR_CUTTING',
         outputWeightKg: newOutKg,
         scrapKg: newScrapKg,
         scrapPercent: totalScrapPct,
@@ -591,15 +789,55 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       timestamp: new Date().toLocaleString()
     };
 
+    let updatedPlans = [...productionPlans];
+    let updatedMotherReels = [...motherReelInventory];
+
+    if (job.planId) {
+      updatedPlans = productionPlans.map((p) => {
+        if (p.id === job.planId) {
+          const finalJobObj = updatedJobs.find((j) => j.id === job.id);
+          const finalScrapPct = finalJobObj?.scrapPercent || 0;
+          const finalScrapKg = finalJobObj?.scrapKg || 0;
+          const finalLayers = finalJobObj?.reelsList?.filter((r) => !r.isHotFoilLayer).length || 0;
+
+          return {
+            ...p,
+            status: 'Completed' as const,
+            actualLayersUsed: finalLayers,
+            actualMetersSlit: Number(actualSlitLengthMeters) || p.targetLengthMeters,
+            actualScrapKg: finalScrapKg,
+            actualScrapPct: finalScrapPct
+          };
+        }
+        return p;
+      });
+    }
+
+    if (job.motherReelsAllocated && job.motherReelsAllocated.length > 0) {
+      updatedMotherReels = motherReelInventory.map((mr) => {
+        if (job.motherReelsAllocated?.includes(mr.id)) {
+          return {
+            ...mr,
+            status: 'Consumed' as const
+          };
+        }
+        return mr;
+      });
+    }
+
     onSaveState({
       ...state,
       jobs: updatedJobs,
-      logs: [...state.logs, newLog]
+      logs: [...state.logs, newLog],
+      productionPlans: updatedPlans,
+      motherReelInventory: updatedMotherReels
     });
 
     setOutputRolls('');
     setOutputWeightKg('');
     setScrapKgInput('');
+    setActualSlitLengthMeters('');
+    setIsLengthWarningModalOpen(false);
     setSelectedActiveBatchId('');
     alert(`✅ Slitting Finished!\n• Output: ${rollsCount} Rolls (${weightKg} KG)\n• Jumbo Loaded: ${inputWeight} KG\n• Scrap Wastage: ${finalScrapKg} KG (${finalScrapPercent}%)\nLogged to Total Traceability and Inventory!`);
   };
@@ -765,6 +1003,19 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                   <span className="text-slate-600 font-medium">
                     ({activeBatchObj.job.paperBrand || 'ITC'})
                   </span>
+                  {activeBatchObj.job.printedRollRequired && (
+                    <span className="font-black text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 shadow-xs flex items-center gap-1 text-[11px]">
+                      <span>
+                        {activeBatchObj.job.printedRollIcon === 'Coffee' && '☕'}
+                        {activeBatchObj.job.printedRollIcon === 'ShoppingBag' && '🛍️'}
+                        {activeBatchObj.job.printedRollIcon === 'Droplets' && '💧'}
+                        {activeBatchObj.job.printedRollIcon === 'Tag' && '🏷️'}
+                        {activeBatchObj.job.printedRollIcon === 'Boxes' && '📦'}
+                        {(!activeBatchObj.job.printedRollIcon || activeBatchObj.job.printedRollIcon === 'Sparkles') && '✨'}
+                      </span>
+                      <span>Printed Reel: {activeBatchObj.job.printedRollDesign}</span>
+                    </span>
+                  )}
                 </div>
                 {onNavigateToTraceability && (
                   <button
@@ -802,10 +1053,10 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                    Output Slit Rolls Count (रोल संख्या):
+                    Output Slit Rolls Count:
                   </label>
                   <input
                     type="number"
@@ -832,7 +1083,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-rose-800 uppercase">
-                      Trim / Scrap (KG) (ऑटो वेस्टेज):
+                      Trim / Scrap (KG) (Auto Wastage):
                     </label>
                     {parsedOutWeight > 0 && (
                       <span className="text-[10px] font-bold text-slate-500">
@@ -849,6 +1100,22 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                     className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-xs font-bold text-rose-900 outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-indigo-800 uppercase mb-1">
+                    Actual Slit Length (Meters):
+                  </label>
+                  <input
+                    type="number"
+                    value={actualSlitLengthMeters}
+                    onChange={(e) => setActualSlitLengthMeters(e.target.value)}
+                    placeholder={
+                      activeBatchObj?.job.planId
+                        ? `Target: ${productionPlans.find(p => p.id === activeBatchObj?.job.planId)?.targetLengthMeters || 1200} M`
+                        : "e.g. 1200 M"
+                    }
+                    className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               {/* Physical Impossibility Live Warning */}
@@ -857,10 +1124,10 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                   <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <div className="text-xs space-y-0.5">
                     <div className="font-black text-red-700 uppercase tracking-wide">
-                      ⛔ भौतिक रूप से असंभव (Physical Impossibility Error):
+                      ⛔ Physical Impossibility Error:
                     </div>
                     <div className="font-semibold text-red-800">
-                      आउटपुट रोल वजन (<b>{parsedOutWeight} KG</b>) इनपुट जंबो रील (<b>{activeInputWeight} KG</b>) से अधिक है! 200 किलो रॉ मटेरियल से 210 किलो माल नहीं निकल सकता। यह एंट्री सेव नहीं हो सकती। कृपया सही कांटा वजन दर्ज करें।
+                      Output roll weight (<b>{parsedOutWeight} KG</b>) exceeds input jumbo reel (<b>{activeInputWeight} KG</b>)! 200kg raw material cannot produce 210kg goods. Entry cannot be saved. Please enter correct scale weight.
                     </div>
                   </div>
                 </div>
@@ -927,9 +1194,9 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleCompleteSlitting}
+                  onClick={() => handleCompleteSlitting(false)}
                   disabled={parsedOutWeight > activeInputWeight}
-                  title={parsedOutWeight > activeInputWeight ? 'भौतिक रूप से असंभव: आउटपुट वजन इनपुट से अधिक है!' : 'Finish and record slit rolls'}
+                  title={parsedOutWeight > activeInputWeight ? 'Physical impossibility: Output weight exceeds input!' : 'Finish and record slit rolls'}
                   className="py-2.5 bg-[#2f855a] hover:bg-[#276749] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5" /> Finish Slitting
@@ -959,7 +1226,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
                 <span className="font-extrabold uppercase tracking-wide text-amber-900">
-                  🔒 Single Active Job Policy (सिंगल एक्टिव जॉब प्रतिबंध):
+                  🔒 Single Active Job Policy:
                 </span>
                 <span className="bg-amber-200 text-amber-900 font-mono font-black px-2 py-0.5 rounded">
                   Job {currentRunningBatch.job.id} ({currentRunningBatch.job.product})
@@ -970,7 +1237,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-amber-900 m-0 leading-relaxed font-medium">
-              मशीन <b>Slitting-1</b> पर वर्तमान में जॉब <b>[{currentRunningBatch.job.id}]</b> एक्टिव रनिंग है। एक समय में केवल एक ही जॉब रन हो सकता है। नया जॉब शुरू करने से पहले वर्तमान जॉब को 'Hold' या 'Complete' करें, अथवा <b>बिना जॉब रोके</b> इसी एक्टिव जॉब में नया रील Add-on करें:
+              Job <b>[{currentRunningBatch.job.id}]</b> is currently active running on machine <b>Slitting-1</b>. Only one job can run at a time. Hold or Complete current job before starting a new one, or add-on new reel to this active job <b>without stopping</b>:
             </p>
             <div className="flex items-center gap-2 flex-wrap pt-1">
               <button
@@ -1000,20 +1267,300 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           Start New Jumbo Reel Slitting:
         </h4>
 
+        {/* PPC Plan & Mother Reel Link Section */}
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 space-y-3">
+          <div className="text-xs font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            <span>Link Production Plan (PPC) & Mother Reel</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                Select Active/Scheduled PPC Plan:
+              </label>
+              <select
+                value={selectedPlanId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedPlanId(val);
+                  if (val) {
+                    const selectedPlan = productionPlans.find((p) => p.id === val);
+                    if (selectedPlan) {
+                      setProduct(selectedPlan.product);
+                      if (selectedPlan.paperBrand) setPaperBrand(selectedPlan.paperBrand);
+                      if (selectedPlan.targetGsm) {
+                        const numericGsm = selectedPlan.targetGsm.replace(/[^0-9]/g, '');
+                        const standardOptions = ['120 GSM', '60 GSM', '115 GSM', '125 GSM', '150 GSM', '90 GSM'];
+                        const matched = standardOptions.find(opt => opt.includes(numericGsm));
+                        if (matched) {
+                          setGsm(matched);
+                        } else {
+                          setGsm('Custom');
+                          setCustomGsm(selectedPlan.targetGsm);
+                        }
+                      }
+                      if (selectedPlan.assignedShift) setShift(selectedPlan.assignedShift);
+                      
+                      // Auto-populate printed roll configuration from PPC plan
+                      if (selectedPlan.printedRollRequired) {
+                        setIsPrintedRoll(true);
+                        setPrintedRollDesign(selectedPlan.printedRollDesign || '');
+                        setPrintedRollIcon(selectedPlan.printedRollIcon || 'Sparkles');
+                      } else {
+                        setIsPrintedRoll(false);
+                        setPrintedRollDesign('');
+                        setPrintedRollIcon('Sparkles');
+                      }
+
+                      // Auto-select a matching mother reel if available
+                      const matchingReel = motherReelInventory.find(
+                        (r) =>
+                          r.status === 'Available' &&
+                          r.brand.toLowerCase() === (selectedPlan.paperBrand || '').toLowerCase()
+                      );
+                      if (matchingReel) {
+                        setSelectedMotherReelId(matchingReel.id);
+                        setJumboWeightKg(String(matchingReel.weightKg));
+                        setReelNo(matchingReel.id);
+                      } else {
+                        setSelectedMotherReelId('');
+                      }
+                    }
+                  } else {
+                    setSelectedMotherReelId('');
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+              >
+                <option value="" disabled>-- Select a Scheduled PPC Plan --</option>
+                {productionPlans
+                  .filter((p) => p.status === 'Scheduled' || p.status === 'In-Progress')
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      [{p.id}] {p.product} • {p.targetLayers}L • {p.targetLengthMeters}M • {p.paperBrand || 'ITC'} ({p.status})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                Allocate Mother Jumbo Reel:
+              </label>
+              <select
+                disabled={isHotFoilLayer}
+                value={isHotFoilLayer ? '' : selectedMotherReelId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedMotherReelId(val);
+                  if (val) {
+                    const reel = motherReelInventory.find((r) => r.id === val);
+                    if (reel) {
+                      setJumboWeightKg(String(reel.weightKg));
+                      setReelNo(reel.id);
+                      if (reel.brand) setPaperBrand(reel.brand);
+                      if (reel.gsm) {
+                        const gsmStr = String(reel.gsm);
+                        const standardOptions = ['120 GSM', '60 GSM', '115 GSM', '125 GSM', '150 GSM', '90 GSM'];
+                        const matched = standardOptions.find(opt => opt.toLowerCase().includes(gsmStr.toLowerCase()));
+                        if (matched) {
+                          setGsm(matched);
+                        } else {
+                          setGsm('Custom');
+                          setCustomGsm(gsmStr.includes('GSM') ? gsmStr : `${gsmStr} GSM`);
+                        }
+                      }
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+              >
+                <option value="">{isHotFoilLayer ? '-- Not Applicable for Specialty Layers --' : '-- No Mother Reel Allocated (Manual Reel No.) --'}</option>
+                {!isHotFoilLayer && motherReelInventory
+                  .filter((r) => r.status === 'Available')
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.id} ({r.brand} • {r.gsm} • {r.weightKg} KG • {r.lengthMeters || 1400}M)
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          {/* PRINTED / NON-PRINTED ROLL SWITCHER */}
+          <div className="bg-indigo-50/50 border border-indigo-200 p-3 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-[11px] uppercase tracking-wider text-indigo-900 block">
+                Roll Print Option:
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPrintedRoll(false);
+                    setPrintedRollDesign('');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    !isPrintedRoll
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                  }`}
+                >
+                  Without Printed (Plain Reel)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPrintedRoll(true);
+                    // Pre-fill if linked plan has it
+                    if (selectedPlanId) {
+                      const sp = productionPlans.find(p => p.id === selectedPlanId);
+                      if (sp?.printedRollRequired) {
+                        setPrintedRollDesign(sp.printedRollDesign || '');
+                        setPrintedRollIcon(sp.printedRollIcon || 'Sparkles');
+                        return;
+                      }
+                    }
+                    if (!printedRollDesign) setPrintedRollDesign('ITC Printed Design');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    isPrintedRoll
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                  }`}
+                >
+                  Printed Roll
+                </button>
+              </div>
+            </div>
+
+            {isPrintedRoll && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in slide-in-from-top-1 duration-150">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    Printed Brand / Design Name:
+                  </label>
+                  <input
+                    type="text"
+                    value={printedRollDesign}
+                    onChange={(e) => setPrintedRollDesign(e.target.value)}
+                    placeholder="e.g. Tata Tea Gold 250g"
+                    className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    Display Icon:
+                  </label>
+                  <select
+                    value={printedRollIcon}
+                    onChange={(e) => setPrintedRollIcon(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                  >
+                    <option value="Sparkles">✨ Sparkles</option>
+                    <option value="Coffee">☕ Coffee / Tea</option>
+                    <option value="ShoppingBag">🛍️ Shopping Bag</option>
+                    <option value="Droplets">💧 Droplet</option>
+                    <option value="Tag">🏷️ Tag</option>
+                    <option value="Boxes">📦 Box</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+            <input
+              type="checkbox"
+              id="isHotFoilLayer"
+              checked={isHotFoilLayer}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsHotFoilLayer(checked);
+                if (checked) {
+                  setSelectedMotherReelId('');
+                  setPaperBrand('Specialty Laminate');
+                  setReelNo('HOT-FOIL-LAYER');
+                  setJumboWeightKg('50'); // Usually auxiliary rolls are lighter
+                } else {
+                  setPaperBrand(paperBrandList[0] || 'ITC');
+                  setReelNo('');
+                  setJumboWeightKg('200');
+                }
+              }}
+              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="isHotFoilLayer" className="text-[11px] font-bold text-amber-900 cursor-pointer select-none">
+              Specialty Auxiliary Layer (Hot Foil / Hot Layer) — NOT counted in Mother Jumbo Reel stock or paper layers count
+            </label>
+          </div>
+          {selectedPlanId && (() => {
+            const sp = productionPlans.find(p => p.id === selectedPlanId);
+            return sp ? (
+            <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200 text-[11px] text-indigo-950 font-medium flex flex-col gap-2.5 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-indigo-200/80 pb-1.5">
+                <span className="font-extrabold uppercase text-[10px] tracking-wider text-indigo-900 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                  PPC 9-Layer Master Configuration
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3 text-indigo-700" /> 100% Read-Only (Locked to PPC #{sp.id})
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div>
+                  Target Layers: <b className="text-indigo-900">{sp.targetLayers} Layers</b>
+                </div>
+                <div>
+                  Target Length: <b className="text-indigo-900">{sp.targetLengthMeters} Meters</b>
+                </div>
+                <div>
+                  Scrap Limit: <b className="text-indigo-900">≤ {sp.targetScrapLimitPct}%</b>
+                </div>
+              </div>
+              {sp.printedRollRequired && (
+                <div className="pt-2 mt-1 border-t border-indigo-200 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="text-indigo-800">
+                    Printed Layers: <b className="text-indigo-950">{sp.printedLayersCount || 2}</b>
+                  </div>
+                  <div className="text-indigo-800">
+                    Plain Layers: <b className="text-indigo-950">{sp.plainLayersCount || (sp.targetLayers - (sp.printedLayersCount || 2))}</b>
+                  </div>
+                  <div className="text-indigo-800">
+                    Brand/Design: <b className="text-indigo-950">{sp.printedRollDesign || 'N/A'}</b>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null;
+          })()}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Product:</label>
-            <select
-              value={product}
-              onChange={(e) => setProduct(e.target.value as ProductType)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-            >
-              {productList.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            {selectedPlanId ? (
+              <div className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 cursor-not-allowed flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{product}</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase">Locked to PPC Plan</span>
+              </div>
+            ) : (
+              <select
+                value={product}
+                onChange={(e) => setProduct(e.target.value as ProductType)}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+              >
+                {productList.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -1033,24 +1580,25 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Operator Name <span className="text-rose-600">*Mandatory</span>:
+          <div className="flex flex-col gap-1.5">
+            <label className="block text-xs font-bold text-slate-700 uppercase">
+              Operator & Crew <span className="text-rose-600">*</span>:
             </label>
-            <input
-              type="text"
-              list="slitWorkerList"
-              value={operatorName}
-              onChange={(e) => setOperatorName(e.target.value)}
-              placeholder="Type Operator Name..."
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none"
-              required
-            />
-            <datalist id="slitWorkerList">
-              {slitWorkers.map((w) => (
-                <option key={w} value={w} />
-              ))}
-            </datalist>
+            <div className="flex items-center justify-between bg-white border border-slate-300 px-3 py-2 rounded-lg">
+              <div className="flex flex-col">
+                <span className="font-bold text-slate-800">{operatorName || 'Select Operator'}</span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {assignedHelpers.length > 0 ? `${assignedHelpers.length} Helpers (${assignedHelpers.join(', ')})` : 'No Helpers Assigned'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCrewModalOpen(true)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded transition cursor-pointer"
+              >
+                Change Crew
+              </button>
+            </div>
           </div>
 
           <div>
@@ -1104,7 +1652,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-extrabold text-blue-900 uppercase">
-                Reel Number (रील नंबर):
+                Reel Number:
               </label>
               <button
                 type="button"
@@ -1122,48 +1670,60 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
               type="text"
               value={reelNo}
               onChange={(e) => setReelNo(e.target.value)}
-              placeholder="उदा. RL-ITC-1024 या बारकोड"
+              placeholder="e.g. RL-ITC-1024 or Barcode"
               className="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg text-xs font-mono font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-extrabold text-slate-700 uppercase mb-1">
-              GSM (जीएसएम थिकनेस):
+              GSM (Thickness):
             </label>
-            <select
-              value={gsm}
-              onChange={(e) => setGsm(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-            >
-              <option value="120 GSM">120 GSM (Standard Cutlery)</option>
-              <option value="60 GSM">60 GSM (Heavy Export Grade)</option>
-              <option value="115 GSM">115 GSM (Reinforced Edge)</option>
-              <option value="125 GSM">125 GSM (High Tensile)</option>
-              <option value="150 GSM">150 GSM (Heavy Rigidity)</option>
-              <option value="90 GSM">90 GSM (Special Heavy)</option>
-              <option value="Custom">Custom GSM...</option>
-            </select>
-            {gsm === 'Custom' && (
-              <input
-                type="text"
-                value={customGsm}
-                onChange={(e) => setCustomGsm(e.target.value)}
-                placeholder="Enter custom GSM (e.g. 260 GSM)"
-                className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-              />
+            {selectedPlanId ? (
+              <div className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 cursor-not-allowed flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{(productionPlans.find(p => p.id === selectedPlanId)?.targetGsm) || gsm}</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase">Locked to PPC Spec</span>
+              </div>
+            ) : (
+              <>
+                <select
+                  value={gsm}
+                  onChange={(e) => setGsm(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="120 GSM">120 GSM (Standard Cutlery)</option>
+                  <option value="60 GSM">60 GSM (Heavy Export Grade)</option>
+                  <option value="115 GSM">115 GSM (Reinforced Edge)</option>
+                  <option value="125 GSM">125 GSM (High Tensile)</option>
+                  <option value="150 GSM">150 GSM (Heavy Rigidity)</option>
+                  <option value="90 GSM">90 GSM (Special Heavy)</option>
+                  <option value="Custom">Custom GSM...</option>
+                </select>
+                {gsm === 'Custom' && (
+                  <input
+                    type="text"
+                    value={customGsm}
+                    onChange={(e) => setCustomGsm(e.target.value)}
+                    placeholder="Enter custom GSM (e.g. 260 GSM)"
+                    className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                  />
+                )}
+              </>
             )}
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Reel Remarks / Lot Note (रिमार्क):
+              Reel Remarks / Lot Note:
             </label>
             <input
               type="text"
               value={reelRemarks}
               onChange={(e) => setReelRemarks(e.target.value)}
-              placeholder="उदा. Special Export Lot #992"
+              placeholder="e.g. Special Export Lot #992"
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
             />
           </div>
@@ -1180,7 +1740,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
             }`}
             title={
               currentRunningBatch
-                ? `मशीन Slitting-1 पर जॉब [${currentRunningBatch.job.id}] रनिंग है। एक समय में केवल एक जॉब रन हो सकता है।`
+                ? `Job [${currentRunningBatch.job.id}] is running on machine Slitting-1. Only one job can run at a time.`
                 : 'Start Slitting (Auto-Generate Job ID)'
             }
           >
@@ -1221,10 +1781,10 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           <div>
             <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-1.5 m-0">
               <Layers className="w-4 h-4 text-blue-600" />
-              <span>Slitting Reels & Traceability Register (स्लिटिंग रील व जॉब आईडी रजिस्टर)</span>
+              <span>Slitting Reels & Traceability Register</span>
             </h4>
             <p className="text-[11px] text-slate-500 m-0">
-              हर जॉब आईडी में प्रयुक्त रील नंबर, जीएसएम व आगे की स्टेज की ट्रेसेबिलिटी स्थिति
+              Reel number, GSM used in each Job ID and onward stage traceability status
             </p>
           </div>
           <div className="relative w-full sm:w-64">
@@ -1244,16 +1804,16 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-2.5">Job ID</th>
-                <th className="p-2.5 text-indigo-900">Date (तारीख)</th>
-                <th className="p-2.5 text-blue-900">Reel No. (रील नंबर)</th>
-                <th className="p-2.5 text-amber-900">GSM (जीएसएम)</th>
+                <th className="p-2.5 text-indigo-900">Date</th>
+                <th className="p-2.5 text-blue-900">Reel No.</th>
+                <th className="p-2.5 text-amber-900">GSM</th>
                 <th className="p-2.5">Paper Mill</th>
                 <th className="p-2.5">Product</th>
                 <th className="p-2.5">Remarks / Lot</th>
                 <th className="p-2.5 text-right">Rolls Stock</th>
                 <th className="p-2.5 text-right">In / Out / Scrap (KG)</th>
                 <th className="p-2.5 text-center">Stage Status</th>
-                <th className="p-2.5 text-center">Traceability (ट्रेसेबिलिटी)</th>
+                <th className="p-2.5 text-center">Traceability</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1364,7 +1924,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                             setGenealogyModalJob(j);
                           }}
                           className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[11px] transition shadow-xs inline-flex items-center gap-1 cursor-pointer"
-                          title="ट्रेसेबिलिटी में देखें कि यह रील कहाँ-कहाँ पहुँची"
+                          title="See where this reel reached in Traceability"
                         >
                           <ShieldCheck className="w-3.5 h-3.5" />
                           <span>Trace Reel</span>
@@ -1418,7 +1978,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
               </select>
               {currentRunningBatch && addReelJobId && addReelJobId !== currentRunningBatch.job.id && (
                 <div className="mt-1.5 p-2 bg-amber-50 border border-amber-300 rounded text-[11px] text-amber-900 font-semibold">
-                  ⚠️ <b>सिंगल एक्टिव जॉब सूचना:</b> मशीन Slitting-1 पर अभी जॉब <b>{currentRunningBatch.job.id}</b> रनिंग स्थिति में है। जब तक वह Hold या Complete नहीं होता, तब तक केवल उसी एक्टिव जॉब <b>{currentRunningBatch.job.id}</b> में नई रील/एंट्री ऐड-ऑन की जा सकती है।
+                  ⚠️ <b>Single Active Job Info:</b> Job <b>{currentRunningBatch.job.id}</b> is currently running on machine Slitting-1. Until it is Held or Completed, new reel/entry can only be added-on to this active job <b>{currentRunningBatch.job.id}</b>.
                 </div>
               )}
               {addReelJobId && (() => {
@@ -1461,7 +2021,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                       </div>
                     </div>
                     <p className="text-[10px] text-blue-700 m-0">
-                      💡 यदि आप अलग GSM (उदा. 300 GSM) की रील जोड़ रहे हैं, तो नीचे GSM फील्ड में नया GSM लिखें। जॉब कार्ड में दोनों GSM अलग-अलग सुरक्षित रहेंगे और आगे कटिंग व फॉर्मिंग में दिखेंगे!
+                      💡 If adding a reel of different GSM (e.g. 300 GSM), enter new GSM below. Both GSMs will remain separate in Job Card and visible in cutting & forming!
                     </p>
                   </div>
                 );
@@ -1497,10 +2057,11 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GSM:</label>
                 <input
                   type="text"
-                  value={addReelGsm}
+                  value={(jobs.find(j => j.id === addReelJobId)?.planId && productionPlans.find(p => p.id === jobs.find(j => j.id === addReelJobId)?.planId)?.targetGsm) || addReelGsm}
                   onChange={(e) => setAddReelGsm(e.target.value)}
                   placeholder="e.g. 280 GSM"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  disabled={!!(jobs.find(j => j.id === addReelJobId)?.planId)}
                 />
               </div>
               <div>
@@ -1515,6 +2076,87 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
               </div>
             </div>
 
+            {/* ADD REEL PRINTED / NON-PRINTED ROLL SWITCHER */}
+            <div className="bg-indigo-50/50 border border-indigo-200 p-2.5 rounded-lg space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-[11px] uppercase tracking-wider text-indigo-900 block">
+                  Roll Print Option:
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddReelIsPrintedRoll(false);
+                      setAddReelPrintedRollDesign('');
+                    }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                      !addReelIsPrintedRoll
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                    }`}
+                  >
+                    Plain Roll
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddReelIsPrintedRoll(true);
+                      if (!addReelPrintedRollDesign) {
+                        const selJob = jobs.find(j => j.id === addReelJobId);
+                        if (selJob && selJob.printedRollDesign) {
+                          setAddReelPrintedRollDesign(selJob.printedRollDesign);
+                          setAddReelPrintedRollIcon(selJob.printedRollIcon || 'Sparkles');
+                        } else {
+                          setAddReelPrintedRollDesign('ITC Printed Design');
+                        }
+                      }
+                    }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                      addReelIsPrintedRoll
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                    }`}
+                  >
+                    Printed Roll
+                  </button>
+                </div>
+              </div>
+
+              {addReelIsPrintedRoll && (
+                <div className="grid grid-cols-2 gap-2 pt-1 animate-in slide-in-from-top-1 duration-150">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                      Design Name:
+                    </label>
+                    <input
+                      type="text"
+                      value={addReelPrintedRollDesign}
+                      onChange={(e) => setAddReelPrintedRollDesign(e.target.value)}
+                      placeholder="e.g. Tata Tea 250g"
+                      className="w-full px-2 py-1.5 bg-white border border-indigo-200 rounded text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                      Icon:
+                    </label>
+                    <select
+                      value={addReelPrintedRollIcon}
+                      onChange={(e) => setAddReelPrintedRollIcon(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white border border-indigo-200 rounded text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                    >
+                      <option value="Sparkles">✨ Sparkles</option>
+                      <option value="Coffee">☕ Coffee / Tea</option>
+                      <option value="ShoppingBag">🛍️ Shopping Bag</option>
+                      <option value="Droplets">💧 Droplet</option>
+                      <option value="Tag">🏷️ Tag</option>
+                      <option value="Boxes">📦 Box</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reel Remarks:</label>
               <input
@@ -1524,6 +2166,31 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
                 placeholder="e.g. Extra reel added from bay 2"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
               />
+            </div>
+
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+              <input
+                type="checkbox"
+                id="addReelIsHotFoilLayer"
+                checked={addReelIsHotFoilLayer}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setAddReelIsHotFoilLayer(checked);
+                  if (checked) {
+                    setAddReelNo('HOT-FOIL-ADDON');
+                    setAddReelRemarks('Specialty Hot Foil Layer');
+                    setAddReelWeightKg('50');
+                  } else {
+                    setAddReelNo('');
+                    setAddReelRemarks('');
+                    setAddReelWeightKg('200');
+                  }
+                }}
+                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label htmlFor="addReelIsHotFoilLayer" className="text-[11px] font-bold text-amber-900 cursor-pointer select-none">
+                Specialty Auxiliary Layer (Hot Foil / Hot Layer) — NOT counted in paper layers count
+              </label>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -1590,6 +2257,32 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
         state={state}
       />
 
+      {/* Station Crew Assignment Modal */}
+      <StationCrewModal
+        isOpen={isCrewModalOpen}
+        onClose={() => setIsCrewModalOpen(false)}
+        machine="Slitting-1"
+        stage="Slitting"
+        shift={activeBatchObj?.batch.shift || "DAY"}
+        currentOperator={activeBatchObj?.batch.worker || ""}
+        currentHelpers={activeBatchObj?.batch.helpers || []}
+        state={state}
+        onConfirmCrew={handleConfirmCrew}
+      />
+
+      {/* Station Crew Assignment Modal */}
+      <StationCrewModal
+        isOpen={isCrewModalOpen}
+        onClose={() => setIsCrewModalOpen(false)}
+        machine="Slitting-1"
+        stage="Slitting"
+        shift={activeBatchObj?.batch.shift || "DAY"}
+        currentOperator={activeBatchObj?.batch.worker || ""}
+        currentHelpers={activeBatchObj?.batch.helpers || []}
+        state={state}
+        onConfirmCrew={handleConfirmCrew}
+      />
+
       {/* Shift Handover Modal */}
       {activeBatchObj && (
         <ShiftHandoverModal
@@ -1603,6 +2296,47 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
           unitLabel="Rolls"
           onConfirmHandover={handleConfirmShiftHandover}
         />
+      )}
+
+      {/* Target Length Warning Confirmation Modal */}
+      {isLengthWarningModalOpen && activeBatchObj && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-amber-200 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 border-b border-amber-100 pb-3">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+              <div>
+                <h3 className="text-sm font-extrabold text-amber-950 m-0">Target Length Variance Warning</h3>
+                <p className="text-[11px] text-slate-500 m-0">Output length deviates by more than ±5% from target</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 border border-amber-150 rounded-xl text-xs text-amber-900 leading-relaxed space-y-2">
+              <p>
+                The entered actual slitted length of <b className="font-extrabold text-amber-950">{parseFloat(actualSlitLengthMeters) || 0} meters</b> deviates from the planned target slitting length of <b className="font-extrabold text-amber-950">{activeBatchObj.job.planId ? (productionPlans.find(p => p.id === activeBatchObj.job.planId)?.targetLengthMeters || 1200) : 1200} meters</b> for this Job by more than ±5%.
+              </p>
+              <p className="font-medium text-amber-800">
+                Are you sure you want to proceed and save this run with this deviation?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsLengthWarningModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition"
+              >
+                Cancel / Revise
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCompleteSlitting(true)}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer shadow-xs flex items-center gap-1 transition"
+              >
+                <Check className="w-4 h-4" /> Yes, Confirm & Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

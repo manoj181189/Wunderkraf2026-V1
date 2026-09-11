@@ -191,7 +191,7 @@ export const MrpRunView: React.FC<MrpRunViewProps> = ({
           <div className="bg-neutral-950/60 p-3 rounded-lg border border-neutral-800/80">
             <div className="text-neutral-500 text-[11px] uppercase">Total Shortage Procurement Cost</div>
             <div className="text-lg font-bold text-amber-400 mt-0.5">
-              ${summary.totalProcurementCost.toLocaleString()}
+              ₹{summary.totalProcurementCost.toLocaleString()}
             </div>
           </div>
         </div>
@@ -412,7 +412,7 @@ export const MrpRunView: React.FC<MrpRunViewProps> = ({
                           <button
                             onClick={() => onCreateSinglePO(item)}
                             className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-amber-400 border border-amber-500/30 rounded text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1"
-                            title={`Generate PO for ${item.recommendedOrderQty} ${item.unit} ($${item.estimatedCost})`}
+                            title={`Generate PO for ${item.recommendedOrderQty} ${item.unit} (₹${item.estimatedCost})`}
                           >
                             <ShoppingCart className="w-3 h-3" />
                             <span>Issue PO</span>

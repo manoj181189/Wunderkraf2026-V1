@@ -6,6 +6,8 @@ import { getCurrentExpectedShift, getJobAllReels, getJobAllGsms, getJobReelsSumm
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 import { ShiftHandoverModal } from '../ShiftHandoverModal';
+import { StationCrewModal } from '../StationCrewModal';
+import { Users } from 'lucide-react';
 
 interface FormingViewProps {
   state: FactoryState;
@@ -56,6 +58,8 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
   // Shift Handover Modal State
   const [isShiftHandoverModalOpen, setIsShiftHandoverModalOpen] = useState(false);
+  const [assignedHelpers, setAssignedHelpers] = useState<string[]>([]);
+  const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
 
   // Dialog states for Quick Actions (Replacing window.prompt)
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
@@ -341,6 +345,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
   const handleConfirmShiftHandover = (handoverData: {
     relievedByOperator: string;
+    helpers?: string[];
     nextShift: 'DAY' | 'NIGHT' | string;
     handoverTime: string;
     meterReading: number;
@@ -352,6 +357,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
     if (!activeBatchObj) return;
     const { job, batch } = activeBatchObj;
 
+    const nextHelpers = handoverData.helpers && handoverData.helpers.length > 0 ? handoverData.helpers : assignedHelpers;
     const newSlice: OperatorRunSlice = {
       sliceId: `SLICE-FORM-${Date.now()}`,
       operator: batch.worker,
@@ -421,9 +427,54 @@ export const FormingView: React.FC<FormingViewProps> = ({
     setLoosePiecesInput('');
     setScrapPcs('0');
     setOperatorName(handoverData.relievedByOperator);
+    if (handoverData.helpers && handoverData.helpers.length > 0) setAssignedHelpers(handoverData.helpers);
+    if (handoverData.helpers && handoverData.helpers.length > 0) setAssignedHelpers(handoverData.helpers);
     setShift(handoverData.nextShift as 'DAY' | 'NIGHT');
     setIsShiftHandoverModalOpen(false);
     alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Formed Crates locked to ${batch.worker}.`);
+  };
+
+
+  const handleConfirmCrew = (operator: string, helpers: string[]) => {
+    if (!activeBatchObj) return;
+    const { job, batch } = activeBatchObj;
+
+    const updatedJobs = state.jobs.map((j) => {
+      if (j.id !== job.id) return j;
+      return {
+        ...j,
+        runningBatches: (j.runningBatches || []).map((b) => {
+          if (b.batchId !== batch.batchId) return b;
+          return {
+            ...b,
+            worker: operator.trim().toUpperCase(),
+            helpers: helpers,
+            helperCount: helpers.length
+          };
+        })
+      };
+    });
+
+    const newLog = {
+      jobId: job.id,
+      product: job.product,
+      stage: 'Forming',
+      machine: selectedMachine,
+      shift: batch.shift,
+      action: `👥 Station Crew Assigned: Operator [${operator}] with ${helpers.length} Helpers (${helpers.join(', ')}) on ${selectedMachine} for Batch [${batch.batchId}]`,
+      worker: operator,
+      user: 'form_supervisor',
+      rawDate: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+    };
+
+    onSaveState({
+      ...state,
+      jobs: updatedJobs,
+      logs: [newLog, ...(state.logs || [])]
+    });
+    alert('Crew assigned successfully!');
+    setIsCrewModalOpen(false);
   };
 
   const handleResume = () => {
@@ -1146,24 +1197,25 @@ export const FormingView: React.FC<FormingViewProps> = ({
 
         <form onSubmit={handleStartOrTopup} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-purple-700 uppercase mb-1">
-                Forming Operator Name <span className="text-rose-600">*Mandatory</span>:
+            <div className="flex flex-col gap-1.5">
+              <label className="block text-xs font-bold text-purple-700 uppercase">
+                Operator & Crew <span className="text-rose-600">*</span>:
               </label>
-              <input
-                type="text"
-                list="formWorkerList"
-                value={operatorName}
-                onChange={(e) => setOperatorName(e.target.value)}
-                placeholder="Type Operator Name..."
-                className="w-full px-3 py-2 bg-white border border-purple-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none"
-                required
-              />
-              <datalist id="formWorkerList">
-                {formWorkers.map((w) => (
-                  <option key={w} value={w} />
-                ))}
-              </datalist>
+              <div className="flex items-center justify-between bg-white border border-purple-300 px-3 py-2 rounded-lg">
+                <div className="flex flex-col">
+                  <span className="font-bold text-slate-800">{operatorName || 'Select Operator'}</span>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {assignedHelpers.length > 0 ? `${assignedHelpers.length} Helpers (${assignedHelpers.join(', ')})` : 'No Helpers Assigned'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCrewModalOpen(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded transition cursor-pointer"
+                >
+                  Change Crew
+                </button>
+              </div>
             </div>
 
             <div>
@@ -1194,6 +1246,48 @@ export const FormingView: React.FC<FormingViewProps> = ({
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Helper Assignment for this Operator */}
+          <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-black text-amber-950 flex items-center gap-1.5 uppercase">
+                <span>🤝 Assigned Helpers with Operator:</span>
+                <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                  {assignedHelpers.length} Helpers
+                </span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCrewModalOpen(true)}
+                  className="text-xs font-extrabold text-blue-800 bg-white hover:bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs flex items-center gap-1"
+                >
+                  <Users className="w-3.5 h-3.5 text-blue-600" />
+                  <span>👥 Crew & Helper Modal</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {assignedHelpers.map((h, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 bg-white border border-amber-300 text-amber-950 font-bold text-xs px-2.5 py-1 rounded-lg shadow-2xs"
+                >
+                  <span>Helper {idx + 1}: {h}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAssignedHelpers(assignedHelpers.filter((_, i) => i !== idx))}
+                    className="text-slate-400 hover:text-rose-600 transition cursor-pointer font-black"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {assignedHelpers.length === 0 && (
+                <span className="text-xs font-bold text-slate-400 italic">No helpers assigned for this batch yet.</span>
+              )}
             </div>
           </div>
 
@@ -1298,7 +1392,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
-                <th className="p-3 text-indigo-900">Date (तारीख)</th>
+                <th className="p-3 text-indigo-900">Date</th>
                 <th className="p-3 text-blue-900">Reel No.</th>
                 <th className="p-3 text-amber-900">GSM</th>
                 <th className="p-3">Paper Mill</th>
@@ -1678,6 +1772,32 @@ export const FormingView: React.FC<FormingViewProps> = ({
         onClose={() => setGenealogyModalJob(null)}
         job={genealogyModalJob}
         state={state}
+      />
+
+      {/* Station Crew Assignment Modal */}
+      <StationCrewModal
+        isOpen={isCrewModalOpen}
+        onClose={() => setIsCrewModalOpen(false)}
+        machine={selectedMachine}
+        stage="Forming"
+        shift={activeBatchObj?.batch.shift || 'DAY'}
+        currentOperator={activeBatchObj?.batch.worker || ''}
+        currentHelpers={activeBatchObj?.batch.helpers || []}
+        state={state}
+        onConfirmCrew={handleConfirmCrew}
+      />
+
+      {/* Station Crew Assignment Modal */}
+      <StationCrewModal
+        isOpen={isCrewModalOpen}
+        onClose={() => setIsCrewModalOpen(false)}
+        machine={selectedMachine}
+        stage="Forming"
+        shift={activeBatchObj?.batch.shift || 'DAY'}
+        currentOperator={activeBatchObj?.batch.worker || ''}
+        currentHelpers={activeBatchObj?.batch.helpers || []}
+        state={state}
+        onConfirmCrew={handleConfirmCrew}
       />
 
       {/* Shift Handover Modal */}

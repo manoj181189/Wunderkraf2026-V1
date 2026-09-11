@@ -148,13 +148,17 @@ export const QCView: React.FC<QCViewProps> = ({
       setSelectedPendingJobId('');
       setSelectedActiveBatchId(existingBatch.batchId);
       alert(
-        `✅ क्रेट्स टॉप-अप सफल (Crate Top-up Successful)!\n\n` +
-        `• इंस्पेक्टर: ${cleanInspector}\n` +
-        `• जॉब: ${job.id} (${job.product})\n` +
-        `• पहले थे: ${prevQty} क्रेट्स\n` +
-        `• नए दिए: +${cratesCount} क्रेट्स\n` +
-        `• कुल हाथ में क्रेट्स (Total in Hand): ${newTotalQty} क्रेट्स\n\n` +
-        `सेम प्रोडक्ट होने के कारण अलग से डुप्लीकेट एंट्री नहीं बनी है, उसी रिकॉर्ड में संख्या अपडेट हो गई है।`
+        `✅ Crate Top-up Successful!\n\n` +
+        `• Inspector: ${cleanInspector}\n` +
+        `• Job: ${job.id} (${job.product})\n` +
+        `• Previously: ${prevQty} Crates
+` +
+        `• Newly Given: +${cratesCount} Crates
+` +
+        `• Total in Hand: ${newTotalQty} Crates
+
+` +
+        `Due to being the same product, a duplicate entry was not created; the quantity has been updated in the existing record.`
       );
       return;
     }
@@ -327,12 +331,15 @@ export const QCView: React.FC<QCViewProps> = ({
     setIsTopupModalOpen(false);
     setTopupQtyInput('2');
     alert(
-      `✅ क्रेट्स टॉप-अप सफल (Crate Top-up Successful)!\n\n` +
-      `• इंस्पेक्टर: ${batch.worker}\n` +
-      `• जॉब: ${job.id} (${job.product})\n` +
-      `• जोड़े गए: +${addCount} क्रेट्स\n` +
-      `• अब कुल हाथ में क्रेट्स (Total in Hand): ${newTotal} क्रेट्स\n\n` +
-      `अलग से नई एंट्री नहीं बनी है, रिकॉर्ड में कुल क्रेट्स ${newTotal} अपडेट हो गए हैं।`
+      `✅ Crate Top-up Successful!\n\n` +
+      `• Inspector: ${batch.worker}\n` +
+      `• Job: ${job.id} (${job.product})\n` +
+      `• Added: +${addCount} Crates
+` +
+      `• Total in Hand Now: ${newTotal} Crates
+
+` +
+      `No separate new entry created, total crates ${newTotal} updated in the record.`
     );
   };
 
@@ -569,7 +576,7 @@ export const QCView: React.FC<QCViewProps> = ({
         <div className="flex items-center justify-between mb-2.5">
           <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
             <SearchCheck className="w-4 h-4 text-cyan-600" />
-            Active QC Inspection Lots (निरीक्षण लॉट्स):
+            Active QC Inspection Lots:
           </label>
           <span className="text-[11px] font-bold text-slate-500">
             {activeBatches.length} Active Inspection{activeBatches.length === 1 ? '' : 's'} Under Check
@@ -632,17 +639,17 @@ export const QCView: React.FC<QCViewProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* INSPECTOR / WORKER CRATE BALANCE TRACKING (रमेश भाई व इंस्पेक्टर्स के पास क्रेट्स का हिसाब) */}
+      {/* INSPECTOR / WORKER CRATE BALANCE TRACKING (Crates Account for Inspectors) */}
       {/* ======================================================== */}
       {activeBatches.length > 0 && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between flex-wrap gap-1">
             <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5 m-0">
               <Users className="w-4 h-4 text-blue-600" />
-              Inspector Crates Live Balance (इंस्पेक्टर के पास कितने क्रेट्स हैं):
+              Inspector Crates Live Balance:
             </h4>
             <span className="text-[11px] font-bold text-slate-500">
-              Same Job = Merged Balance (अलग एंट्री नहीं बढ़ती)
+              Same Job = Merged Balance (No separate entry)
             </span>
           </div>
 
@@ -650,12 +657,12 @@ export const QCView: React.FC<QCViewProps> = ({
             <table className="w-full text-xs text-left border border-slate-200 rounded-lg overflow-hidden bg-white">
               <thead className="bg-slate-100/80 text-[11px] font-black text-slate-600 uppercase border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2">Inspector (आदमी का नाम)</th>
-                  <th className="px-3 py-2">Date & Shift (तारीख व शिफ्ट)</th>
+                  <th className="px-3 py-2">Inspector Name</th>
+                  <th className="px-3 py-2">Date & Shift</th>
                   <th className="px-3 py-2">Job & Product</th>
-                  <th className="px-3 py-2">Current in Hand (हाथ में क्रेट्स)</th>
+                  <th className="px-3 py-2">Current in Hand</th>
                   <th className="px-3 py-2">Approved / Forwarded</th>
-                  <th className="px-3 py-2 text-right">Quick Top-up (+ और क्रेट्स दें)</th>
+                  <th className="px-3 py-2 text-right">Quick Top-up (+ Add Crates)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -786,7 +793,7 @@ export const QCView: React.FC<QCViewProps> = ({
                 <span>Crate Packing Standard ({activeBatchObj.job.product}):</span>
               </div>
               <div className="font-extrabold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded">
-                {effectiveQcPcs.toLocaleString()} Pieces / Crate (नंग प्रति क्रेट)
+                {effectiveQcPcs.toLocaleString()} Pieces / Crate
               </div>
             </div>
 
@@ -797,7 +804,7 @@ export const QCView: React.FC<QCViewProps> = ({
                   {parseInt(loosePiecesInput, 10) > 0 && <span> + {loosePiecesInput} Loose</span>}
                 </div>
                 <div className="text-emerald-950 font-black bg-emerald-100 px-2.5 py-1 rounded-md text-xs border border-emerald-300">
-                  = {((parseInt(outputApprovedCrates, 10) || 0) * effectiveQcPcs + (parseInt(loosePiecesInput, 10) || 0)).toLocaleString()} Finished Pieces (कुल पास नंग)
+                  = {((parseInt(outputApprovedCrates, 10) || 0) * effectiveQcPcs + (parseInt(loosePiecesInput, 10) || 0)).toLocaleString()} Finished Pieces (Total Passed)
                 </div>
               </div>
             )}
@@ -808,7 +815,7 @@ export const QCView: React.FC<QCViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                  Passed / Approved QC Crates Output (पास क्रेट्स):
+                  Passed / Approved QC Crates Output:
                 </label>
                 <input
                   type="number"
@@ -820,7 +827,7 @@ export const QCView: React.FC<QCViewProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                  Loose Passed Pcs (अतिरिक्त खुले पास नंग):
+                  Loose Passed Pcs:
                 </label>
                 <input
                   type="number"
@@ -832,7 +839,7 @@ export const QCView: React.FC<QCViewProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-bold text-rose-700 uppercase mb-1">
-                  Rejected Scrap (KG) (रिजेक्ट स्क्रैप वजन):
+                  Rejected Scrap (KG):
                 </label>
                 <input
                   type="number"
@@ -1004,7 +1011,7 @@ export const QCView: React.FC<QCViewProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700 uppercase">
-                Enter Formed Crates to Inspect (इश्यू क्रेट्स) *:
+                Enter Formed Crates to Inspect (Issue Crates) *:
               </label>
               <div className="flex items-center gap-1">
                 {[1, 2, 4, 6].map((num) => (
@@ -1068,10 +1075,10 @@ export const QCView: React.FC<QCViewProps> = ({
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 m-0">
               <Layers className="w-5 h-5 text-teal-600" />
-              <span>QC Reels & Traceability Register (क्यूसी रील व जॉब आईडी रजिस्टर)</span>
+              <span>QC Reels & Traceability Register</span>
             </h3>
             <p className="text-xs text-slate-500 m-0">
-              हर जॉब आईडी में प्रयुक्त रील नंबर, जीएसएम व आगे की स्टेज की ट्रेसेबिलिटी स्थिति
+              Reel number, GSM used in each Job ID and onward traceability status
             </p>
           </div>
           <div className="relative w-full sm:w-72">
@@ -1091,16 +1098,16 @@ export const QCView: React.FC<QCViewProps> = ({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-left">
                 <th className="p-3">Job ID</th>
-                <th className="p-3 text-indigo-900">Date (तारीख)</th>
-                <th className="p-3 text-blue-900">Reel No. (रील नंबर)</th>
-                <th className="p-3 text-amber-900">GSM (जीएसएम)</th>
+                <th className="p-3 text-indigo-900">Date</th>
+                <th className="p-3 text-blue-900">Reel No.</th>
+                <th className="p-3 text-amber-900">GSM</th>
                 <th className="p-3">Paper Mill</th>
                 <th className="p-3">Product</th>
                 <th className="p-3">Remarks / Lot</th>
                 <th className="p-3 text-right">Approved Stock</th>
                 <th className="p-3 text-right">In / Out / Scrap</th>
                 <th className="p-3 text-center">Stage Status</th>
-                <th className="p-3 text-center">Traceability (ट्रेसेबिलिटी)</th>
+                <th className="p-3 text-center">Traceability</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1233,7 +1240,7 @@ export const QCView: React.FC<QCViewProps> = ({
                             setGenealogyModalJob(j);
                           }}
                           className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[11px] transition shadow-xs inline-flex items-center gap-1 cursor-pointer"
-                          title="ट्रेसेबिलिटी में देखें कि यह रील/लॉट कहाँ-कहाँ पहुँची"
+                          title="See where this reel/lot reached in Traceability"
                         >
                           <ShieldCheck className="w-3.5 h-3.5" />
                           <span>Trace Lot</span>
@@ -1401,7 +1408,7 @@ export const QCView: React.FC<QCViewProps> = ({
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <PlusCircle className="w-5 h-5 text-blue-600" />
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 m-0">Top-up Crates to Inspector (और क्रेट्स दें)</h3>
+                <h3 className="text-sm font-extrabold text-slate-900 m-0">Top-up Crates to Inspector</h3>
                 <p className="text-[11px] text-slate-500 m-0">Add more formed crates to the same inspector without creating duplicate entries</p>
               </div>
             </div>
@@ -1417,7 +1424,7 @@ export const QCView: React.FC<QCViewProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Enter Additional Crates to Give (अतिरिक्त क्रेट्स संख्या):
+                Enter Additional Crates to Give:
               </label>
               <input
                 type="number"

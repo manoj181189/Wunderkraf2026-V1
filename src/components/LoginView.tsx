@@ -33,11 +33,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
     <div className="max-w-md mx-auto my-10 bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
       {/* Brand Monogram */}
       <div className="w-24 h-24 mx-auto mb-5 bg-slate-50 border border-slate-200 rounded-2xl p-2 shadow-inner flex items-center justify-center overflow-hidden">
-        {brandLogoBase64 ? (
-          <img src={brandLogoBase64} alt="Brand Logo" className="w-full h-full object-contain" />
-        ) : (
-          <div className="text-3xl font-extrabold text-[#1a365d] tracking-wider">WK</div>
-        )}
+        <img 
+          src={brandLogoBase64 || "/logo.png"} 
+          alt="Brand Logo" 
+          className="w-full h-full object-contain" 
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+            const nextEl = e.currentTarget.nextElementSibling as HTMLElement;
+            if (nextEl) nextEl.style.display = 'flex';
+          }}
+        />
+        <div className="items-center justify-center text-3xl font-extrabold text-[#1a365d] tracking-wider hidden w-full h-full">
+          WK
+        </div>
       </div>
 
       <div className="text-center mb-6">
@@ -51,9 +59,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
       <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2.5">
         <ShieldCheck className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
         <div className="leading-snug">
-          <p className="font-bold text-amber-950 m-0">सुरक्षा प्रतिबंध (Login Required Policy):</p>
+          <p className="font-bold text-amber-950 m-0">Login Required Policy:</p>
           <p className="text-[11px] text-amber-800 mt-0.5 m-0">
-            Login के बिना Voice AI Floor Dictation, Google Search Grounding या कोई भी फ्लोर स्क्रीन डायरेक्ट एक्सेस नहीं हो सकती।
+            Voice AI Floor Dictation, Google Search Grounding, or any floor screen cannot be directly accessed without Login.
           </p>
         </div>
       </div>
@@ -61,7 +69,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-            Workstation Username (ऑपरेटर आईडी)
+            Workstation Username
           </label>
           <div className="relative">
             <input
@@ -88,7 +96,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
 
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-            Private Access Password (पासवर्ड)
+            Private Access Password
           </label>
           <div className="relative">
             <input
@@ -117,7 +125,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
         {error && (
           <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>अमान्य लॉगिन! गलत यूजरनेम या पासवर्ड। कृपया दोबारा प्रयास करें।</span>
+            <span>Invalid login! Incorrect username or password. Please try again.</span>
           </div>
         )}
 
@@ -127,7 +135,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ users, brandLogoBase64, on
           className="w-full py-3 bg-[#1a365d] hover:bg-[#2b6cb0] text-white font-bold rounded-lg text-sm transition shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
         >
           <KeyRound className="w-4 h-4" />
-          <span>Login & Open Floor Hub (लॉगिन करें)</span>
+          <span>Login & Open Floor Hub</span>
         </button>
       </form>
 

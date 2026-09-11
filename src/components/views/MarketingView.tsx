@@ -356,7 +356,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                 <CheckCircle2 className="w-10 h-10" />
               </div>
               <h3 className="text-lg font-black text-slate-900 m-0">
-                ऑर्डर सफलतापूर्वक सबमिट हो गया है!
+                Order submitted successfully!
               </h3>
               <p className="text-xs text-slate-500 font-medium m-0">
                 Customer Order has been queued into Factory Production & Packing floor.
@@ -406,7 +406,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                 className="w-full py-3 bg-[#2f855a] hover:bg-[#276749] text-white font-extrabold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>+ नया ऑर्डर दर्ज करें (Enter Next Order)</span>
+                <span>+ Enter Next Order</span>
               </button>
               <button
                 type="button"
@@ -417,7 +417,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({
                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>मुख्य मेनू पर जाएं (Back to Main Hub)</span>
+                <span>Back to Main Hub</span>
               </button>
             </div>
           </div>

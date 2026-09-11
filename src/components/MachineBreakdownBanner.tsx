@@ -78,19 +78,19 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-extrabold text-xs uppercase px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
-                  🟡 REPAIR IN PROGRESS • काम चालू है
+                  🟡 REPAIR IN PROGRESS
                 </span>
                 <span className="text-xs font-bold text-amber-950 font-mono">
                   {machineName}
                 </span>
               </div>
               <div className="text-sm font-black text-slate-900 mt-1 flex items-center gap-1.5 flex-wrap">
-                <span>कार्यरत टेक्नीशियन:</span>
+                <span>Working Technician:</span>
                 <span className="text-amber-900 font-extrabold bg-white px-2 py-0.5 rounded border border-amber-300">
                   👨‍🔧 {displayTech}
                 </span>
                 <span className="text-xs text-slate-500 font-medium">
-                  (⏱️ {currentRepairMins} मिनट से काम जारी है)
+                  (⏱️ Work in progress for {currentRepairMins} minutes)
                 </span>
               </div>
             </div>
@@ -98,7 +98,7 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-right hidden sm:block text-xs">
-              <span className="text-[10px] text-slate-500 uppercase block font-bold">कुल बंद समय:</span>
+              <span className="text-[10px] text-slate-500 uppercase block font-bold">Total Down Time:</span>
               <span className="font-mono font-black text-rose-700">⏱️ {totalDownMins} Mins</span>
             </div>
             <button
@@ -107,18 +107,18 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wide rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>रिपेयर पूरा हुआ - मशीन ओके करें</span>
+              <span>Repair Completed - Mark Machine OK</span>
             </button>
           </div>
         </div>
 
         <div className="bg-white/80 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-bold uppercase text-[11px]">समस्या (Reason):</span>
+            <span className="text-slate-500 font-bold uppercase text-[11px]">Issue (Reason):</span>
             <span className="font-bold text-slate-800">{displayReason}</span>
           </div>
           <span className="text-[11px] text-amber-800 font-medium italic">
-            मशीन ठीक होते ही ऊपर दिए गए बटन से "रिपेयर पूरा हुआ" दर्ज करें।
+            As soon as the machine is fixed, click "Repair Completed" above.
           </span>
         </div>
       </div>
@@ -136,17 +136,17 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-extrabold text-xs uppercase px-2.5 py-0.5 rounded-full bg-red-200 text-red-900 border border-red-300">
-                🔴 BREAKDOWN • मशीन बंद है
+                🔴 BREAKDOWN
               </span>
               <span className="text-xs font-bold text-red-950 font-mono">
                 {machineName}
               </span>
               <span className="text-[11px] font-bold text-red-700">
-                (टेक्नीशियन का इंतज़ार • {totalDownMins} मिनट से बंद)
+                (Waiting for Technician • Down for {totalDownMins} minutes)
               </span>
             </div>
             <div className="text-sm font-extrabold text-slate-900 mt-1">
-              कारण: <span className="text-red-900">{displayReason}</span>
+              Reason: <span className="text-red-900">{displayReason}</span>
             </div>
           </div>
         </div>
@@ -158,14 +158,14 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
             className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs uppercase tracking-wide rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
           >
             <Wrench className="w-4 h-4" />
-            <span>👨‍🔧 मैं अटेंड कर रहा हूँ (Technician Reply)</span>
+            <span>👨‍🔧 I am Attending </span>
           </button>
         </div>
       </div>
 
       <div className="bg-white/80 border border-red-200 rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
         <span className="text-slate-600 text-[11px]">
-          📢 जो मेंटेनेंस टेक्नीशियन इस मशीन पर काम करने आया है, वह <b>"मैं अटेंड कर रहा हूँ"</b> बटन दबाकर तुरंत काम शुरू दर्ज करे।
+          📢 The Maintenance Technician who came to work on this machine should press the <b>"I am Attending"</b> button to log the start of work immediately.
         </span>
         {onOpenHoldModal && (
           <button
@@ -173,7 +173,7 @@ export const MachineBreakdownBanner: React.FC<MachineBreakdownBannerProps> = ({
             onClick={() => onOpenHoldModal(machineName)}
             className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
           >
-            ब्रेकडाउन विवरण बदलें
+            Change Breakdown Details
           </button>
         )}
       </div>

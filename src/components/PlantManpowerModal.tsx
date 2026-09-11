@@ -26,7 +26,7 @@ export const PlantManpowerModal: React.FC<PlantManpowerModalProps> = ({
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-indigo-400" />
             <span className="text-sm font-black tracking-wide uppercase">
-              लाईव प्लांट मैनपावर एवं हेल्पर ऑडिट (Live Plant Manpower & Helper Audit)
+              Live Plant Manpower & Helper Audit
             </span>
           </div>
           <button

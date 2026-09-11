@@ -113,7 +113,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
   const handleStartAttending = (e: React.FormEvent) => {
     e.preventDefault();
     if (!effectiveTechName) {
-      alert('⚠️ कृपया टेक्नीशियन का नाम चुनें या दर्ज करें।');
+      alert('⚠️ Please select or enter the technician name.');
       return;
     }
 
@@ -184,14 +184,14 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
       logs: [...state.logs, newLog]
     });
 
-    alert(`✅ ${effectiveTechName} ने ${targetMachine} पर काम शुरू कर दिया है। डैशबोर्ड पर "काम चालू है" अपडेट हो गया है।`);
+    alert(`✅ ${effectiveTechName} has started repair work on ${targetMachine}. Dashboard updated to "Under Repair / In Progress".`);
   };
 
   // 2. Action: Add Spare Part
   const handleAddSpare = () => {
     const finalPartName = isDirectPartInput ? directPartNameInput.trim() : newPartName.trim();
     if (!finalPartName) {
-      alert('⚠️ कृपया स्पेयर पार्ट का नाम दर्ज करें!');
+      alert('⚠️ Please enter a spare part name!');
       return;
     }
     const qty = parseInt(newPartQty) || 1;
@@ -333,13 +333,13 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
         `🔧 *Action Taken:* ${actionTaken || 'Repaired and certified ready'}\n` +
         `🔩 *Spares Used:* ${partsSummary}\n` +
         `⏰ *Time:* ${nowTime}\n\n` +
-        `📢 *Status:* "मेरी साइड से मशीन ओके है - रेडी टू रन!" Operator can resume production immediately.`
+        `📢 *Status:* "Machine OK from my side - Ready to Run!" Operator can resume production immediately.`
       );
       const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${msg}` : `https://api.whatsapp.com/send?text=${msg}`;
       window.open(waUrl, '_blank');
     }
 
-    alert(`🎉 मशीन ${targetMachine} का रिपेयर कार्य पूरा हो गया है और मशीन अब "RUNNING" स्थिति में तैयार है!`);
+    alert(`🎉 Machine ${targetMachine} repair completed successfully and is now certified RUNNING!`);
     onClose();
   };
 
@@ -370,7 +370,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                   {targetMachine} • Breakdown & Repair Desk
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 border border-white/30 text-white">
-                  {isUnderRepair ? '🟡 Under Repair (काम चालू)' : '🔴 Stopped (बंद है)'}
+                  {isUnderRepair ? '🟡 Under Repair' : '🔴 Stopped'}
                 </span>
               </div>
               <p className="text-[11px] text-white/80 m-0 mt-0.5">
@@ -429,7 +429,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
               </div>
 
               <div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase">Reason / कारण:</div>
+                <div className="text-[11px] font-bold text-slate-500 uppercase">Reason:</div>
                 <div className="text-sm font-extrabold text-slate-900 mt-0.5 flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>{activeIncident.reason}</span>
@@ -467,10 +467,10 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
               <Clock className="w-5 h-5 text-slate-400" />
               <div>
                 <div className="font-bold text-slate-800">
-                  {targetMachine} पर वर्तमान में कोई खुला ब्रेकडाउन टिकट नहीं है।
+                  {targetMachine} currently has no open breakdown tickets.
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  यदि मशीन बंद है या मेंटेनेंस की आवश्यकता है, तो नीचे से सीधे अटेंड करें।
+                  If the machine is stopped or requires maintenance, attend directly from below.
                 </div>
               </div>
             </div>
@@ -484,17 +484,17 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
             >
               <div className="flex items-center gap-2 text-rose-800 font-extrabold uppercase tracking-wide text-xs">
                 <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
-                <span>स्टेप 1: मशीन अटेंड करें (Technician Reply & Acknowledgment)</span>
+                <span>Step 1: Attend Machine (Technician Reply & Acknowledgment)</span>
               </div>
               <p className="text-xs text-slate-600">
-                जब आप मशीन पर पहुँचें, तो तुरंत अपना नाम चुनकर <b>"मैं अटेंड कर रहा हूँ"</b> बटन दबाएं।
-                इससे ऑपरेटर डेस्क और मेंटेनेंस डैशबोर्ड पर तुरंत दिख जाएगा कि आप इस मशीन पर काम कर रहे हैं।
+                When you reach On Machine, immediately select your name and press the <b>"I am Attending"</b> button.
+                This will immediately show on the operator desk and maintenance dashboard that you are working on this machine.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    टेक्नीशियन का नाम (Select Technician):
+                    Select Technician:
                   </label>
                   <select
                     value={selectedTech}
@@ -506,18 +506,18 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                         👨‍🔧 {tech}
                       </option>
                     ))}
-                    <option value="">+ Other / Custom Name (अन्य)</option>
+                    <option value="">+ Other / Custom Name</option>
                   </select>
                 </div>
 
                 {!selectedTech && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      अन्य टेक्नीशियन का नाम (Enter Custom Name):
+                      Enter Custom Name:
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. मुकेश प्रजापति"
+                      placeholder="e.g. Mukesh Prajapati"
                       value={customTech}
                       onChange={(e) => setCustomTech(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-rose-500 focus:bg-white"
@@ -527,11 +527,11 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
 
                 <div className={selectedTech ? 'sm:col-span-2' : ''}>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    शुरुआती निरीक्षण / नोट्स (Inspection / Action Note - Optional):
+                    Inspection / Action Note (Optional):
                   </label>
                   <input
                     type="text"
-                    placeholder="उदा. हीटर और थर्मोकपल की जांच शुरू की..."
+                    placeholder="e.g. Started checking heater and thermocouple..."
                     value={attendNotes}
                     onChange={(e) => setAttendNotes(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:border-rose-500 focus:bg-white"
@@ -545,7 +545,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                   className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  <span>👨‍🔧 मैं इस ब्रेकडाउन को अटेंड कर रहा हूँ (Start Attending)</span>
+                  <span>👨‍🔧 I am attending this breakdown (Start Attending)</span>
                 </button>
               </div>
             </form>
@@ -562,13 +562,13 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                   </div>
                   <div>
                     <div className="text-xs font-extrabold text-amber-900 uppercase">
-                      रिपेयरिंग कार्य चालू है (Under Repair)
+                      Repair work in progress (Under Repair)
                     </div>
                     <div className="text-sm font-black text-amber-950 mt-0.5">
-                      👨‍🔧 यह आदमी यहां पर काम कर रहा है: <b>{activeIncident?.technicianName || activeIncident?.attendedBy || effectiveTechName}</b>
+                      👨‍🔧 This person is working here: <b>{activeIncident?.technicianName || activeIncident?.attendedBy || effectiveTechName}</b>
                     </div>
                     <div className="text-[11px] text-amber-800 mt-0.5 font-medium">
-                      काम शुरू होने का समय:{' '}
+                      Work Start Time:{' '}
                       <b>
                         {activeIncident?.repairStartTime
                           ? new Date(activeIncident.repairStartTime).toLocaleTimeString([], {
@@ -577,14 +577,14 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                             })
                           : 'Just started'}
                       </b>{' '}
-                      (रिस्पांस टाइम: {activeIncident?.responseTimeMinutes || 1} मिनट)
+                      (Response Time: {activeIncident?.responseTimeMinutes || 1} mins)
                     </div>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <div className="text-[10px] font-bold text-amber-700 uppercase">
-                    चालू रिपेयर समय (Repairing Time):
+                    Ongoing Repair Time:
                   </div>
                   <div className="text-xl font-black text-amber-950 font-mono">
                     ⏱️ {elapsedRepairing} Mins
@@ -600,22 +600,22 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <span className="font-extrabold text-xs text-slate-800 uppercase flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>स्टेप 2: रिपेयर पूरा करें और मशीन हैंडओवर करें (Finish & Handover)</span>
+                    <span>Step 2: Finish Repair & Handover Machine</span>
                   </span>
                   <span className="text-[11px] text-slate-500">
-                    मशीन ठीक होने के बाद यहाँ से बंद करें
+                    Close breakdown ticket when machine is ready
                   </span>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    क्या कार्य / सुधार किया गया (Action Taken & Root Cause): <span className="text-rose-500">*</span>
+                    Action Taken & Root Cause: <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     rows={2}
                     value={actionTaken}
                     onChange={(e) => setActionTaken(e.target.value)}
-                    placeholder="उदा. हीटर एलिमेंट 1500W रिप्लेस किया, टेम्परेचर कैलिब्रेट किया और वायर टर्मिनल टाइट किए..."
+                    placeholder="e.g. Replaced 1500W heater element, calibrated temperature sensor, tightened loose wire terminals..."
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:border-emerald-500 focus:bg-white"
                     required
                   />
@@ -623,11 +623,11 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     <span className="text-[10px] text-slate-400 font-bold self-center">Presets:</span>
                     {[
-                      'हीटर एलिमेंट रिप्लेस किया',
-                      'थर्मोकपल सेंसर कैलिब्रेट किया',
-                      'ब्लेड शार्प और री-अलाइन किया',
-                      'टेफ्लॉन टेप चेंज किया',
-                      'न्यूमेटिक प्रेशर और वॉल्व ट्यून किया'
+                      'Replaced heater element',
+                      'Calibrated thermocouple sensor',
+                      'Sharpened and realigned blade',
+                      'Changed Teflon tape',
+                      'Tuned pneumatic pressure and valve'
                     ].map((preset) => (
                       <button
                         key={preset}
@@ -645,7 +645,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                 <div className="pt-2 border-t border-slate-100 space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="block text-xs font-bold text-slate-700">
-                      बदले गए स्पेयर पार्ट्स (Spare Parts Replaced):
+                      Spare Parts Replaced:
                     </label>
                     <div className="flex items-center gap-1.5">
                       <button
@@ -654,7 +654,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                         className="text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-2xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>➕ कस्टम पार्ट पॉप-अप</span>
+                        <span>➕ Custom Part Popup</span>
                       </button>
                       <button
                         type="button"
@@ -665,7 +665,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                             : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                         }`}
                       >
-                        {isDirectPartInput ? '📋 लिस्ट से चुनें' : '✍️ सीधे नाम टाइप करें'}
+                        {isDirectPartInput ? '📋 Choose from List' : '✍️ Type Name Directly'}
                       </button>
                     </div>
                   </div>
@@ -678,7 +678,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                           autoFocus
                           value={directPartNameInput}
                           onChange={(e) => setDirectPartNameInput(e.target.value)}
-                          placeholder="स्पेयर पार्ट का नाम टाइप करें (उदा. Brass Bush 32mm)..."
+                          placeholder="Type spare part name (e.g. Brass Bush 32mm)..."
                           className="w-full p-2 bg-white border-2 border-amber-400 rounded-lg text-xs font-bold text-slate-900 outline-none"
                         />
                       ) : (
@@ -693,7 +693,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                           }}
                           className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
                         >
-                          <option value="CUSTOM_PART_POPUP">➕ नया कस्टम पार्ट लिखें (Type Custom Part)...</option>
+                          <option value="CUSTOM_PART_POPUP">➕ Type Custom Part...</option>
                           {sparesOptions.map((sp) => (
                             <option key={sp} value={sp}>
                               {sp}
@@ -771,11 +771,11 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                       onChange={(e) => setSendWhatsAppHandover(e.target.checked)}
                       className="w-4 h-4 rounded text-emerald-600 cursor-pointer"
                     />
-                    <span>📲 ऑपरेटर / फ्लोर हेड को व्हाट्सएप पर "रेडी टू रन" मैसेज भेजें</span>
+                    <span>📲 Send "Ready to Run" WhatsApp message to Operator / Floor Head</span>
                   </label>
 
                   <div className="text-[11px] text-slate-500 font-medium">
-                    कुल डाउनटाइम: <b>{elapsedWaiting} मिनट</b> | रिपेयर समय: <b>{elapsedRepairing} मिनट</b>
+                    Total Downtime: <b>{elapsedWaiting} mins</b> | Repair Time: <b>{elapsedRepairing} mins</b>
                   </div>
                 </div>
 
@@ -785,7 +785,7 @@ export const TechnicianAttendModal: React.FC<TechnicianAttendModalProps> = ({
                   className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>✅ मेरी साइड से ओके है - रिपेयर पूरा हुआ (Handover & Set Machine Running)</span>
+                  <span>✅ Machine OK from my side - Repair Completed (Handover & Set Machine Running)</span>
                 </button>
               </form>
             </div>

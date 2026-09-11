@@ -50,7 +50,7 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
   const handleConfirm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!effectiveTech) {
-      alert('⚠️ कृपया अटेंड करने वाले मेंटेनेंस मैनेजर या टेक्नीशियन का नाम चुनें!');
+      alert('⚠️ Please select the name of the attending maintenance manager or technician!');
       return;
     }
     onConfirmAttend(effectiveTech, attendNotes.trim());
@@ -68,10 +68,10 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
             </div>
             <div>
               <h3 className="text-base font-black tracking-wide uppercase m-0 flex items-center gap-2">
-                <span>अटेंड ब्रेकडाउन (Attend Breakdown)</span>
+                <span>Attend Breakdown</span>
               </h3>
               <p className="text-xs text-amber-100 font-medium m-0">
-                मशीन: <strong>{machineName}</strong> [{incidentId}]
+                Machine: <strong>{machineName}</strong> [{incidentId}]
               </p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-amber-900 block">रिपोर्ट की गई खराबी (Reported Fault):</span>
+                <span className="font-bold text-amber-900 block">Reported Fault:</span>
                 <span className="text-amber-800">{reason}</span>
               </div>
             </div>
@@ -100,8 +100,8 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
           {/* Technician Selection */}
           <div>
             <label className="block text-xs font-black text-slate-800 uppercase mb-1.5 flex items-center justify-between">
-              <span>अटेंड करने वाले मेंटेनेंस मैनेजर / इंजीनियर का नाम चुनें: *</span>
-              <span className="text-[11px] font-bold text-amber-700">अनिवार्य (Required)</span>
+              <span>Select Attending Maintenance Manager / Engineer Name: *</span>
+              <span className="text-[11px] font-bold text-amber-700">Required</span>
             </label>
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {uniqueTechs.map((tech) => (
@@ -133,13 +133,13 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
           {/* Custom Name input if someone else */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              या कोई अन्य नाम / एक्सटर्नल वेंडर (Or Type Custom Name):
+              Or Type Custom Name / External Vendor:
             </label>
             <input
               type="text"
               value={customTechName}
               onChange={(e) => setCustomTechName(e.target.value)}
-              placeholder="उदा. Sanjay Patel (Maintenance Lead) या वेंडर नाम"
+              placeholder="e.g. Sanjay Patel (Maintenance Lead) or Vendor Name"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-amber-600 focus:bg-white"
             />
           </div>
@@ -147,13 +147,13 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
           {/* Initial observation note */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              शुरुआती निरीक्षण नोट (Initial Inspection Note - Optional):
+              Initial Inspection Note (Optional):
             </label>
             <input
               type="text"
               value={attendNotes}
               onChange={(e) => setAttendNotes(e.target.value)}
-              placeholder="उदा. हीटर और मोटर का वोल्टेज चेक करना शुरू किया..."
+              placeholder="e.g. Started checking heater and motor voltage..."
               className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:border-amber-600 focus:bg-white"
             />
           </div>
@@ -165,13 +165,13 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-emerald-800 block">
-                डैशबोर्ड पर यह नाम दिखेगा (Will display on dashboard):
+                Will display on dashboard:
               </span>
               <span className="text-sm font-black text-emerald-950">
                 👨‍🔧 {effectiveTech}
               </span>
               <span className="text-[11px] text-emerald-700 block font-medium">
-                "यह आदमी यहां पर काम कर रहा है" स्थिति तुरंत चालू होगी।
+                "This person is working here" status will be activated immediately.
               </span>
             </div>
           </div>
@@ -183,14 +183,14 @@ export const AttendingTechnicianModal: React.FC<AttendingTechnicianModalProps> =
               onClick={onClose}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
             >
-              रद्द करें (Cancel)
+              Cancel
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>👨‍🔧 मैं काम शुरू कर रहा हूँ (Confirm Attend)</span>
+              <span>👨‍🔧 I am starting work (Confirm Attend)</span>
             </button>
           </div>
         </form>

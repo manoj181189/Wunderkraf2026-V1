@@ -136,11 +136,11 @@ export const BomView: React.FC<BomViewProps> = ({
               <div className="bg-neutral-950 px-3 py-1.5 rounded-lg border border-neutral-800">
                 <span className="text-neutral-500">Labor: </span>
                 <span className="text-neutral-200 font-bold">{selectedBom.laborHoursEstimate}h</span>
-                <span className="text-neutral-500"> @ ${selectedBom.laborRatePerHour}/h</span>
+                <span className="text-neutral-500"> @ ₹{selectedBom.laborRatePerHour}/h</span>
               </div>
               <div className="bg-neutral-950 px-3 py-1.5 rounded-lg border border-neutral-800">
                 <span className="text-neutral-500">MSRP: </span>
-                <span className="text-amber-400 font-bold">${selectedBom.targetMSRP.toLocaleString()}</span>
+                <span className="text-amber-400 font-bold">₹{selectedBom.targetMSRP.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -152,7 +152,7 @@ export const BomView: React.FC<BomViewProps> = ({
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
           <div className="text-neutral-500 text-xs font-mono uppercase">Direct Material Cost (BOM)</div>
           <div className="text-2xl font-bold font-mono text-neutral-100 mt-1">
-            ${totalDirectMaterialCost.toFixed(2)}
+            ₹{totalDirectMaterialCost.toFixed(2)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-2 font-mono">
             {enrichedComponents.length} components included
@@ -162,7 +162,7 @@ export const BomView: React.FC<BomViewProps> = ({
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
           <div className="text-neutral-500 text-xs font-mono uppercase">Direct Shop Floor Labor</div>
           <div className="text-2xl font-bold font-mono text-sky-400 mt-1">
-            ${laborCost.toFixed(2)}
+            ₹{laborCost.toFixed(2)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-2 font-mono">
             {selectedBom.laborHoursEstimate} hours fabrication & QA
@@ -172,7 +172,7 @@ export const BomView: React.FC<BomViewProps> = ({
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
           <div className="text-neutral-500 text-xs font-mono uppercase">Total Manufacturing COGS</div>
           <div className="text-2xl font-bold font-mono text-amber-400 mt-1">
-            ${totalCostOfGoods.toFixed(2)}
+            ₹{totalCostOfGoods.toFixed(2)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-2 font-mono">
             Direct Material + Handcraft Labor
@@ -186,7 +186,7 @@ export const BomView: React.FC<BomViewProps> = ({
               {grossMarginPercent}%
             </span>
             <span className="text-xs font-mono text-neutral-400">
-              (+${grossMarginDollars.toFixed(2)})
+              (+₹{grossMarginDollars.toFixed(2)})
             </span>
           </div>
           <div className="text-[11px] text-emerald-400/80 mt-2 font-mono flex items-center gap-1">
@@ -333,10 +333,10 @@ export const BomView: React.FC<BomViewProps> = ({
                     {(comp.scrapFactor * 100).toFixed(0)}%
                   </td>
                   <td className="py-2.5 px-3 text-right text-neutral-400">
-                    ${comp.unitCost.toFixed(2)}
+                    ₹{comp.unitCost.toFixed(2)}
                   </td>
                   <td className="py-2.5 px-4 text-right font-bold text-neutral-100">
-                    ${comp.lineCost.toFixed(2)}
+                    ₹{comp.lineCost.toFixed(2)}
                   </td>
                   <td className="py-2.5 px-3 font-sans text-neutral-400 text-[11px] truncate max-w-[200px]">
                     {comp.notes || '—'}

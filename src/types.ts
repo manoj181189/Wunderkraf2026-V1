@@ -3,6 +3,8 @@ export type ProductType = 'Spoon' | 'Fork' | 'Knife' | 'Dessert Spoon' | string;
 export type CurrentView =
   | 'HUB'
   | 'DASHBOARD'
+  | 'PLANNING'
+  | 'MANPOWER'
   | 'MARKETING'
   | 'DISPATCH'
   | 'SLITTING'
@@ -24,7 +26,7 @@ export type MaterialUrgency = 'CRITICAL_BREAKDOWN' | 'URGENT' | 'NORMAL' | 'LOW'
 export type MaterialRequisitionStatus =
   | 'PENDING'       // Submitted by department, awaiting purchase review
   | 'PO_ISSUED'     // Purchase order issued / ordered from vendor
-  | 'RECEIVED'      // Arrived at factory store / माल आ गया है
+  | 'RECEIVED'      // Arrived at factory store / Material Arrived
   | 'ACKNOWLEDGED'  // Requester acknowledged & received into department stock
   | 'REJECTED';     // Rejected / cancelled
 
@@ -75,7 +77,7 @@ export interface MaterialRequisition {
   actualCost?: number;
   purchaseNotes?: string;
 
-  // Goods Receiving fields (जब माल आ जाए)
+  // Goods Receiving fields (When goods are received)
   receivedDate?: string; // YYYY-MM-DD
   receivedTime?: string;
   receivedQty?: number;
@@ -109,6 +111,8 @@ export interface OperatorRunSlice {
   scrapQty: number; // Scrap produced during this slice (kg or pcs)
   scrapKg?: number;
   scrapPcs?: number;
+  rejectedPieces?: number;
+  cuttingMaterialScrapKg?: number;
   pcsPerKg?: number;
   notes?: string;
   handoverConfirmed?: boolean;
@@ -143,6 +147,10 @@ export interface RunningBatch {
   rejectedPieces?: number;
   pcsPerKg?: number;
   grossPieces?: number;
+  isHotFoilLayer?: boolean;
+  isPrintedRoll?: boolean;
+  printedRollDesign?: string;
+  printedRollIcon?: string;
   worker: string;
   operator?: string;
   user: string;
@@ -160,6 +168,9 @@ export interface RunningBatch {
   slices?: OperatorRunSlice[];
   helpers?: string[];
   helperCount?: number;
+  glueBrand?: string;
+  glueUsageKg?: number;
+  cuttingMaterialScrapKg?: number;
 }
 
 export interface JobReelItem {
@@ -174,6 +185,10 @@ export interface JobReelItem {
   startTime?: string;
   endTime?: string;
   worker?: string;
+  isHotFoilLayer?: boolean;
+  isPrintedRoll?: boolean;
+  printedRollDesign?: string;
+  printedRollIcon?: string;
   customRemark?: string;
 }
 
@@ -191,6 +206,7 @@ export interface Job {
   gsmsSummary?: string;
   customRemark?: string;
   stage: string;
+  status?: string;
   availableRolls: number;
   availableCuttingCrates: number;
   availableFormingCrates: number;
@@ -205,6 +221,10 @@ export interface Job {
   qcLoosePcs?: number;
   cuttingScrapKg?: number;
   cuttingScrapPcs?: number;
+  cuttingMaterialScrapKg?: number;
+  cuttingRejectedPcs?: number;
+  glueUsageKg?: number;
+  glueBrand?: string;
   cuttingPcsPerKg?: number;
   inputWeightKg?: number;
   outputWeightKg?: number;
@@ -212,6 +232,19 @@ export interface Job {
   scrapPercent?: number;
   tracedLots?: Record<string, string>;
   runningBatches?: RunningBatch[];
+  planId?: string;
+  targetLayers?: number;
+  targetGsm?: string;
+  targetLengthMeters?: number;
+  actualLengthMeters?: number;
+  targetGlueBrand?: string;
+  targetScrapLimitPct?: number;
+  motherReelsAllocated?: string[];
+  printedRollRequired?: boolean;
+  printedRollDesign?: string;
+  printedRollIcon?: string;
+  printedLayersCount?: number;
+  plainLayersCount?: number;
 }
 
 export interface DispatchLog {
@@ -449,6 +482,111 @@ export interface FactoryState {
   archivedLogs?: LogEntry[];
   lastBackupDate?: string;
   floorWorkers?: FloorWorker[];
+  glueBrands?: string[];
+  targetLayersMaster?: number[];
+  targetGsmMaster?: string[];
+  scrapLimitsMaster?: number[];
+  scrapToleranceKgMaster?: number[];
+  glueUsageLogs?: GlueUsageEntry[];
+  productionPlans?: ProductionPlan[];
+  motherReelInventory?: MotherReelItem[];
+  shiftHandovers?: ShiftHandoverRecord[];
+  coordinationMatrix?: CoordinationMatrixItem[];
+}
+
+export interface CoordinationMatrixItem {
+  id: string;
+  roleName: string; // e.g. "Maintenance Head", "Electrical Breakdown Head", etc.
+  contactName: string;
+  phone: string; // e.g. "+91..."
+  alertCategories: {
+    machineBreakdown: boolean;
+    electricalAlert: boolean;
+    productionHandover: boolean;
+    materialIndent: boolean;
+    qcFailure: boolean;
+  };
+  isActive: boolean;
+}
+
+export interface ProductionPlan {
+  printedLayersCount?: number;
+  plainLayersCount?: number;
+  id: string; // e.g. "PLAN-2026-001"
+  jobId: string; // e.g. "JOB-2026-001"
+  product: ProductType;
+  targetLayers: number; // e.g. 4, 6, 8
+  targetLengthMeters: number; // in Meters
+  adhesiveBrand: string; // e.g. "Fevicol", "Henkel", etc.
+  targetScrapLimitPct: number; // e.g. 2.5%
+  targetScrapLimitKg?: number;
+  assignedMachine: string; // e.g. "Slitting-1"
+  assignedShift: 'DAY' | 'NIGHT';
+  plannedDate: string; // YYYY-MM-DD
+  targetQuantity?: number;
+  paperBrand?: string;
+  targetGsm?: string;
+  notes?: string;
+  status: 'Scheduled' | 'In-Progress' | 'Completed' | 'Cancelled';
+  createdAt: string;
+  printedRollRequired?: boolean;
+  printedRollDesign?: string;
+  printedRollIcon?: string;
+  actualLayersUsed?: number;
+  actualMetersSlit?: number;
+  actualScrapKg?: number;
+  actualScrapPct?: number;
+  actualGlueConsumedKg?: number;
+}
+
+export interface MotherReelItem {
+  id: string; // e.g. "M-REEL-ITC-001"
+  brand: string; // e.g. "ITC", "Bilt"
+  gsm: string | number;
+  weightKg: number;
+  lengthMeters?: number;
+  status: 'Available' | 'In-Use' | 'Consumed';
+  allocatedJobId?: string;
+  allocatedDate?: string;
+}
+
+export interface ShiftHandoverRecord {
+  id: string; // e.g. "HO-2026-001"
+  timestamp: string;
+  date: string;
+  department: 'Slitting' | 'Cutting' | 'Forming' | 'QC' | 'Packing' | string;
+  machine: string;
+  outgoingOperator: string;
+  relievedByOperator: string;
+  currentShift: 'DAY' | 'NIGHT' | string;
+  nextShift: 'DAY' | 'NIGHT' | string;
+  meterReading?: number;
+  producedQty: number; // units/crates/rolls
+  producedPieces?: number;
+  scrapQty: number; // scrap kg or defect pcs
+  checklistPassed?: boolean;
+  technicalChecklist?: Record<string, boolean | string | number>;
+  notes?: string;
+  helpers?: string[];
+}
+
+export interface GlueUsageEntry {
+  id: string; // e.g. "GLUE-2026-001"
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM AM/PM
+  shift: 'DAY' | 'NIGHT' | string;
+  machine: string; // e.g. "Cutting-1"
+  stage: 'Cutting' | 'Forming' | 'Slitting' | 'Packing' | string;
+  jobId?: string;
+  batchId?: string;
+  product?: string;
+  glueBrand: string; // Selected from glueBrands master
+  quantityKg: number; // e.g. 5.5 kg or litres
+  operator: string;
+  lotOrDrumNo?: string;
+  notes?: string;
+  user: string;
+  createdAt?: string;
 }
 
 export type WorkforceRole = 'OPERATOR' | 'HELPER' | 'SUPERVISOR' | 'MAINTENANCE' | 'QC_INSPECTOR';
@@ -462,6 +600,7 @@ export interface FloorWorker {
   pairedWithOperator?: string; // If role is HELPER, which operator they assist
   shift: 'DAY' | 'NIGHT' | string;
   isPresent: boolean;
+  shiftStatus?: 'PRESENT' | 'ON_LEAVE' | 'ABSENT';
   inTime?: string;
   notes?: string;
 }

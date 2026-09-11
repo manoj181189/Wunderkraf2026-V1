@@ -1,4 +1,4 @@
-import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity, FloorWorker } from '../types';
+import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity, FloorWorker, GlueUsageEntry, ProductionPlan, MotherReelItem, ShiftHandoverRecord, CoordinationMatrixItem } from '../types';
 
 export const PRODUCTS: ProductType[] = ['Spoon', 'Fork', 'Knife', 'Dessert Spoon'];
 
@@ -109,6 +109,133 @@ export const DEFAULT_FLOOR_WORKERS: FloorWorker[] = [
 
 export const PAPER_BRANDS = ['ITC', 'CENTURY', 'JK PAPER', 'WEST COAST', 'EMAMI', 'APP (ASIA PULP)'];
 
+export const TARGET_LAYERS_DEFAULT = [4, 6, 8, 10, 12, 14, 16];
+export const TARGET_GSM_DEFAULT = ['180 GSM', '200 GSM', '250 GSM', '280 GSM', '300 GSM', '350 GSM'];
+
+export const GLUE_BRANDS = [
+  'Pidilite Fevicol SH',
+  'Pidilite W-10 (Food Grade Adhesive)',
+  'Dextrin Eco Adhesive',
+  'Paramount Hot Melt Glue',
+  'National Adhesives Super-Bond',
+  'Henkel Aquence Food-Grade'
+];
+
+export const DEFAULT_GLUE_USAGE_LOGS: GlueUsageEntry[] = [
+  {
+    id: 'GLUE-2026-001',
+    date: '2026-09-08',
+    time: '10:30 AM',
+    shift: 'DAY',
+    machine: 'Cutting-1',
+    stage: 'Cutting',
+    jobId: 'JOB-SPN-101',
+    batchId: 'B-1042',
+    product: 'Spoon',
+    glueBrand: 'Pidilite W-10 (Food Grade Adhesive)',
+    quantityKg: 4.5,
+    operator: 'CUT_OP1',
+    lotOrDrumNo: 'DRUM-W10-88',
+    notes: 'Roll layer bonding during high-speed cutting run',
+    user: 'cut_user',
+    createdAt: '2026-09-08T10:30:00.000Z'
+  },
+  {
+    id: 'GLUE-2026-002',
+    date: '2026-09-08',
+    time: '02:15 PM',
+    shift: 'DAY',
+    machine: 'Forming-1',
+    stage: 'Forming',
+    jobId: 'JOB-SPN-101',
+    batchId: 'B-1043',
+    product: 'Spoon',
+    glueBrand: 'Pidilite Fevicol SH',
+    quantityKg: 3.0,
+    operator: 'FORM_OP1',
+    lotOrDrumNo: 'DRUM-FSH-12',
+    notes: 'Edge lamination adhesive reservoir refill',
+    user: 'form_user',
+    createdAt: '2026-09-08T14:15:00.000Z'
+  }
+];
+
+export const DEFAULT_PRODUCTION_PLANS: ProductionPlan[] = [
+  {
+    id: 'PLAN-2026-001',
+    jobId: 'JOB-SPN-101',
+    product: 'Spoon',
+    targetLayers: 8,
+    targetLengthMeters: 1200,
+    adhesiveBrand: 'Pidilite W-10 (Food Grade Adhesive)',
+    targetScrapLimitPct: 2.5,
+    targetScrapLimitKg: 15,
+    assignedMachine: 'Slitting-1',
+    assignedShift: 'DAY',
+    plannedDate: '2026-09-09',
+    targetQuantity: 70000,
+    paperBrand: 'ITC',
+    targetGsm: '280 GSM',
+    notes: '8-layer high stiffness catering spoon lot',
+    status: 'In-Progress',
+    createdAt: '2026-09-09T08:00:00.000Z',
+    actualLayersUsed: 4,
+    actualMetersSlit: 600,
+    actualScrapKg: 6.2,
+    actualScrapPct: 2.0,
+    actualGlueConsumedKg: 4.5
+  },
+  {
+    id: 'PLAN-2026-002',
+    jobId: 'JOB-FRK-102',
+    product: 'Fork',
+    targetLayers: 6,
+    targetLengthMeters: 1500,
+    adhesiveBrand: 'Henkel Aquence Food-Grade',
+    targetScrapLimitPct: 2.0,
+    targetScrapLimitKg: 18,
+    assignedMachine: 'Slitting-1',
+    assignedShift: 'NIGHT',
+    plannedDate: '2026-09-09',
+    targetQuantity: 85000,
+    paperBrand: 'Bilt (Ballarpur)',
+    targetGsm: '300 GSM',
+    notes: 'Heavy duty fork production run',
+    status: 'Scheduled',
+    createdAt: '2026-09-09T09:30:00.000Z'
+  },
+  {
+    id: 'PLAN-2026-003',
+    jobId: 'JOB-KNF-103',
+    product: 'Knife',
+    targetLayers: 8,
+    targetLengthMeters: 2000,
+    adhesiveBrand: 'Fevicol SH Industrial',
+    targetScrapLimitPct: 2.8,
+    targetScrapLimitKg: 22,
+    assignedMachine: 'Slitting-1',
+    assignedShift: 'DAY',
+    plannedDate: '2026-09-10',
+    targetQuantity: 60000,
+    paperBrand: 'JK Paper',
+    targetGsm: '320 GSM',
+    notes: 'Serrated knife edge layer bonding',
+    status: 'Scheduled',
+    createdAt: '2026-09-09T10:15:00.000Z'
+  }
+];
+
+export const DEFAULT_MOTHER_REELS: MotherReelItem[] = [
+  { id: 'M-REEL-ITC-001', brand: 'ITC', gsm: '280 GSM', weightKg: 250, lengthMeters: 1400, status: 'In-Use', allocatedJobId: 'JOB-SPN-101', allocatedDate: '2026-09-09' },
+  { id: 'M-REEL-ITC-002', brand: 'ITC', gsm: '280 GSM', weightKg: 245, lengthMeters: 1380, status: 'Available' },
+  { id: 'M-REEL-ITC-003', brand: 'ITC', gsm: '280 GSM', weightKg: 255, lengthMeters: 1420, status: 'Available' },
+  { id: 'M-REEL-BLT-004', brand: 'Bilt (Ballarpur)', gsm: '300 GSM', weightKg: 280, lengthMeters: 1500, status: 'Available' },
+  { id: 'M-REEL-BLT-005', brand: 'Bilt (Ballarpur)', gsm: '300 GSM', weightKg: 275, lengthMeters: 1480, status: 'Available' },
+  { id: 'M-REEL-JK-006', brand: 'JK Paper', gsm: '320 GSM', weightKg: 300, lengthMeters: 1600, status: 'Available' },
+  { id: 'M-REEL-TNPL-007', brand: 'TNPL', gsm: '250 GSM', weightKg: 220, lengthMeters: 1300, status: 'Available' },
+  { id: 'M-REEL-WST-008', brand: 'West Coast', gsm: '280 GSM', weightKg: 240, lengthMeters: 1350, status: 'Available' }
+];
+
 export const DEFAULT_USERS: Record<string, { pass: string; perms: string[]; name?: string; role?: string; phone?: string }> = {
   'admin': {
     pass: 'admin123',
@@ -193,6 +320,65 @@ export const DEFAULT_DEPARTMENT_HEADS = [
   { id: 'DH-6', name: 'Ramesh Sharma', phone: '+91 98250 12345', role: 'Chief Maintenance Engineer', dept: 'Maintenance' },
   { id: 'DH-7', name: 'Manoj Kumar (Plant Head)', phone: '+91 98250 99999', role: 'Plant Production Manager', dept: 'Plant Admin' },
   { id: 'DH-8', name: 'Sanjay Patel', phone: '+91 98250 77007', role: 'Purchase & Stores Officer', dept: 'Purchase' }
+];
+
+export const DEFAULT_COORDINATION_MATRIX: CoordinationMatrixItem[] = [
+  {
+    id: 'CM-1',
+    roleName: 'Maintenance Head',
+    contactName: 'Ramesh Sharma',
+    phone: '+91 98250 12345',
+    alertCategories: {
+      machineBreakdown: true,
+      electricalAlert: false,
+      productionHandover: true,
+      materialIndent: false,
+      qcFailure: false
+    },
+    isActive: true
+  },
+  {
+    id: 'CM-2',
+    roleName: 'Electrical Breakdown Head',
+    contactName: 'Kishan Patel',
+    phone: '+91 98251 67890',
+    alertCategories: {
+      machineBreakdown: false,
+      electricalAlert: true,
+      productionHandover: false,
+      materialIndent: false,
+      qcFailure: false
+    },
+    isActive: true
+  },
+  {
+    id: 'CM-3',
+    roleName: 'Production Manager',
+    contactName: 'Suresh Patel',
+    phone: '+91 98250 11001',
+    alertCategories: {
+      machineBreakdown: true,
+      electricalAlert: true,
+      productionHandover: true,
+      materialIndent: true,
+      qcFailure: true
+    },
+    isActive: true
+  },
+  {
+    id: 'CM-4',
+    roleName: 'QC Head',
+    contactName: 'Amit Verma',
+    phone: '+91 98250 44004',
+    alertCategories: {
+      machineBreakdown: false,
+      electricalAlert: false,
+      productionHandover: false,
+      materialIndent: false,
+      qcFailure: true
+    },
+    isActive: true
+  }
 ];
 
 export const DEFAULT_MAINTENANCE_TECHNICIANS = [
@@ -925,5 +1111,13 @@ export const INITIAL_STATE: FactoryState = {
   autoNotifyDeptHeadsOnCritical: true,
   departmentHeads: DEFAULT_DEPARTMENT_HEADS,
   crateCapacityMaster: DEFAULT_CRATE_CAPACITY_MASTER,
-  floorWorkers: DEFAULT_FLOOR_WORKERS
+  floorWorkers: DEFAULT_FLOOR_WORKERS,
+  glueBrands: GLUE_BRANDS,
+  targetLayersMaster: TARGET_LAYERS_DEFAULT,
+  targetGsmMaster: TARGET_GSM_DEFAULT,
+  glueUsageLogs: DEFAULT_GLUE_USAGE_LOGS,
+  productionPlans: DEFAULT_PRODUCTION_PLANS,
+  motherReelInventory: DEFAULT_MOTHER_REELS,
+  coordinationMatrix: DEFAULT_COORDINATION_MATRIX,
+  shiftHandovers: []
 };

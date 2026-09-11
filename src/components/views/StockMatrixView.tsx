@@ -97,7 +97,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>मुख्य मेनू (Back to Menu)</span>
+          <span>Main Menu (Back to Menu)</span>
         </button>
 
         <div className="flex items-center gap-2">
@@ -107,10 +107,10 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-black text-[#1a365d] tracking-tight m-0">
-                लाइव फैक्ट्री स्टॉक मैट्रिक्स (Live Factory Stock Matrix)
+                Live Factory Stock Matrix
               </h1>
               <p className="text-xs text-slate-500 m-0">
-                स्टेज-वाइज व जॉब-वाइज उपलब्ध माल की सटीक सूची
+                Exact list of available goods stage-wise and job-wise
               </p>
             </div>
           </div>
@@ -123,7 +123,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
               className="flex items-center gap-1.5 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 px-3.5 py-2 rounded-xl transition cursor-pointer shadow-xs hover:shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>⚡ Quick Opening Stock (ओपनिंग स्टॉक दर्ज करें)</span>
+              <span>⚡ Quick Opening Stock</span>
             </button>
           )}
           <button
@@ -151,7 +151,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <div className="text-xl font-black text-indigo-950 mt-1">
             {overallTotals.rolls} <span className="text-xs font-bold">Rolls</span>
           </div>
-          <span className="text-[10px] text-indigo-700 font-medium">स्लिटिंग रोल स्टॉक</span>
+          <span className="text-[10px] text-indigo-700 font-medium">Slitting Roll Stock</span>
         </div>
 
         <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl">
@@ -162,7 +162,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <div className="text-xl font-black text-purple-950 mt-1">
             {overallTotals.cutCrates} <span className="text-xs font-bold">Crates</span>
           </div>
-          <span className="text-[10px] text-purple-700 font-medium">कटिंग ब्लैंक क्रेट्स</span>
+          <span className="text-[10px] text-purple-700 font-medium">Cutting Blank Crates</span>
         </div>
 
         <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
@@ -173,7 +173,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <div className="text-xl font-black text-amber-950 mt-1">
             {overallTotals.formCrates} <span className="text-xs font-bold">Crates</span>
           </div>
-          <span className="text-[10px] text-amber-700 font-medium">फॉर्मिंग प्रेस क्रेट्स</span>
+          <span className="text-[10px] text-amber-700 font-medium">Forming Press Crates</span>
         </div>
 
         <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
@@ -184,7 +184,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <div className="text-xl font-black text-emerald-950 mt-1">
             {overallTotals.qcCrates} <span className="text-xs font-bold">Crates</span>
           </div>
-          <span className="text-[10px] text-emerald-700 font-medium">पैकिंग हेतु तैयार क्रेट्स</span>
+          <span className="text-[10px] text-emerald-700 font-medium">Crates Ready for Packing</span>
         </div>
 
         <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl col-span-2 sm:col-span-1">
@@ -195,7 +195,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <div className="text-xl font-black text-blue-950 mt-1">
             {overallTotals.packedBoxes} <span className="text-xs font-bold">Boxes</span>
           </div>
-          <span className="text-[10px] text-blue-700 font-medium">डिस्पैच रेडी माल</span>
+          <span className="text-[10px] text-blue-700 font-medium">Dispatch Ready Goods</span>
         </div>
       </div>
 
@@ -204,9 +204,9 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
           <span className="font-medium leading-relaxed">
-            <b>निर्देश:</b> किसी भी संख्या/बटन पर क्लिक करें — उस प्रोडक्ट के <b>जॉब नंबर (Job ID)</b>,{' '}
-            <b>मदर रील नंबर</b>, <b>GSM</b> और <b>पेपर मिल</b> के अनुसार कितनी-कितनी मात्रा स्टॉक में
-            है, पूरी हिस्ट्री व स्पेसिफिकेशन तालिका खुल जाएगी।
+            <b>Instructions:</b> Click on any number/button — based on that product\'s <b>Job ID</b>,{' '}
+            <b>Mother Reel Number</b>, <b>GSM</b> and <b>Paper Mill</b>, how much quantity is in stock
+            will open the full history and specification table.
           </span>
         </div>
       </div>
@@ -217,7 +217,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search Product (उत्पाद खोजें)..."
+            placeholder="Search Product..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition"
@@ -427,7 +427,7 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
           <tfoot className="bg-slate-100 font-black text-xs text-slate-900 border-t-2 border-slate-300">
             <tr>
               <td className="p-3.5 font-black uppercase text-slate-700">
-                Total Factory Inventory (कुल स्टॉक):
+                Total Factory Inventory:
               </td>
               <td className="p-3.5 text-center font-mono font-black text-indigo-900 text-sm">
                 {overallTotals.rolls} Rolls
@@ -454,8 +454,8 @@ export const StockMatrixView: React.FC<StockMatrixViewProps> = ({
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
-            <b>Real-time Material Balance:</b> हर स्टेज पर क्रेट्स व रोल्स का हिसाब अलग-अलग जॉब लॉट्स
-            में सुरक्षित और ट्रेस करने योग्य है।
+            <b>Real-time Material Balance:</b> The account of crates and rolls at every stage in different job lots
+            is secure and traceable.
           </span>
         </div>
         <span className="font-extrabold text-slate-800">

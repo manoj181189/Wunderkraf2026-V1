@@ -25,6 +25,8 @@ import { MaintenanceAuditView } from './components/views/MaintenanceAuditView';
 import { AdminSettingsView } from './components/views/AdminSettingsView';
 import { MaintenanceView } from './components/views/MaintenanceView';
 import { PurchaseView } from './components/views/PurchaseView';
+import { PlanningDeskView } from './components/views/PlanningDeskView';
+import { ExecutiveManpowerView } from './components/views/ExecutiveManpowerView';
 
 // Modals
 import { VoiceTranscriberModal } from './components/VoiceTranscriberModal';
@@ -33,6 +35,7 @@ import { GoogleDriveModal } from './components/GoogleDriveModal';
 import { PasswordModal } from './components/PasswordModal';
 import { SelfPasswordModal } from './components/SelfPasswordModal';
 import { HoldModal } from './components/HoldModal';
+import { ShiftHandoverHistoryModal } from './components/ShiftHandoverHistoryModal';
 import { MachineReadyNotificationModal } from './components/MachineReadyNotificationModal';
 import { ChallanModal } from './components/ChallanModal';
 import { OrderSpecModal } from './components/OrderSpecModal';
@@ -168,6 +171,12 @@ export const App: React.FC = () => {
   const [batchReportId, setBatchReportId] = useState<string | null>(null);
   const [auditSearchQuery, setAuditSearchQuery] = useState<string>('');
 
+  // Planning & Shift Handover History states
+  const [preSelectedPlanId, setPreSelectedPlanId] = useState<string | undefined>(undefined);
+  const [isHandoverHistoryOpen, setIsHandoverHistoryOpen] = useState(false);
+  const [isRefreshingState, setIsRefreshingState] = useState(false);
+  const [refreshToast, setRefreshToast] = useState<string | null>(null);
+
   // Material Requisition Modal state
   const [isRequisitionModalOpen, setIsRequisitionModalOpen] = useState(false);
   const [requisitionDefaultDept, setRequisitionDefaultDept] = useState<string | undefined>(undefined);
@@ -213,7 +222,15 @@ export const App: React.FC = () => {
 
         // Trigger webhook if configured
         if (waConfig.webhookUrl) {
-          triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+          const handoverContacts = (state.coordinationMatrix || [])
+            .filter((item) => item.isActive && item.alertCategories.productionHandover);
+          if (handoverContacts.length > 0) {
+            handoverContacts.forEach((contact) => {
+              triggerWhatsAppShiftNotification(contact.phone, reportText, waConfig.webhookUrl);
+            });
+          } else {
+            triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+          }
         }
 
         // Update lastSentDayDate
@@ -237,7 +254,15 @@ export const App: React.FC = () => {
 
         // Trigger webhook if configured
         if (waConfig.webhookUrl) {
-          triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+          const handoverContacts = (state.coordinationMatrix || [])
+            .filter((item) => item.isActive && item.alertCategories.productionHandover);
+          if (handoverContacts.length > 0) {
+            handoverContacts.forEach((contact) => {
+              triggerWhatsAppShiftNotification(contact.phone, reportText, waConfig.webhookUrl);
+            });
+          } else {
+            triggerWhatsAppShiftNotification(waConfig.phone, reportText, waConfig.webhookUrl);
+          }
         }
 
         // Update lastSentNightDate
@@ -259,6 +284,28 @@ export const App: React.FC = () => {
     persistFactoryState(nextState).catch((e) => {
       console.error('[Storage] Failed to persist factory state:', e);
     });
+  };
+
+  // Re-hydrate complete factory state from high-capacity IndexedDB on user demand
+  const handleRefreshState = async () => {
+    setIsRefreshingState(true);
+    try {
+      const loadedState = await initializeFactoryState();
+      if (loadedState) {
+        if (loadedState.users?.admin && !loadedState.users.admin.perms?.includes('*')) {
+          loadedState.users.admin.perms = ['*'];
+        }
+        setState(loadedState);
+        setRefreshToast('Factory state re-hydrated & synchronized with IndexedDB!');
+        setTimeout(() => setRefreshToast(null), 3500);
+      }
+    } catch (err) {
+      console.warn('[Storage] Refresh error from IndexedDB:', err);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshingState(false);
+      }, 600);
+    }
   };
 
   // Login handler
@@ -418,7 +465,23 @@ export const App: React.FC = () => {
         onSwitchUser={currentUser ? handleLogout : undefined}
         arrivedCount={currentUser ? arrivedCount : 0}
         onOpenAdmin={currentUser ? () => handleNavigate('ADMIN') : undefined}
+        onRefreshState={currentUser ? handleRefreshState : undefined}
+        isRefreshing={isRefreshingState}
+        onOpenHandoverHistory={currentUser ? () => setIsHandoverHistoryOpen(true) : undefined}
       />
+
+      {/* Global Refresh Notification Toast */}
+      {refreshToast && (
+        <div className="bg-emerald-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md transition animate-fadeIn">
+          <span>✓ {refreshToast}</span>
+          <button
+            onClick={() => setRefreshToast(null)}
+            className="text-white/80 hover:text-white text-xs underline font-normal"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Shift Changeover WhatsApp Auto Notification Alert Banner */}
       {shiftChangeoverAlert && (
@@ -442,11 +505,27 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                triggerWhatsAppShiftNotification(
-                  state.whatsappConfig?.phone || '',
-                  shiftChangeoverAlert.text,
-                  state.whatsappConfig?.webhookUrl
-                );
+                const handoverContacts = (state.coordinationMatrix || [])
+                  .filter((item) => item.isActive && item.alertCategories.productionHandover);
+                const webhookUrl = state.whatsappConfig?.webhookUrl;
+                
+                if (handoverContacts.length > 0) {
+                  handoverContacts.forEach((contact) => {
+                    triggerWhatsAppShiftNotification(
+                      contact.phone,
+                      shiftChangeoverAlert.text,
+                      webhookUrl
+                    );
+                  });
+                  alert(`📢 Shift changeover dispatch initiated for ${handoverContacts.length} subscribed contacts in the matrix: ${handoverContacts.map(c => c.contactName).join(', ')}`);
+                } else {
+                  triggerWhatsAppShiftNotification(
+                    state.whatsappConfig?.phone || '',
+                    shiftChangeoverAlert.text,
+                    webhookUrl
+                  );
+                  alert('📢 Shift changeover dispatch sent to primary configured contact number.');
+                }
               }}
               className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3.5 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
@@ -462,13 +541,13 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Real-time Material Arrival Announcement Strip (मटेरियल फैक्ट्री स्टोर में आ गया) - Only for logged-in operators */}
+      {/* Real-time Material Arrival Announcement Strip (Material Received at Factory Store) - Only for logged-in operators */}
       {currentUser && arrivedCount > 0 && (
         <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 text-white px-4 py-2.5 shadow-md flex items-center justify-between flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-2 font-bold">
             <span className="text-base animate-bounce">📦</span>
             <span>
-              {arrivedCount} Material{arrivedCount > 1 ? 's' : ''} Received at Factory Store (माल आ गया है)!
+              {arrivedCount} Material{arrivedCount > 1 ? 's' : ''} Received at Factory Store!
             </span>
             <span className="bg-emerald-900/60 text-emerald-100 px-2 py-0.5 rounded font-normal hidden sm:inline">
               {arrivedRequisitions.map((r) => `${r.itemName} (${r.department})`).join(', ')}
@@ -546,6 +625,18 @@ export const App: React.FC = () => {
           />
         )}
 
+        {currentView === 'PLANNING' && (
+          <PlanningDeskView
+            state={state}
+            onBackToHub={() => setCurrentView('HUB')}
+            onSaveState={handleSaveState}
+            onSelectPlanForSlitting={(plan) => {
+              setPreSelectedPlanId(plan.id);
+              setCurrentView('SLITTING');
+            }}
+          />
+        )}
+
         {currentView === 'SLITTING' && (
           <SlittingView
             state={state}
@@ -553,6 +644,7 @@ export const App: React.FC = () => {
             onSaveState={handleSaveState}
             onOpenHoldModal={(m) => setHoldModalStation(m)}
             onOpenVoiceModalForTarget={handleOpenVoiceForTarget}
+            preSelectedPlanId={preSelectedPlanId}
             onNavigateToTraceability={(q) => {
               setAuditSearchQuery(q);
               setCurrentView('AUDIT');
@@ -663,6 +755,7 @@ export const App: React.FC = () => {
             state={state}
             onBackToHub={() => setCurrentView('HUB')}
             onSaveState={handleSaveState}
+            currentUser={currentUser}
           />
         )}
 
@@ -689,6 +782,14 @@ export const App: React.FC = () => {
             }}
           />
         )}
+
+        {currentView === 'MANPOWER' && (
+          <ExecutiveManpowerView
+            state={state}
+            onBackToHub={() => setCurrentView('HUB')}
+            onSaveState={handleSaveState}
+          />
+        )}
           </>
         )}
       </main>
@@ -696,7 +797,16 @@ export const App: React.FC = () => {
       {/* Universal Floating Modals - Locked unless user is logged in */}
       {currentUser && (
         <>
-          {/* Machine Ready Handover Notification Modal (User requested: मेंटेनेंस साइड से ओके होने पर पॉपअप) */}
+          {/* Shift Handover History Dossier Modal */}
+          {isHandoverHistoryOpen && (
+            <ShiftHandoverHistoryModal
+              isOpen={isHandoverHistoryOpen}
+              onClose={() => setIsHandoverHistoryOpen(false)}
+              state={state}
+              onSaveState={handleSaveState}
+            />
+          )}
+          {/* Machine Ready Handover Notification Modal (User requested: Popup when marked OK from Maintenance side) */}
           {state.machineReadyAlerts && state.machineReadyAlerts.length > 0 && (
             <MachineReadyNotificationModal
               isOpen={Boolean(state.machineReadyAlerts.find((a) => a.active))}

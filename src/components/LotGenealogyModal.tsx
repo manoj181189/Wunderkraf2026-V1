@@ -160,7 +160,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
           <div className="space-y-4">
             <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
               <Layers className="w-4 h-4 text-indigo-600" />
-              <span>Stage-by-Stage Genealogy Chain (लॉट-टू-लॉट विस्तृत इतिहास)</span>
+              <span>Stage-by-Stage Genealogy Chain</span>
             </h4>
 
             {/* STAGE 1: SLITTING */}
@@ -172,7 +172,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Scroll className="w-4 h-4 text-blue-600" />
-                    <span className="font-extrabold text-xs text-blue-950 uppercase">Slitting Machine (स्लिटिंग स्टेज)</span>
+                    <span className="font-extrabold text-xs text-blue-950 uppercase">Slitting Machine (Slitting Stage)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
@@ -224,7 +224,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Scissors className="w-4 h-4 text-indigo-600" />
-                    <span className="font-extrabold text-xs text-indigo-950 uppercase">Cutting Machine (कटिंग स्टेज)</span>
+                    <span className="font-extrabold text-xs text-indigo-950 uppercase">Cutting Machine (Cutting Stage)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
@@ -276,7 +276,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Cog className="w-4 h-4 text-purple-600" />
-                    <span className="font-extrabold text-xs text-purple-950 uppercase">Forming Machines (फॉर्मिंग स्टेज)</span>
+                    <span className="font-extrabold text-xs text-purple-950 uppercase">Forming Machines (Forming Stage)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
@@ -328,7 +328,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <SearchCheck className="w-4 h-4 text-emerald-600" />
-                    <span className="font-extrabold text-xs text-emerald-950 uppercase">Quality Control (QC स्टेज)</span>
+                    <span className="font-extrabold text-xs text-emerald-950 uppercase">Quality Control (QC Stage)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
@@ -382,7 +382,7 @@ export const LotGenealogyModal: React.FC<LotGenealogyModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-slate-700" />
-                    <span className="font-extrabold text-xs text-slate-900 uppercase">Packing & Dispatch (पैकिंग व डिस्पैच)</span>
+                    <span className="font-extrabold text-xs text-slate-900 uppercase">Packing & Dispatch</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">

@@ -71,7 +71,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           <div className="text-right font-mono text-xs">
             <div className="text-neutral-400">Open Inbound Value:</div>
             <div className="text-base font-bold text-amber-400">
-              ${Math.round(totalOpenValue).toLocaleString()}
+              ₹{Math.round(totalOpenValue).toLocaleString()}
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800 text-xs">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1 rounded font-medium cursor-pointer ${
+            className={`px-3 py-1 rounded font-medium cursor-pointer ₹{
               statusFilter === 'all'
                 ? 'bg-neutral-800 text-neutral-100 font-bold'
                 : 'text-neutral-400 hover:text-neutral-200'
@@ -92,7 +92,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           </button>
           <button
             onClick={() => setStatusFilter('open')}
-            className={`px-3 py-1 rounded font-medium cursor-pointer ${
+            className={`px-3 py-1 rounded font-medium cursor-pointer ₹{
               statusFilter === 'open'
                 ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
                 : 'text-neutral-400 hover:text-neutral-200'
@@ -102,7 +102,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           </button>
           <button
             onClick={() => setStatusFilter('received')}
-            className={`px-3 py-1 rounded font-medium cursor-pointer ${
+            className={`px-3 py-1 rounded font-medium cursor-pointer ₹{
               statusFilter === 'received'
                 ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30'
                 : 'text-neutral-400 hover:text-neutral-200'
@@ -144,7 +144,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                     <h3 className="text-base font-bold text-neutral-100">
                       {po.supplierName}
                     </h3>
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ₹{
                       isReceived
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
@@ -162,7 +162,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   <div className="text-right">
                     <div className="text-neutral-500 text-[11px]">PO Total:</div>
                     <div className="text-base font-bold text-neutral-100">
-                      ${po.totalAmount.toLocaleString()}
+                      ₹{po.totalAmount.toLocaleString()}
                     </div>
                   </div>
 
@@ -211,10 +211,10 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                             {item.quantity} {item.unit}
                           </td>
                           <td className="py-2 px-3 text-right text-neutral-400">
-                            ${item.unitCost.toFixed(2)}
+                            ₹{item.unitCost.toFixed(2)}
                           </td>
                           <td className="py-2 px-4 text-right font-bold text-neutral-200">
-                            ${(item.quantity * item.unitCost).toFixed(2)}
+                            ₹{(item.quantity * item.unitCost).toFixed(2)}
                           </td>
                         </tr>
                       ))}

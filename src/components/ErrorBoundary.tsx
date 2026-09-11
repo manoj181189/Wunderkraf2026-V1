@@ -54,7 +54,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               Application Screen Recovered
             </h2>
             <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              एक रनटाइम एरर के कारण स्क्रीन रीसेट हो गई थी। आपका डेटा सुरक्षित है। नीचे दिए गए बटन से तुरंत स्क्रीन वापस लाएं:
+              The screen was reset due to a runtime error. Your data is safe. Restore the screen immediately using the button below:
             </p>
 
             {this.state.error && (

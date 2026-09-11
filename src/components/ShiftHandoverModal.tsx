@@ -139,17 +139,17 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
     e.preventDefault();
 
     if (!finalRelievingOperator) {
-      alert('कृपया आने वाले ऑपरेटर (Relieving Operator) का चयन करें या नाम लिखें।');
+      alert('Please select or enter the incoming relieving operator.');
       return;
     }
 
     if (finalRelievingOperator.toLowerCase() === batch.worker.trim().toLowerCase()) {
-      alert('आने वाला ऑपरेटर (Relieving Operator) वर्तमान ऑपरेटर से भिन्न होना चाहिए।');
+      alert('Incoming relieving operator must be different from the current operator.');
       return;
     }
 
     if (!handoverConfirmed) {
-      alert('कृपया शिफ्ट हैंडओवर का सत्यापन चेकबॉक्स स्वीकार करें।');
+      alert('Please accept the shift handover verification checkbox.');
       return;
     }
 
@@ -184,15 +184,15 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black tracking-wide m-0">
                   {stageName === 'Cutting'
-                    ? 'कटिंग शिफ्ट हैंडओवर (Cutting Desk Shift Handover)'
-                    : `सतत शिफ्ट हैंडओवर (${stageName} Shift Handover)`}
+                    ? 'Cutting Desk Shift Handover'
+                    : `Continuous Shift Handover (${stageName} Shift Handover)`}
                 </h3>
                 <span className="text-[10px] font-extrabold bg-blue-500 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                   {stageName} Desk
                 </span>
               </div>
               <p className="text-xs text-blue-200/90 mt-0.5 m-0">
-                मशीन को रोके बिना ऑपरेटर A का उत्पादन (क्रेट्स, लूज पीस व स्क्रैप) लॉक करें और ऑपरेटर B को बैच हैंडओवर करें।
+                Lock Operator A\'s production (crates, loose pieces & scrap) without stopping the machine and handover the batch to Operator B.
               </p>
             </div>
           </div>
@@ -282,10 +282,10 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-amber-950 uppercase tracking-wide m-0">
-                    निवर्तमान ऑपरेटर (Outgoing Operator A) - उत्पादन व स्क्रैप लॉक
+                    Outgoing Operator A - Production & Scrap Lock
                   </h4>
                   <span className="text-[11px] text-amber-800 font-medium">
-                    इस ऑपरेटर के खाते में जमा होने वाला सटीक उत्पादन दर्ज करें
+                    Enter accurate production to be credited to this operator\'s account
                   </span>
                 </div>
               </div>
@@ -307,7 +307,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div>
                 <label className="block text-[11px] font-extrabold text-emerald-900 uppercase mb-1 flex items-center gap-1">
                   <Package className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>काटे गए क्रेट्स ({unitLabel}):</span>
+                  <span>Cut Crates ({unitLabel}):</span>
                 </label>
                 <input
                   type="number"
@@ -320,7 +320,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   required
                 />
                 <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
-                  फुल तैयार क्रेट्स की संख्या
+                  Number of fully prepared crates
                 </span>
               </div>
 
@@ -328,7 +328,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div>
                 <label className="block text-[11px] font-extrabold text-indigo-900 uppercase mb-1 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>खुले / लूज पीस (Loose Pcs):</span>
+                  <span>Open / Loose Pieces (Loose Pcs):</span>
                 </label>
                 <input
                   type="number"
@@ -340,7 +340,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-sm font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <span className="text-[10px] text-indigo-700 font-bold mt-0.5 block">
-                  अतिरिक्त खुले पीस (जैसे 500 पीस)
+                  Extra open pieces (e.g. 500 pieces)
                 </span>
               </div>
 
@@ -350,8 +350,8 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                   <span>
                     {stageName === 'Slitting' || stageName === 'Cutting'
-                      ? 'रिजेक्शन स्क्रैप (Scrap in KG):'
-                      : 'डिफेक्ट पीस (Defect Pieces):'}
+                      ? 'Rejection Scrap (Scrap in KG):'
+                      : 'Defect Pieces:'}
                   </span>
                 </label>
                 <input
@@ -366,8 +366,8 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 />
                 <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">
                   {stageName === 'Slitting' || stageName === 'Cutting'
-                    ? 'कटिंग स्क्रैप वजन (KG में)'
-                    : 'खराब / रिजेक्टेड पीस'}
+                    ? 'Cutting Scrap Weight (in KG)'
+                    : 'Defective / Rejected Pieces'}
                 </span>
               </div>
             </div>
@@ -377,7 +377,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div className="flex items-center gap-2 text-emerald-950">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  <b>कुल उत्पादित फ्लैट ब्लैंक्स:</b>{' '}
+                  <b>Total Produced Flat Blanks:</b>{' '}
                   <span className="font-mono font-bold">
                     {parsedProduced} Crates × {piecesPerUnit > 0 ? piecesPerUnit.toLocaleString() : 0} + {parsedLoose} Loose =
                   </span>
@@ -393,7 +393,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
                   <Gauge className="w-3.5 h-3.5 text-blue-600" />
-                  <span>मशीन स्ट्रोक / मीटर काउंटर (Stroke Count):</span>
+                  <span>Machine Stroke / Meter Counter (Stroke Count):</span>
                 </label>
                 <input
                   type="number"
@@ -402,22 +402,22 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   placeholder="e.g. 50500"
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
                 />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">हैंडओवर के समय मशीन का स्ट्रोक काउंटर</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Machine stroke counter at handover time</span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  <span>हैंडओवर रिमार्क्स (Handover Remarks / Notes):</span>
+                  <span>Handover Remarks / Notes:</span>
                 </label>
                 <input
                   type="text"
                   value={handoverNotes}
                   onChange={(e) => setHandoverNotes(e.target.value)}
-                  placeholder="उदा. 5 क्रेट्स + 500 लूज पीस तैयार, 1 kg स्क्रैप, ब्लेड धार सही है।"
+                  placeholder="e.g. 5 Crates + 500 loose pieces ready, 1 kg scrap, blade edge is fine."
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500"
                 />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">ब्लेड की स्थिति, कच्चा माल या विशेष सूचना</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Blade condition, raw material or special note</span>
               </div>
             </div>
 
@@ -425,11 +425,11 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
             <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg text-xs flex items-center gap-2">
               <span className="text-base">🔒</span>
               <div>
-                <b>रिकॉर्ड लॉक नोटिस:</b> सबमिट करने पर ऑपरेटर <b>{batch.worker}</b> के नाम{' '}
+                <b>Record Lock Notice:</b> Upon submission, against operator <b>{batch.worker}</b>\'s name{' '}
                 <span className="font-bold underline">
-                  {parsedProduced} क्रेट्स + {parsedLoose} लूज पीस ({calculatedPieces?.toLocaleString()} पीस)
+                  {parsedProduced} Crates + {parsedLoose} loose pieces ({calculatedPieces?.toLocaleString()} pieces)
                 </span>{' '}
-                और <span className="font-bold underline">{parsedScrap} kg स्क्रैप</span> स्थायी रूप से दर्ज हो जाएंगे।
+                and <span className="font-bold underline">{parsedScrap} kg scrap</span> will be permanently recorded.
               </div>
             </div>
           </div>
@@ -443,15 +443,15 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-blue-950 uppercase tracking-wide m-0">
-                    आने वाला ऑपरेटर (Incoming Relieving Operator B)
+                    Incoming Relieving Operator B
                   </h4>
                   <span className="text-[11px] text-blue-800 font-medium">
-                    कार्यभार संभालने वाले ऑपरेटर एवं उनके साथ नियुक्त हेल्पर
+                    Operator taking charge and helpers assigned with them
                   </span>
                 </div>
               </div>
               <span className="text-xs font-extrabold text-blue-900 bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-lg">
-                हैंडओवर समय: <b>{nowTime}</b>
+                Handover Time: <b>{nowTime}</b>
               </span>
             </div>
 
@@ -459,7 +459,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
                   <User className="w-3.5 h-3.5 text-blue-600" />
-                  <span>ऑपरेटर चुनें (Select Relieving Operator):</span>
+                  <span>Select Relieving Operator:</span>
                 </label>
                 <select
                   value={relievingOperator}
@@ -469,7 +469,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
                 >
-                  <option value="">-- ऑपरेटर का चयन करें --</option>
+                  <option value="">-- Select Operator --</option>
                   {availableWorkers
                     .filter((w) => w.trim().toLowerCase() !== batch.worker.trim().toLowerCase())
                     .map((w) => (
@@ -478,13 +478,13 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                       </option>
                     ))}
                 </select>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">या नीचे नया नाम टाइप करें</span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Or type new name below</span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>आने वाली शिफ्ट (Relieving Shift):</span>
+                  <span>Incoming Shift (Relieving Shift):</span>
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -516,7 +516,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
             {/* Custom Operator Name input */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                अन्य कोई ऑपरेटर (Type Custom Operator Name if not in list):
+                Any other operator (Type Custom Operator Name if not in list):
               </label>
               <input
                 type="text"
@@ -525,7 +525,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   setCustomWorkerInput(e.target.value);
                   if (e.target.value) setRelievingOperator('');
                 }}
-                placeholder="उदा. RAJESH_CUTTING"
+                placeholder="e.g. RAJESH_CUTTING"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 uppercase outline-none focus:border-blue-500"
               />
             </div>
@@ -535,7 +535,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-blue-600" />
-                  <span>इनकमिंग ऑपरेटर के साथ हेल्पर (Assigned Helpers):</span>
+                  <span>Helpers with incoming operator (Assigned Helpers):</span>
                 </label>
                 <span className="text-[10px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
                   {incomingHelpers.length} {incomingHelpers.length === 1 ? 'Helper' : 'Helpers'} Assigned
@@ -545,7 +545,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               {/* Helper chips */}
               <div className="flex flex-wrap gap-1.5 min-h-7 items-center">
                 {incomingHelpers.length === 0 ? (
-                  <span className="text-xs text-slate-400 italic">कोई हेल्पर चयनित नहीं (अकेला ऑपरेटर)</span>
+                  <span className="text-xs text-slate-400 italic">No helper selected (Single operator)</span>
                 ) : (
                   incomingHelpers.map((h) => (
                     <span
@@ -596,7 +596,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                       handleAddHelper(newHelperInput);
                     }
                   }}
-                  placeholder="अन्य हेल्पर का नाम लिखकर + दबाएँ..."
+                  placeholder="Type other helper name and press +..."
                   className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 outline-none"
                 />
                 <button
@@ -604,7 +604,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   onClick={() => handleAddHelper(newHelperInput)}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
                 >
-                  + जोड़ें
+                  + Add
                 </button>
               </div>
             </div>
@@ -620,9 +620,9 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 className="mt-1 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
               />
               <span className="text-xs text-slate-700 leading-snug">
-                <b>हैंडओवर भौतिक सत्यापन स्वीकारोक्ति (Handover Acceptance):</b> मैंने मशीन की स्थिति, कच्चा माल और ऑपरेटर{' '}
-                <b>{batch.worker}</b> द्वारा तैयार <b>{parsedProduced} क्रेट्स + {parsedLoose} लूज पीस ({calculatedPieces?.toLocaleString()} कुल पीस)</b> एवं{' '}
-                <b>{parsedScrap} kg स्क्रैप</b> की भौतिक जांच कर ली है और नया कार्यभार ऑपरेटर <b>{finalRelievingOperator || '[चयनित ऑपरेटर]'}</b> को सुपुर्द कर रहा हूँ।
+                <b>Handover Physical Verification Acceptance:</b> I have physically verified the machine condition, raw material and operator{' '}
+                <b>{batch.worker}</b> prepared <b>{parsedProduced} Crates + {parsedLoose} Loose Pieces ({calculatedPieces?.toLocaleString()} Total Pieces)</b> and{' '}
+                <b>{parsedScrap} kg scrap</b> and handing over the new charge to operator <b>{finalRelievingOperator || '[Selected Operator]'}</b>.
               </span>
             </label>
           </div>
@@ -634,14 +634,14 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               onClick={onClose}
               className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             >
-              रद्द करें (Cancel)
+              Cancel
             </button>
             <button
               type="submit"
               className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>हैंडओवर सुरक्षित करें (Lock Output & Confirm Handover)</span>
+              <span>Secure Handover (Lock Output & Confirm Handover)</span>
             </button>
           </div>
         </form>

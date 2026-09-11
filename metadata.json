@@ -1,10 +1,15 @@
 {
-  "name": "Wünderkraf Paperware ERP",
-  "description": "Master Factory ERP & Production Suite with Voice Audio Transcription, Paper Stock Analytics, and Google Drive Cloud Backup",
-  "requestFramePermissions": [
-    "microphone"
-  ],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  "name": "Wünderkraf ERP",
+  "short_name": "Wünderkraf",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a365d",
+  "icons": [
+    {
+      "src": "wunderkraf logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }

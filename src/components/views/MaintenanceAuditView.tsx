@@ -297,7 +297,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
               Audit, Traceability & Quality Dossier Hub
             </h3>
             <p className="text-xs text-slate-500 m-0">
-              रॉ मटेरियल से लेकर ग्राहक के बॉक्स तक 360° ट्रेसेबिलिटी, कंप्लेंट व रिपोर्ट
+              360° Traceability from raw material to customer box, complaints & reports
             </p>
           </div>
         </div>
@@ -324,7 +324,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          <span>360° Root-to-Box Traceability (ट्रेसेबिलिटी जांच)</span>
+          <span>360° Root-to-Box Traceability</span>
         </button>
 
         <button
@@ -348,7 +348,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
           }`}
         >
           <Printer className="w-4 h-4 text-emerald-600" />
-          <span>Single Batch Report & Certificate (बैच रिपोर्ट)</span>
+          <span>Single Batch Report & Certificate</span>
         </button>
 
         <button
@@ -370,7 +370,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
           {/* Universal Traceability Search Bar */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              🔎 Search Delivered Box / Customer / Invoice / Job / Lot (रॉ मटेरियल से बॉक्स तक सर्च करें):
+              🔎 Search Delivered Box / Customer / Invoice / Job / Lot:
             </label>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <div className="relative flex-1">
@@ -493,7 +493,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-black px-3.5 py-2 rounded-lg transition shadow-xs cursor-pointer"
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span>Log Customer Complaint (कंप्लेंट दर्ज करें)</span>
+                <span>Log Customer Complaint</span>
               </button>
 
               <button
@@ -570,7 +570,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5 m-0">
-                <span>Complete Backward & Forward Traceability Chain (कस्टमर डिलीवरी से मूल रॉ मटेरियल तक)</span>
+                <span>Complete Backward & Forward Traceability Chain</span>
               </h4>
               <span className="text-[11px] text-slate-500 font-medium">
                 Verified against Factory Logs & QC Registry
@@ -586,7 +586,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       7
                     </span>
                     <span className="text-xs font-black uppercase text-teal-950">
-                      Step 7: Customer Delivery & Gatepass (ग्राहक तक डिलीवरी)
+                      Step 7: Customer Delivery & Gatepass
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded">
@@ -629,7 +629,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       6
                     </span>
                     <span className="text-xs font-black uppercase text-slate-900">
-                      Step 6: Box Packing & Assembly (पैकिंग व सीलिंग)
+                      Step 6: Box Packing & Assembly
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">
@@ -672,7 +672,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       5
                     </span>
                     <span className="text-xs font-black uppercase text-blue-950">
-                      Step 5: QC Inspection & Defect Screening (क्वालिटी इंस्पेक्शन)
+                      Step 5: QC Inspection & Defect Screening
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
@@ -709,7 +709,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       4
                     </span>
                     <span className="text-xs font-black uppercase text-slate-900">
-                      Step 4: Forming & Thermal Pressing (फॉर्मिंग मशीन)
+                      Step 4: Forming & Thermal Pressing
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">
@@ -746,7 +746,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       3
                     </span>
                     <span className="text-xs font-black uppercase text-slate-900">
-                      Step 3: Cutting & Die-Punching (कटिंग मशीन)
+                      Step 3: Cutting & Die-Punching
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">
@@ -783,7 +783,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       2
                     </span>
                     <span className="text-xs font-black uppercase text-slate-900">
-                      Step 2: Slitting & Reel Conversion (स्लिटिंग मशीन)
+                      Step 2: Slitting & Reel Conversion
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">
@@ -824,7 +824,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                           1
                         </span>
                         <span className="text-xs font-black uppercase text-amber-950">
-                          Step 1: Origin Raw Material (मूल रॉ मटेरियल पेपर - Mother Jumbo Reels)
+                          Step 1: Origin Raw Material (Mother Jumbo Reels)
                         </span>
                       </div>
                       <span className="text-[11px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded border border-amber-300">
@@ -908,7 +908,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                 Customer Complaints & Corrective Actions (CAPA)
               </h4>
               <p className="text-xs text-slate-500 m-0">
-                ग्राहक की शिकायत दर्ज करें, रूट कॉज (RCA) पहचानें व समाधान करें
+                Log customer complaint, identify root cause (RCA) and resolve
               </p>
             </div>
             <button
@@ -1023,7 +1023,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                 Single Batch Report Generator & Downloader
               </h4>
               <p className="text-xs text-slate-500 m-0">
-                किसी भी एक बैच का सम्पूर्ण रिपोर्ट जनरेट करें, PDF प्रिंट करें या CSV में डाउनलोड करें
+                Generate full report of any single batch, print PDF or download in CSV
               </p>
             </div>
 
@@ -1106,7 +1106,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                 Immutable Shift Activity Logs
               </h4>
               <p className="text-xs text-slate-500 m-0">
-                ऑपरेटर व मशीन के सभी टाइमस्टैम्प लॉग्स
+                All timestamp logs of operator and machine
               </p>
             </div>
             <button
@@ -1280,7 +1280,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
               </div>
 
               <div>
-                <label className="font-bold text-amber-900 block mb-1">Root Cause Analysis (RCA - क्यों हुआ?)</label>
+                <label className="font-bold text-amber-900 block mb-1">Root Cause Analysis (RCA - Why did it happen?)</label>
                 <textarea
                   rows={2}
                   value={newComplaintRCA}
@@ -1291,7 +1291,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
               </div>
 
               <div>
-                <label className="font-bold text-emerald-900 block mb-1">Corrective & Preventive Action (CAPA - सुधारात्मक कदम)</label>
+                <label className="font-bold text-emerald-900 block mb-1">Corrective & Preventive Action (CAPA - Remedial Steps)</label>
                 <input
                   type="text"
                   value={newComplaintCAPA}

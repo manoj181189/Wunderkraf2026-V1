@@ -134,7 +134,7 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
               <span>MAINTENANCE HANDOVER NOTIFICATION</span>
             </div>
             <h3 className="text-lg font-black text-slate-800 m-0">
-              मेंटेनेंस साइड से ओके है — मशीन रेडी!
+              OK from Maintenance side — Machine Ready!
             </h3>
             <p className="text-xs text-slate-500 m-0">
               Maintenance team has completed repairs and handed over machine to production.
@@ -155,7 +155,7 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
             </div>
             <div className="text-right">
               <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold block">
-                Total Downtime (बंद रहा):
+                Total Downtime:
               </span>
               <span className="inline-flex items-center gap-1 text-sm font-black bg-white px-2.5 py-1 rounded-lg border border-emerald-300 text-emerald-700 shadow-2xs">
                 <Clock className="w-3.5 h-3.5" />
@@ -186,7 +186,7 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
         <div className="space-y-2.5 mb-5 text-xs">
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
             <span className="font-bold text-slate-700 block mb-1">
-              🛠️ Action Taken / Work Done (क्या काम किया):
+              🛠️ Action Taken / Work Done:
             </span>
             <p className="text-slate-800 m-0 leading-relaxed font-medium bg-white p-2 rounded border border-slate-200">
               {alertData.actionTaken || 'Machine tested and certified ready for production.'}
@@ -196,7 +196,7 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
             <span className="font-bold text-slate-700 flex items-center gap-1 mb-1">
               <Package className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Spare Parts Replaced (स्पेयर पार्ट्स):</span>
+              <span>Spare Parts Replaced:</span>
             </span>
             <p className="text-slate-800 m-0 leading-relaxed font-semibold bg-white p-2 rounded border border-slate-200">
               {alertData.sparePartsSummary || 'None (Adjustment & Calibration only)'}
@@ -209,7 +209,7 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
           <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <div>
             <span className="font-bold block">Technician Clearance Status:</span>
-            <span>"मेरी साइड से मशीन ओके है। ऑपरेटर रन बटन दबाकर प्रोडक्शन चालू कर सकता है।"</span>
+            <span>"Machine is OK from my side. Operator can press the Run button to start production."</span>
           </div>
         </div>
 
@@ -219,14 +219,14 @@ export const MachineReadyNotificationModal: React.FC<MachineReadyNotificationMod
             onClick={handleDismissOnly}
             className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer border border-slate-200"
           >
-            Later / सिर्फ बंद करें
+            Later / Just Close
           </button>
           <button
             onClick={handleResumeProduction}
             className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
           >
             <Play className="w-4 h-4 fill-white" />
-            <span>मशीन चालू करें (Resume Run)</span>
+            <span>Resume Run</span>
           </button>
         </div>
 

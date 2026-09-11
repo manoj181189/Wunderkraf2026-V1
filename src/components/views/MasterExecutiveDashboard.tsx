@@ -4,7 +4,6 @@ import { FactoryState } from '../../types';
 import { calculateAvailableScrapKg } from '../../lib/utils';
 import { ALL_MACHINES_LIST } from '../../lib/constants';
 import { LiveMaintenanceTracker } from '../LiveMaintenanceTracker';
-import { LiveFloorManpowerTracker } from '../LiveFloorManpowerTracker';
 
 interface MasterExecutiveDashboardProps {
   state: FactoryState;
@@ -73,7 +72,7 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
               className="flex items-center gap-1.5 bg-gradient-to-r from-violet-700 to-indigo-800 hover:from-violet-800 hover:to-indigo-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer"
             >
               <Activity className="w-3.5 h-3.5 text-violet-200" />
-              <span>Machine & Operator Audit (8-दिन/5-दिन रिपोर्ट) ➔</span>
+              <span>Machine & Operator Audit (8-day/5-day report) ➔</span>
             </button>
           )}
           <div className="flex items-center gap-1.5">
@@ -133,14 +132,6 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
         </div>
       </div>
 
-      {/* Live Plant Floor Manpower & Helper Allocation Tracker */}
-      <div className="mb-6">
-        <LiveFloorManpowerTracker
-          state={state}
-          onSaveState={onSaveState || (() => {})}
-        />
-      </div>
-
       {/* Live Floor Maintenance & Breakdown Tracking Banner */}
       <div className="mb-6">
         <LiveMaintenanceTracker
@@ -160,10 +151,10 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
             </div>
             <div>
               <h4 className="text-xs font-black text-purple-950 uppercase tracking-wide m-0">
-                Live QC Dispatch & Inspector Pipeline (रियल-टाइम क्यूसी डिस्पैच व इंस्पेक्टर स्थिति)
+                Live QC Dispatch & Inspector Pipeline (Real-Time QC Dispatch & Inspector Pipeline)
               </h4>
               <p className="text-[11px] text-purple-700 m-0">
-                फॉर्मिंग से डिस्पैच किए गए क्रेट्स, नियुक्त इंस्पेक्टर (Assigned Inspector) व स्टेज स्थिति
+                Crates dispatched from Forming, Assigned Inspector & Stage Status
               </p>
             </div>
           </div>
@@ -349,7 +340,7 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
                 {/* Maintenance Technician Attendance Badge */}
                 {isUnderRepair && (
                   <div className="mb-2 p-2 bg-amber-100/80 border border-amber-300 rounded-lg text-xs">
-                    <div className="text-[10px] font-bold text-amber-800 uppercase">कार्यरत टेक्नीशियन:</div>
+                    <div className="text-[10px] font-bold text-amber-800 uppercase">Working Technician:</div>
                     <div className="font-black text-amber-950 flex items-center justify-between">
                       <span>👨‍🔧 {activeInc?.technicianName || 'Technician'}</span>
                       <span className="font-mono text-[11px]">⏱️ {repairMins}m</span>
@@ -363,7 +354,7 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
                         }}
                         className="mt-1.5 w-full py-1 text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition text-center shadow-2xs"
                       >
-                        ✅ रिपेयर पूरा करें (Mark Ready)
+                        ✅ Mark Ready
                       </button>
                     )}
                   </div>
@@ -371,7 +362,7 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
 
                 {isOpenDown && !isUnderRepair && (
                   <div className="mb-2 p-2 bg-red-100/80 border border-red-300 rounded-lg text-xs">
-                    <div className="text-[10px] font-bold text-red-800 uppercase">ब्रेकडाउन (इंतज़ार जारी):</div>
+                    <div className="text-[10px] font-bold text-red-800 uppercase">Breakdown (Waiting):</div>
                     <div className="font-bold text-red-950 truncate">{activeInc?.reason || 'Machine Stopped'}</div>
                     {onOpenAttendModal && (
                       <button
@@ -382,7 +373,7 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
                         }}
                         className="mt-1.5 w-full py-1 text-[10px] font-extrabold bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded cursor-pointer transition text-center shadow-2xs"
                       >
-                        👨‍🔧 मैं अटेंड कर रहा हूँ (Start Repair)
+                        👨‍🔧 I am Attending (Start Repair)
                       </button>
                     )}
                   </div>
@@ -427,10 +418,15 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
                   </div>
                 ) : activeBatches.length > 0 ? (
                   <div className="space-y-1 text-xs">
-                    {activeBatches.map((b, idx) => (
+                    {activeBatches.map((b: any, idx) => (
                       <div key={idx} className="bg-white/80 p-2 rounded-lg border border-slate-200">
                         <div className="font-bold text-slate-900 truncate">{b.job}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">Op: <b>{b.op}</b></div>
+                        {b.helpers && b.helpers.length > 0 && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 italic">
+                            + {b.helpers.length} Helpers ({b.helpers.join(', ')})
+                          </div>
+                        )}
                         {b.reason && !activeInc && (
                           <div className="text-[10px] text-orange-800 bg-orange-100 px-1.5 py-0.5 rounded mt-1 font-semibold">
                             ⚠️ {b.reason}

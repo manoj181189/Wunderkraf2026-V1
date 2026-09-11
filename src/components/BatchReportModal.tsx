@@ -138,30 +138,30 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
   const paperLot = targetJob?.customRemark || 'Food-Grade Certified';
 
   // Determine current lifecycle stage
-  let stageSummaryTitle = 'Batch Initialized (प्रारंभिक चरण)';
+  let stageSummaryTitle = 'Batch Initialized';
   let stageStatusBadgeClass = 'bg-slate-100 text-slate-700 border-slate-300';
 
   if (dispCompleted) {
-    stageSummaryTitle = 'Dispatched & Delivered (डिस्पैच पूर्ण)';
+    stageSummaryTitle = 'Dispatched & Delivered';
     stageStatusBadgeClass = 'bg-blue-50 text-blue-800 border-blue-300';
   } else if (packCompleted) {
-    stageSummaryTitle = 'Stage 5: Packed & Sealed (पैकिंग पूर्ण - डिस्पैच हेतु तैयार)';
+    stageSummaryTitle = 'Stage 5: Packed & Sealed (Ready for Dispatch)';
     stageStatusBadgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (qcCompleted) {
-    stageSummaryTitle = 'Stage 4: QC Approved (क्यू.सी. पास - पैकिंग हेतु तैयार)';
+    stageSummaryTitle = 'Stage 4: QC Approved (Ready for Packing)';
     stageStatusBadgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (formCompleted || formRunning) {
     stageSummaryTitle = formRunning
-      ? 'Stage 3: Forming In-Progress (फॉर्मिंग मशीन पर कार्य चालू)'
-      : 'Stage 3: Forming Done • QC Pending (फॉर्मिंग पूर्ण - क्यू.सी. बाकी)';
+      ? 'Stage 3: Forming In-Progress'
+      : 'Stage 3: Forming Done • QC Pending';
     stageStatusBadgeClass = 'bg-amber-50 text-amber-900 border-amber-300';
   } else if (cutCompleted || cutRunning) {
     stageSummaryTitle = cutRunning
-      ? 'Stage 2: Cutting In-Progress (कटिंग मशीन पर कार्य चालू)'
-      : 'Stage 2: Cutting Done • Forming Pending (कटिंग पूर्ण - फॉर्मिंग बाकी)';
+      ? 'Stage 2: Cutting In-Progress'
+      : 'Stage 2: Cutting Done • Forming Pending';
     stageStatusBadgeClass = 'bg-purple-50 text-purple-900 border-purple-300';
   } else if (slitCompleted) {
-    stageSummaryTitle = 'Stage 1: Slitting Completed • Awaiting Cutting (केवल स्लिटिंग हुई है - कटिंग पेंडिंग)';
+    stageSummaryTitle = 'Stage 1: Slitting Completed • Awaiting Cutting';
     stageStatusBadgeClass = 'bg-indigo-50 text-indigo-900 border-indigo-300';
   }
 
@@ -190,7 +190,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
       { Parameter: 'Stage 1: Slitting', Value: slitCompleted ? `Completed on ${slitLog?.machine || 'Slitting-1'} by ${slitLog?.worker || 'Operator'} (${targetJob?.availableRolls || 0} Rolls)` : 'Pending' },
       { Parameter: 'Stage 2: Cutting', Value: cutCompleted ? `Completed on ${cutLog?.machine || 'Cutting-1'} (${targetJob?.availableCuttingCrates || 0} Crates)` : cutRunning ? `Running on ${runningCuttingBatch?.machine}` : 'Pending (Not Processed Yet)' },
       { Parameter: 'Stage 3: Forming', Value: formCompleted ? `Completed on ${formLog?.machine || 'Forming-1'} (${targetJob?.availableFormingCrates || 0} Crates)` : formRunning ? `Running on ${runningFormingBatch?.machine}` : 'Pending (Not Processed Yet)' },
-      { Parameter: 'Stage 4: QC Inspection', Value: qcCompleted ? `APPROVED by ${qcLog?.worker || 'QC Inspector'}` : 'Pending Inspection (क्यू.सी. पेंडिंग)' },
+      { Parameter: 'Stage 4: QC Inspection', Value: qcCompleted ? `APPROVED by ${qcLog?.worker || 'QC Inspector'}` : 'Pending Inspection' },
       { Parameter: 'Stage 5: Packing', Value: packCompleted ? `${selectedOrder ? selectedOrder.packedBoxes : 'Available'} Boxes Sealed` : 'Pending Packing' },
       { Parameter: 'Stage 6: Dispatch', Value: dispCompleted ? 'Dispatched' : 'In Factory Warehouse' },
       { Parameter: 'Report Generation Date', Value: new Date().toLocaleDateString('en-GB') }
@@ -209,10 +209,10 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
 
 *LIVE STAGE PROGRESS:*
 1️⃣ *Slitting:* ${slitCompleted ? `✅ Done (${targetJob?.availableRolls || 0} Rolls, Machine: ${slitLog?.machine || 'Slitting-1'})` : '⏳ PENDING'}
-2️⃣ *Cutting:* ${cutCompleted ? `✅ Done (${targetJob?.availableCuttingCrates || 0} Crates)` : cutRunning ? `⚡ RUNNING on ${runningCuttingBatch?.machine}` : '⏳ PENDING (प्रक्रिया बाकी)'}
-3️⃣ *Forming:* ${formCompleted ? `✅ Done (${targetJob?.availableFormingCrates || 0} Crates)` : formRunning ? `⚡ RUNNING on ${runningFormingBatch?.machine}` : '⏳ PENDING (प्रक्रिया बाकी)'}
-4️⃣ *QC Inspection:* ${qcCompleted ? `🛡️ APPROVED by ${qcLog?.worker || 'QC Inspector'}` : '⏳ PENDING INSPECTION (निरीक्षण बाकी)'}
-5️⃣ *Packing:* ${packCompleted ? `📦 Boxes Packed & Sealed` : '⏳ PENDING (पैकिंग बाकी)'}
+2️⃣ *Cutting:* ${cutCompleted ? `✅ Done (${targetJob?.availableCuttingCrates || 0} Crates)` : cutRunning ? `⚡ RUNNING on ${runningCuttingBatch?.machine}` : '⏳ PENDING'}
+3️⃣ *Forming:* ${formCompleted ? `✅ Done (${targetJob?.availableFormingCrates || 0} Crates)` : formRunning ? `⚡ RUNNING on ${runningFormingBatch?.machine}` : '⏳ PENDING'}
+4️⃣ *QC Inspection:* ${qcCompleted ? `🛡️ APPROVED by ${qcLog?.worker || 'QC Inspector'}` : '⏳ PENDING INSPECTION'}
+5️⃣ *Packing:* ${packCompleted ? `📦 Boxes Packed & Sealed` : '⏳ PENDING'}
 6️⃣ *Dispatch:* ${dispCompleted ? '🚚 Dispatched' : '🏢 In Factory Warehouse'}
 
 *Report Date:* ${new Date().toLocaleString()}`;
@@ -244,7 +244,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                 Single Batch Comprehensive Report & Certificate
               </h2>
               <p className="text-[11px] text-slate-400 m-0">
-                लाइव उत्पादन प्रोग्रेस, वास्तविक एंट्री अनुसार स्टेज ट्रैकिंग
+                Live Production Progress, Stage Tracking as per actual entry
               </p>
             </div>
           </div>
@@ -411,10 +411,10 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-black tracking-wider uppercase text-slate-800 flex items-center gap-1.5 m-0">
-                <span>1. Production Stage Telemetry & Audit Chain (चरणबद्ध उत्पादन विवरण)</span>
+                <span>1. Production Stage Telemetry & Audit Chain</span>
               </h3>
               <span className="text-[10px] text-slate-500 font-medium">
-                * केवल वही चरण स्वीकृत दिखेंगे जिनकी ऑपरेटर द्वारा वास्तविक एंट्री सबमिट हुई है
+                * Only approved stages where operator has submitted actual entry will be shown
               </span>
             </div>
 
@@ -422,12 +422,12 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 font-extrabold text-[11px] border-b border-slate-200 print:bg-slate-50">
-                    <th className="p-2.5">Stage (चरण)</th>
-                    <th className="p-2.5">Machine (मशीन)</th>
-                    <th className="p-2.5">Operator (ऑपरेटर)</th>
-                    <th className="p-2.5">Shift & Time (शिफ्ट/समय)</th>
-                    <th className="p-2.5">Inputs & Output Recorded (मात्रा विवरण)</th>
-                    <th className="p-2.5 text-right">Stage Status (स्थिति)</th>
+                    <th className="p-2.5">Stage</th>
+                    <th className="p-2.5">Machine</th>
+                    <th className="p-2.5">Operator</th>
+                    <th className="p-2.5">Shift & Time</th>
+                    <th className="p-2.5">Inputs & Output Recorded</th>
+                    <th className="p-2.5 text-right">Stage Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px]">
@@ -436,7 +436,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-900 flex items-center justify-center text-[9px] font-black">1</span>
-                        <span>1. Slitting (स्लिटिंग)</span>
+                        <span>1. Slitting</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">
@@ -453,7 +453,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                         slitLog?.action ||
                         `Jumbo Reel(s) [${allReels.join(', ')}] slit to ${targetJob?.availableRolls || 12} Rolls (${targetJob?.outputWeightKg || 185} KG Output, Scrap: ${targetJob?.scrapKg || 6} KG)`
                       ) : (
-                        <span className="text-slate-400 italic">स्लिटिंग अभी शुरू नहीं हुई</span>
+                        <span className="text-slate-400 italic">Slitting not started yet</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -474,7 +474,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-900 flex items-center justify-center text-[9px] font-black">2</span>
-                        <span>2. Cutting (कटिंग)</span>
+                        <span>2. Cutting</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">
@@ -490,9 +490,9 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                       {cutCompleted ? (
                         cutLog?.action || `${targetJob?.availableCuttingCrates || 0} Cut Crates produced`
                       ) : cutRunning ? (
-                        <span className="text-amber-800 font-bold">मशीन पर कटिंग चालू है (In Progress)</span>
+                        <span className="text-amber-800 font-bold">Cutting is Running (In Progress)</span>
                       ) : (
-                        <span className="text-slate-400 italic">कटिंग की एंट्री अभी नहीं हुई है (Not Started)</span>
+                        <span className="text-slate-400 italic">Cutting entry not done yet (Not Started)</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -517,7 +517,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center text-[9px] font-black">3</span>
-                        <span>3. Forming (फॉर्मिंग)</span>
+                        <span>3. Forming</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">
@@ -533,9 +533,9 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                       {formCompleted ? (
                         formLog?.action || `${targetJob?.availableFormingCrates || 0} Formed Crates moulded`
                       ) : formRunning ? (
-                        <span className="text-amber-800 font-bold">फॉर्मिंग प्रेस पर कार्य चालू है (In Progress)</span>
+                        <span className="text-amber-800 font-bold">Forming Press is Running (In Progress)</span>
                       ) : (
-                        <span className="text-slate-400 italic">फॉर्मिंग की एंट्री अभी नहीं हुई है (Not Started)</span>
+                        <span className="text-slate-400 italic">Forming entry not done yet (Not Started)</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -560,7 +560,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-900 flex items-center justify-center text-[9px] font-black">4</span>
-                        <span>4. QC Inspection (गुणवत्ता जांच)</span>
+                        <span>4. QC Inspection</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">
@@ -576,7 +576,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                       {qcCompleted ? (
                         qcLog?.action || `${targetJob?.availableQcCrates || 0} Crates 100% Visual & Strength Passed`
                       ) : (
-                        <span className="text-slate-400 italic">क्यू.सी. निरीक्षण अभी बाकी है (Pending QC Audit)</span>
+                        <span className="text-slate-400 italic">QC Inspection Pending (Pending QC Audit)</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -597,7 +597,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-900 flex items-center justify-center text-[9px] font-black">5</span>
-                        <span>5. Packing (पैकिंग व बॉक्सिंग)</span>
+                        <span>5. Packing</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">
@@ -615,7 +615,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                           ? `${selectedOrder.packedBoxes} Boxes sealed (${(selectedOrder.packedBoxes * selectedOrder.pcsPerBox).toLocaleString()} Pcs)`
                           : 'Boxes packed & sealed in moisture-barrier cartons'
                       ) : (
-                        <span className="text-slate-400 italic">पैकिंग लाइन पर अभी नहीं पहुंचा (Pending Packing)</span>
+                        <span className="text-slate-400 italic">Not reached packing line yet (Pending Packing)</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -636,7 +636,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                     <td className="p-2.5 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-800 flex items-center justify-center text-[9px] font-black">6</span>
-                        <span>6. Dispatch (डिस्पैच व इनवॉइस)</span>
+                        <span>6. Dispatch</span>
                       </div>
                     </td>
                     <td className="p-2.5 font-mono text-slate-700">WAREHOUSE</td>
@@ -648,7 +648,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                           ? `Invoice: ${selectedOrder.dispatchLogs[0].invoiceNo} | Vehicle: ${selectedOrder.dispatchLogs[0].gtNo}`
                           : 'Dispatched to consignee'
                       ) : (
-                        <span className="text-slate-500">फैक्ट्री वेयरहाउस में सुरक्षित (Ready in Warehouse)</span>
+                        <span className="text-slate-500">Safe in Factory Warehouse (Ready in Warehouse)</span>
                       )}
                     </td>
                     <td className="p-2.5 text-right">
@@ -756,7 +756,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                 Quality Assurance Manager
               </span>
               <span className="text-[9px] text-slate-400">
-                {qcCompleted ? `Clearance Granted: ${new Date().toLocaleDateString('en-GB')}` : 'निरीक्षण के बाद ही साइन होगा'}
+                {qcCompleted ? `Clearance Granted: ${new Date().toLocaleDateString('en-GB')}` : 'Will be signed only after inspection'}
               </span>
             </div>
 
@@ -775,7 +775,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
                 Plant Operations Head
               </span>
               <span className="text-[9px] text-slate-400">
-                {qcCompleted ? 'Final Authorized Signatory' : 'बैच प्रक्रियाधीन है'}
+                {qcCompleted ? 'Final Authorized Signatory' : 'Batch is in progress'}
               </span>
             </div>
           </div>

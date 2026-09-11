@@ -44,7 +44,9 @@ import {
   ProductType,
   RunningBatch,
   UserAccount,
-  ProductCrateCapacity
+  ProductCrateCapacity,
+  CoordinationMatrixItem,
+  ProductionPlan
 } from '../../types';
 import {
   PRODUCTS,
@@ -53,8 +55,10 @@ import {
   INITIAL_STATE,
   DEFAULT_USERS,
   PRODUCT_PREFIX_MAP,
-  DEFAULT_CRATE_CAPACITY_MASTER
+  DEFAULT_CRATE_CAPACITY_MASTER,
+  DEFAULT_COORDINATION_MATRIX
 } from '../../lib/constants';
+import { triggerWhatsAppShiftNotification } from '../../lib/whatsappReports';
 import { exportToJSON, getCurrentExpectedShift } from '../../lib/utils';
 import { exportDatabaseBackup, importDatabaseBackup, getStorageHealth, pruneFactoryState } from '../../lib/storage';
 
@@ -62,18 +66,202 @@ interface AdminSettingsViewProps {
   state: FactoryState;
   onBackToHub: () => void;
   onSaveState: (state: FactoryState) => void;
+  currentUser?: { username: string; perms: string[] } | null;
 }
 
-type AdminTab = 'brand_items_paper' | 'crate_master' | 'users' | 'master_data' | 'whatsapp' | 'sequences_shifts' | 'backup_restore' | 'maintenance_master';
-type MasterDataSubTab = 'jobs' | 'orders' | 'logs';
+type AdminTab = 'brand_items_paper' | 'crate_master' | 'users' | 'master_data' | 'whatsapp' | 'sequences_shifts' | 'backup_restore' | 'maintenance_master' | 'coordination_matrix';
+type MasterDataSubTab = 'jobs' | 'orders' | 'logs' | 'plans';
 
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   state,
   onBackToHub,
-  onSaveState
+  onSaveState,
+  currentUser
 }) => {
+  const currentUserRole = currentUser ? (state.users[currentUser.username.toLowerCase()]?.role || '') : '';
+  const isAdmin = currentUser && (
+    currentUser.perms.includes('*') ||
+    currentUser.perms.includes('Admin') ||
+    currentUser.username.toLowerCase() === 'admin' ||
+    currentUserRole.toLowerCase() === 'admin' ||
+    currentUserRole.toLowerCase() === 'administrator'
+  );
+
   const [activeTab, setActiveTab] = useState<AdminTab>('brand_items_paper');
   const [masterSubTab, setMasterSubTab] = useState<MasterDataSubTab>('jobs');
+
+  // Coordination Matrix State
+  const [coordinationMatrixList, setCoordinationMatrixList] = useState<CoordinationMatrixItem[]>(() => {
+    return state.coordinationMatrix && state.coordinationMatrix.length > 0
+      ? state.coordinationMatrix
+      : DEFAULT_COORDINATION_MATRIX;
+  });
+
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newContactName, setNewContactName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newMachineBreakdown, setNewMachineBreakdown] = useState(false);
+  const [newElectricalAlert, setNewElectricalAlert] = useState(false);
+  const [newProductionHandover, setNewProductionHandover] = useState(false);
+  const [newMaterialIndent, setNewMaterialIndent] = useState(false);
+  const [newQcFailure, setNewQcFailure] = useState(false);
+  const [newIsActive, setNewIsActive] = useState(true);
+
+  const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
+  const [editingItem, setEditingItem] = useState<CoordinationMatrixItem | null>(null);
+
+  const validateMatrixItem = (role: string, name: string, phone: string): boolean => {
+    if (!role.trim()) {
+      alert('⚠️ Role / Department Name is required!');
+      return false;
+    }
+    if (!name.trim()) {
+      alert('⚠️ Contact Person Name is required!');
+      return false;
+    }
+    if (!phone.trim()) {
+      alert('⚠️ Phone Number is required!');
+      return false;
+    }
+    if (!phone.trim().startsWith('+')) {
+      alert('⚠️ Phone Number must include country code starting with "+" (e.g., +91 98250 12345).');
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddMatrixItem = () => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are allowed to edit the Coordination Matrix.');
+      return;
+    }
+    if (!validateMatrixItem(newRoleName, newContactName, newPhone)) return;
+
+    const newItem: CoordinationMatrixItem = {
+      id: `CM-${Date.now()}`,
+      roleName: newRoleName.trim(),
+      contactName: newContactName.trim(),
+      phone: newPhone.trim(),
+      alertCategories: {
+        machineBreakdown: newMachineBreakdown,
+        electricalAlert: newElectricalAlert,
+        productionHandover: newProductionHandover,
+        materialIndent: newMaterialIndent,
+        qcFailure: newQcFailure
+      },
+      isActive: newIsActive
+    };
+
+    const nextList = [...coordinationMatrixList, newItem];
+    setCoordinationMatrixList(nextList);
+    onSaveState({
+      ...state,
+      coordinationMatrix: nextList
+    });
+
+    // Reset fields
+    setNewRoleName('');
+    setNewContactName('');
+    setNewPhone('');
+    setNewMachineBreakdown(false);
+    setNewElectricalAlert(false);
+    setNewProductionHandover(false);
+    setNewMaterialIndent(false);
+    setNewQcFailure(false);
+    setNewIsActive(true);
+
+    alert('✅ Department Head Contact Added Successfully!');
+  };
+
+  const handleStartEditMatrixItem = (idx: number) => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are allowed to edit the Coordination Matrix.');
+      return;
+    }
+    setEditingItemIdx(idx);
+    setEditingItem({ ...coordinationMatrixList[idx] });
+  };
+
+  const handleSaveMatrixItem = () => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are allowed to edit the Coordination Matrix.');
+      return;
+    }
+    if (editingItemIdx === null || !editingItem) return;
+
+    if (!validateMatrixItem(editingItem.roleName, editingItem.contactName, editingItem.phone)) return;
+
+    const nextList = [...coordinationMatrixList];
+    nextList[editingItemIdx] = { ...editingItem };
+    setCoordinationMatrixList(nextList);
+    onSaveState({
+      ...state,
+      coordinationMatrix: nextList
+    });
+
+    setEditingItemIdx(null);
+    setEditingItem(null);
+    alert('✅ Coordination Matrix Contact Updated Successfully!');
+  };
+
+  const handleDeleteMatrixItem = (idx: number) => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are allowed to edit the Coordination Matrix.');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to delete this Department Head contact from the matrix?')) return;
+
+    const nextList = coordinationMatrixList.filter((_, i) => i !== idx);
+    setCoordinationMatrixList(nextList);
+    onSaveState({
+      ...state,
+      coordinationMatrix: nextList
+    });
+    alert('✅ Department Head Contact Deleted!');
+  };
+
+  const handleToggleMatrixItemActive = (idx: number) => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are allowed to edit the Coordination Matrix.');
+      return;
+    }
+    const nextList = [...coordinationMatrixList];
+    nextList[idx] = {
+      ...nextList[idx],
+      isActive: !nextList[idx].isActive
+    };
+    setCoordinationMatrixList(nextList);
+    onSaveState({
+      ...state,
+      coordinationMatrix: nextList
+    });
+  };
+
+  const handleTestWhatsAppAlert = (item: CoordinationMatrixItem) => {
+    const categories: string[] = [];
+    if (item.alertCategories.machineBreakdown) categories.push('Machine Breakdown');
+    if (item.alertCategories.electricalAlert) categories.push('Electrical Alert');
+    if (item.alertCategories.productionHandover) categories.push('Production Handover');
+    if (item.alertCategories.materialIndent) categories.push('Material Indent');
+    if (item.alertCategories.qcFailure) categories.push('QC Failure');
+
+    const message = `🏭 *WÜNDERKRAF PAPERWARE ERP*
+📱 *TEST SYSTEM ALERT DISPATCH*
+━━━━━━━━━━━━━━━━━━━━
+Dear *${item.contactName}* (${item.roleName}),
+
+This is a test notification to verify your subscription to Wünderkraf Auto-Alert system.
+
+⚙️ *Your Configured Alert Subscriptions:*
+${categories.length > 0 ? categories.map(c => `• ${c}`).join('\n') : 'None (No categories subscribed)'}
+
+🟢 *Status:* Active & Subscribed
+
+_If you received this message, your contact number and routing configuration are correctly set up._`;
+
+    triggerWhatsAppShiftNotification(item.phone, message, state.whatsappConfig?.webhookUrl);
+    alert(`⚡ Dispatching test alert connection on WhatsApp to ${item.contactName} (${item.phone}). Please check the opened window/tab.`);
+  };
 
   // Storage Health Telemetry
   const [storageHealth, setStorageHealth] = useState<{
@@ -105,6 +293,25 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   });
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrefix, setNewProductPrefix] = useState('');
+  const [glueBrandsList, setGlueBrandsList] = useState<string[]>(state.glueBrands || []);
+  const [newGlueBrandInput, setNewGlueBrandInput] = useState('');
+  
+  const [targetLayersList, setTargetLayersList] = useState<number[]>(state.targetLayersMaster || [4, 6, 8, 10, 12, 14, 16]);
+  const [newTargetLayerInput, setNewTargetLayerInput] = useState('');
+  const [editingTargetLayerIdx, setEditingTargetLayerIdx] = useState<number | null>(null);
+  const [editingTargetLayerVal, setEditingTargetLayerVal] = useState<string>('');
+  
+  const [editingGlueBrandIdx, setEditingGlueBrandIdx] = useState<number | null>(null);
+  const [editingGlueBrandName, setEditingGlueBrandName] = useState('');
+
+
+  const [targetGsmList, setTargetGsmList] = useState<string[]>(state.targetGsmMaster || []);
+  const [newTargetGsmInput, setNewTargetGsmInput] = useState('');
+  const [newScrapLimitInput, setNewScrapLimitInput] = useState('');
+  const [newToleranceInput, setNewToleranceInput] = useState('');
+  const scrapLimitsList = state.scrapLimitsMaster && state.scrapLimitsMaster.length > 0 ? state.scrapLimitsMaster : [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
+  const scrapToleranceKgList = state.scrapToleranceKgMaster && state.scrapToleranceKgMaster.length > 0 ? state.scrapToleranceKgMaster : [5, 10, 15, 20, 25, 30, 40, 50];
+
   const [newProductSeq, setNewProductSeq] = useState('1');
   const [editingProductIdx, setEditingProductIdx] = useState<number | null>(null);
   const [editingProductName, setEditingProductName] = useState('');
@@ -256,6 +463,11 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   const jobToEdit = state.jobs.find((j) => j.id === selectedJobIdToEdit);
   const [jobEditForm, setJobEditForm] = useState<Job | null>(jobToEdit ? JSON.parse(JSON.stringify(jobToEdit)) : null);
 
+  // Plan Overwrite state
+  const [selectedPlanIdToEdit, setSelectedPlanIdToEdit] = useState<string>((state.productionPlans && state.productionPlans[0]?.id) || '');
+  const planToEdit = (state.productionPlans || []).find((p) => p.id === selectedPlanIdToEdit);
+  const [planEditForm, setPlanEditForm] = useState<ProductionPlan | null>(planToEdit ? JSON.parse(JSON.stringify(planToEdit)) : null);
+
   // Order Overwrite state
   const [selectedOrderIdToEdit, setSelectedOrderIdToEdit] = useState<string>(state.packJobs[0]?.id || '');
   const orderToEdit = state.packJobs.find((o) => o.id === selectedOrderIdToEdit);
@@ -331,6 +543,12 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     setJobEditForm(j ? JSON.parse(JSON.stringify(j)) : null);
   };
 
+
+  const handleSelectPlanToEdit = (planId: string) => {
+    setSelectedPlanIdToEdit(planId);
+    const p = (state.productionPlans || []).find((x) => x.id === planId);
+    setPlanEditForm(p ? JSON.parse(JSON.stringify(p)) : null);
+  };
   const handleSelectOrderToEdit = (ordId: string) => {
     setSelectedOrderIdToEdit(ordId);
     const o = state.packJobs.find((x) => x.id === ordId);
@@ -605,13 +823,51 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   };
 
   const executeDeleteJob = (jobId: string) => {
+    const targetJob = state.jobs.find((j) => j.id === jobId);
     const updatedJobs = state.jobs.filter((j) => j.id !== jobId);
+    // Cascade remove all audit logs referencing this jobId
+    const updatedLogs = state.logs.filter((l) => l.jobId !== jobId);
+
+    // Rollback any mother reels allocated to this job back to Available
+    const updatedMotherReels = (state.motherReelInventory || []).map((mr) => {
+      if (
+        mr.allocatedJobId === jobId ||
+        (targetJob?.motherReelsAllocated && targetJob.motherReelsAllocated.includes(mr.id))
+      ) {
+        return {
+          ...mr,
+          status: 'Available' as const,
+          allocatedJobId: undefined,
+          allocatedDate: undefined
+        };
+      }
+      return mr;
+    });
+
+    // Update linked production plans back to Scheduled
+    const updatedPlans = (state.productionPlans || []).map((p) => {
+      if (p.jobId === jobId) {
+        return {
+          ...p,
+          status: 'Scheduled' as const,
+          actualLayersUsed: 0,
+          actualMetersSlit: 0,
+          actualScrapKg: 0,
+          actualScrapPct: 0
+        };
+      }
+      return p;
+    });
+
+    // Clean up glue usage logs for this job
+    const updatedGlueLogs = (state.glueUsageLogs || []).filter((g) => g.jobId !== jobId);
+
     const newLog: LogEntry = {
       jobId: jobId,
       stage: 'Admin Master',
       machine: 'MASTER-OVERWRITE',
       shift: 'DAY',
-      action: `🗑️ Deleted Job [${jobId}] completely from database`,
+      action: `🗑️ Cascading Deletion of Job [${jobId}] | Purged from Jobs, Logs, Traceability Trees, and Rolled Back Mother Reels to Available Stock`,
       worker: 'ADMIN',
       user: 'admin',
       rawDate: new Date().toISOString().split('T')[0],
@@ -621,12 +877,15 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     onSaveState({
       ...state,
       jobs: updatedJobs,
-      logs: [...state.logs, newLog]
+      logs: [...updatedLogs, newLog],
+      motherReelInventory: updatedMotherReels,
+      productionPlans: updatedPlans,
+      glueUsageLogs: updatedGlueLogs
     });
 
     const nextJob = updatedJobs[0]?.id || '';
     handleSelectJobToEdit(nextJob);
-    showToast(`✅ Job [${jobId}] deleted from database.`);
+    showToast(`✅ Cascading Deletion of Job [${jobId}] completed! Rolled back mother reels & purged traceability trees.`);
   };
 
   const handleDeleteJob = (jobId: string) => {
@@ -641,6 +900,68 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
         setConfirmModal(null);
       }
     });
+  };
+
+  // ==========================================
+  // MASTER DATA OVERWRITE: PRODUCTION PLANS
+  // ==========================================
+  const handleSavePlanEdit = () => {
+    if (!planEditForm) return;
+    const updatedPlans = (state.productionPlans || []).map((p) => {
+      if (p.id === selectedPlanIdToEdit) {
+        return { ...planEditForm };
+      }
+      return p;
+    });
+
+    const newLog: LogEntry = {
+      jobId: planEditForm.id,
+      product: planEditForm.product,
+      stage: 'Admin Master',
+      machine: 'MASTER-OVERWRITE',
+      shift: 'DAY',
+      action: `🛠️ Master Overwrite on Production Plan [${planEditForm.id}]`,
+      worker: 'ADMIN',
+      user: 'admin',
+      rawDate: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toLocaleString()
+    };
+
+    onSaveState({
+      ...state,
+      productionPlans: updatedPlans,
+      logs: [...state.logs, newLog]
+    });
+    alert('Production Plan master data overwritten successfully!');
+  };
+
+  const handleDeletePlan = (planId: string) => {
+    if (!window.confirm(`Are you absolutely sure you want to hard delete Production Plan ${planId}? This cannot be undone.`)) {
+      return;
+    }
+    const updatedPlans = (state.productionPlans || []).filter((p) => p.id !== planId);
+    
+    const newLog: LogEntry = {
+      jobId: planId,
+      product: 'N/A',
+      stage: 'Admin Master',
+      machine: 'HARD-DELETE',
+      shift: 'DAY',
+      action: `🗑️ Hard Deleted Production Plan [${planId}]`,
+      worker: 'ADMIN',
+      user: 'admin',
+      rawDate: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toLocaleString()
+    };
+
+    onSaveState({
+      ...state,
+      productionPlans: updatedPlans,
+      logs: [...state.logs, newLog]
+    });
+    setPlanEditForm(null);
+    setSelectedPlanIdToEdit('');
+    alert('Plan deleted!');
   };
 
   // ==========================================
@@ -827,6 +1148,168 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     });
   };
 
+  
+  const handleAddGlueBrand = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newGlueBrandInput.trim().toUpperCase();
+    if (!cleanName) return;
+    if (glueBrandsList.includes(cleanName)) return;
+    const updated = [...glueBrandsList, cleanName];
+    setGlueBrandsList(updated);
+    onSaveState({ ...state, glueBrands: updated });
+    setNewGlueBrandInput('');
+    showToast(`✅ Glue Brand "${cleanName}" added!`);
+  };
+  
+  const handleSaveEditGlueBrand = (index: number) => {
+    const cleanName = editingGlueBrandName.trim().toUpperCase();
+    if (!cleanName) return setEditingGlueBrandIdx(null);
+    const oldName = glueBrandsList[index];
+    if (cleanName !== oldName && glueBrandsList.includes(cleanName)) {
+      alert('Glue brand already exists!');
+      return;
+    }
+    const updated = [...glueBrandsList];
+    updated[index] = cleanName;
+    setGlueBrandsList(updated);
+    onSaveState({ ...state, glueBrands: updated });
+    setEditingGlueBrandIdx(null);
+  };
+
+  const handleSaveEditTargetLayer = (index: number) => {
+    const val = parseInt(editingTargetLayerVal);
+    if (isNaN(val) || val <= 0) return setEditingTargetLayerIdx(null);
+    const oldVal = targetLayersList[index];
+    if (val !== oldVal && targetLayersList.includes(val)) {
+      alert('Target layer already exists!');
+      return;
+    }
+    const updated = [...targetLayersList];
+    updated[index] = val;
+    updated.sort((a,b) => a-b);
+    setTargetLayersList(updated);
+    onSaveState({ ...state, targetLayersMaster: updated });
+    setEditingTargetLayerIdx(null);
+  };
+
+  const handleDeleteGlueBrand = (brand: string) => {
+    setConfirmModal({
+      isOpen: true, title: 'Remove Glue Brand',
+      message: `Are you sure you want to remove ${brand} from the master list?`,
+      confirmLabel: 'Remove',
+      
+      onConfirm: () => {
+        const updated = glueBrandsList.filter(b => b !== brand);
+        setGlueBrandsList(updated);
+        onSaveState({ ...state, glueBrands: updated });
+        setConfirmModal(null);
+      }
+    });
+  };
+
+  const handleAddTargetLayer = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseInt(newTargetLayerInput);
+    if (isNaN(val) || val <= 0) return;
+    if (targetLayersList.includes(val)) return;
+    const updated = [...targetLayersList, val].sort((a,b) => a-b);
+    setTargetLayersList(updated);
+    onSaveState({ ...state, targetLayersMaster: updated });
+    setNewTargetLayerInput('');
+    showToast(`✅ Layer "${val}" added!`);
+  };
+  const handleDeleteTargetLayer = (val: number) => {
+    setConfirmModal({
+      isOpen: true, title: 'Remove Target Layer',
+      message: `Are you sure you want to remove ${val} Layers from the master list?`,
+      confirmLabel: 'Remove',
+      
+      onConfirm: () => {
+        const updated = targetLayersList.filter(b => b !== val);
+        setTargetLayersList(updated);
+        onSaveState({ ...state, targetLayersMaster: updated });
+        setConfirmModal(null);
+      }
+    });
+  };
+
+
+  const handleAddScrapLimit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newScrapLimitInput.trim()) return;
+    const val = Number(newScrapLimitInput);
+    if (isNaN(val)) return;
+    if (scrapLimitsList.includes(val)) return alert('Already exists');
+    onSaveState({
+      ...state,
+      scrapLimitsMaster: [...scrapLimitsList, val].sort((a,b) => a-b)
+    });
+    setNewScrapLimitInput('');
+  };
+
+  const handleDeleteScrapLimit = (val: number) => {
+    setConfirmModal({
+      isOpen: true, title: 'Remove Scrap Limit',
+      message: `Remove standard scrap limit ${val}%?`,
+      confirmLabel: 'Remove',
+      
+      onConfirm: () => {
+        onSaveState({
+          ...state,
+          scrapLimitsMaster: scrapLimitsList.filter((s) => s !== val)
+        });
+        setConfirmModal(null);
+      }
+    });
+  };
+
+  const handleAddTolerance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newToleranceInput.trim()) return;
+    const val = Number(newToleranceInput);
+    if (isNaN(val)) return;
+    if (scrapToleranceKgList.includes(val)) return alert('Already exists');
+    onSaveState({
+      ...state,
+      scrapToleranceKgMaster: [...scrapToleranceKgList, val].sort((a,b) => a-b)
+    });
+    setNewToleranceInput('');
+  };
+
+  const handleDeleteTolerance = (val: number) => {
+    setConfirmModal({
+      isOpen: true, title: 'Remove Tolerance Limit',
+      message: `Remove paper scrap tolerance limit ${val} KG?`,
+      confirmLabel: 'Remove',
+      
+      onConfirm: () => {
+        onSaveState({
+          ...state,
+          scrapToleranceKgMaster: scrapToleranceKgList.filter((s) => s !== val)
+        });
+        setConfirmModal(null);
+      }
+    });
+  };
+  const handleAddTargetGsm = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newTargetGsmInput.trim().toUpperCase();
+    if (!cleanName) return;
+    if (targetGsmList.includes(cleanName)) return;
+    const updated = [...targetGsmList, cleanName];
+    setTargetGsmList(updated);
+    onSaveState({ ...state, targetGsmMaster: updated });
+    setNewTargetGsmInput('');
+    showToast(`✅ GSM "${cleanName}" added!`);
+  };
+  const handleDeleteTargetGsm = (brand: string) => {
+    if(confirm(`Remove ${brand}?`)) {
+      const updated = targetGsmList.filter(b => b !== brand);
+      setTargetGsmList(updated);
+      onSaveState({ ...state, targetGsmMaster: updated });
+    }
+  };
+
   const handleResetBrandsToDefault = () => {
     setConfirmModal({
       isOpen: true,
@@ -990,7 +1473,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
           stage: 'Admin Master',
           machine: 'ADMIN-ZERO',
           shift: 'DAY',
-          action: '⚡ All Factory Data Reset to 0 for Clean Testing (पूरा डेटा 0 किया गया)',
+          action: '⚡ All Factory Data Reset to 0 for Clean Testing',
           worker: 'ADMIN',
           user: 'admin',
           rawDate: new Date().toISOString().split('T')[0],
@@ -1011,9 +1494,9 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   const promptZeroAllData = () => {
     setConfirmModal({
       isOpen: true,
-      title: '⚡ Zero All Operational Data (पूरा डेटा 0 करें)',
+      title: '⚡ Zero All Operational Data',
       message: 'Are you sure you want to wipe all production jobs, customer packing orders, and logs to 0? This lets you test from a fresh beginning. User accounts, custom products, and paper mills will NOT be deleted.',
-      confirmLabel: 'Yes, Reset All to 0 (डेटा 0 करें)',
+      confirmLabel: 'Yes, Reset All to 0',
       isDanger: true,
       onConfirm: () => {
         executeZeroAllData();
@@ -1106,7 +1589,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     );
     const slitOps = Array.from(new Set(slitLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Ramesh Patel (Slit)';
     const slitRollsProduced = slitLogs.reduce((acc, l) => {
-      const m = l.action?.match(/(\d+)\s*(Rolls|रील)/i);
+      const m = l.action?.match(/(\d+)\s*(Rolls)/i);
       return acc + (m ? parseInt(m[1], 10) : 0);
     }, 0) || state.jobs.reduce((s, j) => s + (j.availableRolls || 0), 0);
 
@@ -1129,7 +1612,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
       const mLogs = formLogs.filter((l) => l.machine === m);
       const op = Array.from(new Set(mLogs.map((l) => l.worker).filter(Boolean))).join(', ') || 'Operator Assigned';
       const crates = mLogs.reduce((acc, l) => {
-        const match = l.action?.match(/(\d+)\s*(Crates|crates|क्रेट)/i);
+        const match = l.action?.match(/(\d+)\s*(Crates|crates|Crate)/i);
         return acc + (match ? parseInt(match[1], 10) : 0);
       }, 0);
       return `• ${m}: Op: *${op}* | Out: ${crates > 0 ? `${crates} Crates` : 'Active Run'}`;
@@ -1354,7 +1837,11 @@ ${formLines.join('\n')}
     { key: 'Cutting', label: '✂️ Cutting Desk (Stage 2)', desc: 'Slit rolls to cut crates' },
     { key: 'Forming', label: '⚙️ Forming Desk (Stage 3)', desc: 'Hydraulic moulding & pressing' },
     { key: 'QC', label: '🔍 QC Inspection Desk (Stage 4)', desc: 'Formed crates quality check & scrap' },
+    { key: 'Manpower', label: '👷‍♂️ Floor Manpower Desk', desc: 'Operator & Helper Roster' },
+    { key: 'Manpower', label: '👷‍♂️ Floor Manpower Desk', desc: 'Operator & Helper Roster' },
     { key: 'Packing', label: '📦 Packing Desk (Stage 5)', desc: 'Kit assembly & box packaging' },
+    { key: 'Planning', label: '📅 Planning Desk (PPC)', desc: 'Production Plans, Target Layers, Mother Reels & Glue Brands' },
+    { key: 'Planning', label: '📅 Planning Desk (PPC)', desc: 'Production Plans, Target Layers, Mother Reels & Glue Brands' },
     { key: 'Maintenance', label: '🛠️ Maintenance Desk (Full Control)', desc: 'Machine breakdowns, spare parts, logs & ready handover' },
     { key: 'Mnt_LogIncident', label: '🚨 Log Machine Breakdown / Down', desc: 'Can report machine breakdowns and stoppage reasons' },
     { key: 'Mnt_AssignTech', label: '👨‍🔧 Assign Technician & Priority', desc: 'Can assign maintenance leads, priority, and acknowledge' },
@@ -1362,7 +1849,7 @@ ${formLines.join('\n')}
     { key: 'Mnt_SpareParts', label: '⚙️ Spare Parts Consumption & Stock', desc: 'Can record replacement parts and adjust inventory' },
     { key: 'Mnt_Preventative', label: '📋 Preventative Maintenance Schedules', desc: 'Can manage routine PM checklists and machine health' },
     { key: 'Mnt_RCA', label: '📊 Root Cause Analysis (RCA) & Audit', desc: 'Can edit failure root cause and CAPA preventive actions' },
-    { key: 'Purchase', label: '🛒 Purchase & Indent Desk', desc: 'Material Indents, Vendor POs & Incoming Goods (माल प्राप्ति)' },
+    { key: 'Purchase', label: '🛒 Purchase & Indent Desk', desc: 'Material Indents, Vendor POs & Incoming Goods' },
     { key: 'Stock', label: '📊 Raw & WIP Stock Matrix', desc: 'Real-time inventory levels' },
     { key: 'Orders', label: '📋 Orders Book & Customer Specs', desc: 'View customer orders list' },
     { key: 'Analytics', label: '📈 Scrap & Efficiency Analytics', desc: 'Output yield & machine metrics' },
@@ -1483,6 +1970,18 @@ ${formLines.join('\n')}
         </button>
 
         <button
+          onClick={() => setActiveTab('coordination_matrix')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'coordination_matrix'
+              ? 'bg-[#1a365d] text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Smartphone className="w-4 h-4 text-emerald-500" />
+          <span>📱 Coordination Matrix & Subscriptions</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('backup_restore')}
           className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'backup_restore'
@@ -1496,7 +1995,7 @@ ${formLines.join('\n')}
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 0: BRAND ITEMS & PAPER MILL MASTER (ब्रांड आइटम एवं पेपर मिल मास्टर) */}
+      {/* TAB 0: BRAND ITEMS & PAPER MILL MASTER */}
       {/* ========================================================================= */}
       {activeTab === 'brand_items_paper' && (
         <div className="space-y-6">
@@ -1508,7 +2007,7 @@ ${formLines.join('\n')}
               </div>
               <div>
                 <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide m-0">
-                  Zero Data & Clean Setup (डेटा 0 करें)
+                  Zero Data & Clean Setup
                 </h4>
                 <p className="text-[11px] text-amber-800 m-0">
                   Need to start fresh testing? Wipe active jobs, batches & logs to 0 while keeping your custom brands and user logins intact.
@@ -1530,7 +2029,7 @@ ${formLines.join('\n')}
                 className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Reset All Data to 0 (डेटा 0 करें)</span>
+                <span>Reset All Data to 0</span>
               </button>
             </div>
           </div>
@@ -1540,7 +2039,7 @@ ${formLines.join('\n')}
             <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
-                  <span>📜 Paper Mill / Supplier Brands (पेपर मिल / ब्रांड लिस्ट)</span>
+                  <span>📜 Paper Mill / Supplier Brands</span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black">
                     {paperBrandsList.length} Brands
                   </span>
@@ -1643,7 +2142,7 @@ ${formLines.join('\n')}
             <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
-                  <span>🍽️ Brand Cutlery Items & Products (कटलरी उत्पाद प्रबंधन)</span>
+                  <span>🍽️ Brand Cutlery Items & Products</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
                     {productsList.length} Products
                   </span>
@@ -1777,7 +2276,7 @@ ${formLines.join('\n')}
                                 value={editingProductSeq}
                                 onChange={(e) => setEditingProductSeq(e.target.value)}
                                 className="px-2 py-1 text-xs font-mono font-bold border border-blue-400 rounded-lg outline-none w-20 bg-white"
-                                title="Edit Next Sequence Counter (उदा. 1, 2, 3...)"
+                                title="Edit Next Sequence Counter (e.g. 1, 2, 3...)"
                               />
                             </div>
                           ) : (
@@ -1842,11 +2341,196 @@ ${formLines.join('\n')}
               </table>
             </div>
           </div>
+
+          {/* Section 3: Glue Brands */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
+                  <span>💧 Adhesive / Glue Brands</span>
+                </h4>
+              </div>
+            </div>
+            <form onSubmit={handleAddGlueBrand} className="flex items-center gap-2 max-w-xl">
+              <input
+                type="text"
+                value={newGlueBrandInput}
+                onChange={(e) => setNewGlueBrandInput(e.target.value)}
+                placeholder="Enter Glue Brand"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none uppercase"
+              />
+              <button type="submit" className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white rounded-xl text-xs font-extrabold">Add Glue</button>
+            </form>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {glueBrandsList.map((brand, idx) => (
+                <div key={brand} className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                  {editingGlueBrandIdx === idx ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={editingGlueBrandName}
+                        onChange={(e) => setEditingGlueBrandName(e.target.value)}
+                        className="px-2 py-1 text-xs border border-blue-400 rounded outline-none w-24"
+                        autoFocus
+                      />
+                      <button type="button" onClick={() => handleSaveEditGlueBrand(idx)} className="text-green-600 hover:text-green-800"><Check className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => setEditingGlueBrandIdx(null)} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <span>{brand}</span>
+                      <div className="flex items-center gap-1 ml-2 border-l border-slate-300 pl-2">
+                        <button type="button" onClick={() => { setEditingGlueBrandIdx(idx); setEditingGlueBrandName(brand); }} className="text-blue-500 hover:text-blue-700" title="Edit"><Edit className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => handleDeleteGlueBrand(brand)} className="text-rose-500 hover:text-rose-700 font-bold" title="Delete">×</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Target Layers */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
+                  <span>📚 Target Layers Master</span>
+                </h4>
+              </div>
+            </div>
+            <form onSubmit={handleAddTargetLayer} className="flex items-center gap-2 max-w-xl">
+              <input
+                type="number"
+                value={newTargetLayerInput}
+                onChange={(e) => setNewTargetLayerInput(e.target.value)}
+                placeholder="Enter Layer (e.g. 4, 6, 8)"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none"
+              />
+              <button type="submit" className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white rounded-xl text-xs font-extrabold">Add Layer</button>
+            </form>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {targetLayersList.map((val, idx) => (
+                <div key={val} className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                  {editingTargetLayerIdx === idx ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={editingTargetLayerVal}
+                        onChange={(e) => setEditingTargetLayerVal(e.target.value)}
+                        className="px-2 py-1 text-xs border border-blue-400 rounded outline-none w-16"
+                        autoFocus
+                      />
+                      <button type="button" onClick={() => handleSaveEditTargetLayer(idx)} className="text-green-600 hover:text-green-800"><Check className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => setEditingTargetLayerIdx(null)} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <span>{val} Layers</span>
+                      <div className="flex items-center gap-1 ml-2 border-l border-slate-300 pl-2">
+                        <button type="button" onClick={() => { setEditingTargetLayerIdx(idx); setEditingTargetLayerVal(val.toString()); }} className="text-blue-500 hover:text-blue-700" title="Edit"><Edit className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => handleDeleteTargetLayer(val)} className="text-rose-500 hover:text-rose-700 font-bold" title="Delete">×</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+
+          {/* Section 6: Scrap Limits (%) */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
+                  <span>🗑️ Standard Scrap Limit (%)</span>
+                </h4>
+              </div>
+            </div>
+            <form onSubmit={handleAddScrapLimit} className="flex items-center gap-2 max-w-xl">
+              <input
+                type="number"
+                step="0.1"
+                value={newScrapLimitInput}
+                onChange={(e) => setNewScrapLimitInput(e.target.value)}
+                placeholder="Enter Limit % (e.g. 2.5)"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none uppercase"
+              />
+              <button type="submit" className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white rounded-xl text-xs font-extrabold">Add Limit %</button>
+            </form>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {scrapLimitsList.map((val) => (
+                <div key={val} className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                  {val}%
+                  <button type="button" onClick={() => handleDeleteScrapLimit(val)} className="text-rose-500 hover:text-rose-700 font-bold ml-2">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 7: Scrap Tolerance (KG) */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
+                  <span>⚖️ Paper Scrap Tolerance Limit (KG)</span>
+                </h4>
+              </div>
+            </div>
+            <form onSubmit={handleAddTolerance} className="flex items-center gap-2 max-w-xl">
+              <input
+                type="number"
+                value={newToleranceInput}
+                onChange={(e) => setNewToleranceInput(e.target.value)}
+                placeholder="Enter Tolerance KG (e.g. 15)"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none uppercase"
+              />
+              <button type="submit" className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white rounded-xl text-xs font-extrabold">Add Tolerance</button>
+            </form>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {scrapToleranceKgList.map((val) => (
+                <div key={val} className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                  {val} KG
+                  <button type="button" onClick={() => handleDeleteTolerance(val)} className="text-rose-500 hover:text-rose-700 font-bold ml-2">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Section 5: Target GSM */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0 flex items-center gap-2">
+                  <span>⚖️ Target GSM Master</span>
+                </h4>
+              </div>
+            </div>
+            <form onSubmit={handleAddTargetGsm} className="flex items-center gap-2 max-w-xl">
+              <input
+                type="text"
+                value={newTargetGsmInput}
+                onChange={(e) => setNewTargetGsmInput(e.target.value)}
+                placeholder="Enter GSM (e.g. 280 GSM)"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none uppercase"
+              />
+              <button type="submit" className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white rounded-xl text-xs font-extrabold">Add GSM</button>
+            </form>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {targetGsmList.map((val) => (
+                <div key={val} className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                  {val}
+                  <button type="button" onClick={() => handleDeleteTargetGsm(val)} className="text-rose-500 hover:text-rose-700 font-bold ml-2">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 0.5: CRATE CAPACITY MASTER (क्रेट कैपेसिटी एवं वॉल्यूम फैलाव मास्टर) */}
+      {/* TAB 0.5: CRATE CAPACITY MASTER (Crate Capacity & Volume Expansion Master) */}
       {/* ========================================================================= */}
       {activeTab === 'crate_master' && (
         <div className="space-y-6">
@@ -1858,11 +2542,11 @@ ${formLines.join('\n')}
                   <Box className="w-5 h-5" />
                 </span>
                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide m-0">
-                  Crate Capacity Master & Volume Expansion (क्रेट कैपेसिटी एवं 3D फैलाव मास्टर)
+                  Crate Capacity Master & Volume Expansion
                 </h4>
               </div>
               <p className="text-xs text-slate-500 mt-1 m-0">
-                🔐 <strong>Admin Exclusive Control:</strong> सेट करें कि प्रत्येक क्रेट में कटिंग (Flat Blanks) और फॉर्मिंग (3D Molded) के कितने नंग आते हैं।
+                🔐 <strong>Admin Exclusive Control:</strong> Set how many pieces of Cutting (Flat Blanks) and Forming (3D Molded) come in each Crate.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1873,7 +2557,7 @@ ${formLines.join('\n')}
                 title="Restore default factory capacities"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Defaults (डिफ़ॉल्ट)</span>
+                <span>Reset Defaults</span>
               </button>
               <button
                 type="button"
@@ -1881,7 +2565,7 @@ ${formLines.join('\n')}
                 className="px-4 py-2 bg-[#2b6cb0] hover:bg-[#1a365d] text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>Save Master Matrix (मास्टर सेव)</span>
+                <span>Save Master Matrix</span>
               </button>
             </div>
           </div>
@@ -1894,31 +2578,31 @@ ${formLines.join('\n')}
               </span>
               <div className="space-y-2 text-xs text-slate-700">
                 <h5 className="font-extrabold text-indigo-950 text-xs uppercase tracking-wide m-0">
-                  Physical Manufacturing Law: Flat Blanks vs. 3D Molded Volume Expansion (वॉल्यूम विस्तार सिद्धांत)
+                  Physical Manufacturing Law: Flat Blanks vs. 3D Molded Volume Expansion
                 </h5>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                   <div className="bg-white/80 border border-blue-200 p-2.5 rounded-xl">
                     <span className="font-black text-blue-900 block mb-1">
-                      ✂️ 1. कटिंग (Flat Blanks)
+                      ✂️ 1. Cutting (Flat Blanks)
                     </span>
                     <p className="text-[11px] text-slate-600 m-0">
-                      कागज पूरी तरह सपाट रहता है। स्टैकिंग घनी होती है, इसलिए क्रेट में अधिक नंग आते हैं (उदा. Spoon: <strong>10,000 Pcs/Crate</strong>)।
+                      Paper remains completely flat. Stacking is dense, so more Pieces fit in a Crate (e.g. Spoon: <strong>10,000 Pcs/Crate</strong>).
                     </p>
                   </div>
                   <div className="bg-white/80 border border-indigo-200 p-2.5 rounded-xl">
                     <span className="font-black text-indigo-900 block mb-1">
-                      ⚙️ 2. फॉर्मिंग (3D Curved Shape)
+                      ⚙️ 2. Forming (3D Curved Shape)
                     </span>
                     <p className="text-[11px] text-slate-600 m-0">
-                      मोल्डिंग से गहराई (Depth/Curve) आ जाती है जिससे प्रत्येक पीस का आयतन बढ़ जाता है। क्रेट में कम नंग आते हैं (उदा. Spoon: <strong>7,000 Pcs/Crate</strong>)।
+                      Molding adds depth (Depth/Curve) increasing the volume of each piece. Fewer Pieces fit in a Crate (e.g. Spoon: <strong>7,000 Pcs/Crate</strong>).
                     </p>
                   </div>
                   <div className="bg-white/80 border border-emerald-200 p-2.5 rounded-xl">
                     <span className="font-black text-emerald-900 block mb-1">
-                      🔍 3. QC लॉकिंग (Strict 1:1)
+                      🔍 3. QC Locking (Strict 1:1)
                     </span>
                     <p className="text-[11px] text-slate-600 m-0">
-                      फॉर्मिंग के बाद कोई आकार नहीं बदलता। इसलिए QC में 1:1 क्रेट लॉकिंग रहती है (<strong>15 Formed Crates In = 15 QC Crates Max</strong>)।
+                      No shape changes after forming. So 1:1 Crate locking remains in QC (<strong>15 Formed Crates In = 15 QC Crates Max</strong>).
                     </p>
                   </div>
                 </div>
@@ -1930,7 +2614,7 @@ ${formLines.join('\n')}
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                Standard Crate Capacity per Product (उत्पादवार क्रेट मानक तालिका)
+                Standard Crate Capacity per Product
               </span>
               <span className="text-[11px] font-bold text-slate-500">
                 Formula: Total Pieces = Full Crates × Pcs/Crate + Loose Pcs
@@ -1940,7 +2624,7 @@ ${formLines.join('\n')}
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100/75 text-slate-700 font-extrabold uppercase border-b border-slate-200 text-[11px]">
-                    <th className="py-3 px-4">Product Name (उत्पाद)</th>
+                    <th className="py-3 px-4">Product Name</th>
                     <th className="py-3 px-4 text-blue-800">
                       ✂️ Cutting Capacity (Flat Pcs/Crate)
                     </th>
@@ -1948,7 +2632,7 @@ ${formLines.join('\n')}
                       ⚙️ Forming Capacity (3D Pcs/Crate)
                     </th>
                     <th className="py-3 px-4 text-amber-800">
-                      📈 Crate Expansion Ratio (वॉल्यूम फैलाव)
+                      📈 Crate Expansion Ratio
                     </th>
                     <th className="py-3 px-4 text-slate-700">
                       Simulation (15 Cut Crates)
@@ -2054,7 +2738,7 @@ ${formLines.join('\n')}
           {/* Add / Override Custom Product Crate Capacity */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
             <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide m-0">
-              ➕ Add / Update Crate Capacity for Another Product (नया उत्पाद क्रेट मानक जोड़ें)
+              ➕ Add / Update Crate Capacity for Another Product (Add New Product Crate Standard)
             </h5>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
@@ -2115,14 +2799,14 @@ ${formLines.join('\n')}
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: USER ACCOUNTS & PERMISSIONS (यूज़र आईडी एवं अधिकार प्रबंधन) */}
+      {/* TAB 1: USER ACCOUNTS & PERMISSIONS (User ID & Access Management) */}
       {/* ========================================================================= */}
       {activeTab === 'users' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-                User Accounts & Access Rights (यूज़र प्रबंधन व अधिकार)
+                User Accounts & Access Rights (User Management & Access Rights)
               </h4>
               <p className="text-xs text-slate-500 m-0">
                 Set individual passwords, module rights and permissions for each operator / department
@@ -2251,7 +2935,7 @@ ${formLines.join('\n')}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-extrabold text-slate-800 uppercase">
-                    Grant Module Access Rights (अधिकार चेकबॉक्स):
+                    Grant Module Access Rights (Rights Checkbox):
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -2313,7 +2997,7 @@ ${formLines.join('\n')}
           {/* Department Workers Master List */}
           <div className="border-t border-slate-200 pt-4 space-y-3">
             <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide m-0">
-              Department Operators & Workers Master (मशीन ऑपरेटर सूची)
+              Department Operators & Workers Master (Machine Operators List)
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
@@ -2376,14 +3060,14 @@ ${formLines.join('\n')}
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: 100% MASTER DATA OVERWRITE (जॉब, बैच, क्वालिटी, ऑर्डर व लॉग सुधार) */}
+      {/* TAB 2: 100% MASTER DATA OVERWRITE (Job, Batch, Quality, Order & Log Correction) */}
       {/* ========================================================================= */}
       {activeTab === 'master_data' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
             <div>
               <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-                100% Master Data Correction & Overwrite (मास्टर डाटा सुधार)
+                100% Master Data Correction & Overwrite (Master Data Correction)
               </h4>
               <p className="text-xs text-slate-500 m-0">
                 Admin full authority: Correct Job IDs, Item IDs, Stock counts, Running Batches, Customer Orders & Logs
@@ -2391,6 +3075,15 @@ ${formLines.join('\n')}
             </div>
             {/* Sub-tabs */}
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setMasterSubTab('plans')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  masterSubTab === 'plans' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                PPC / Planning Master
+              </button>
               <button
                 type="button"
                 onClick={() => setMasterSubTab('jobs')}
@@ -2461,7 +3154,7 @@ ${formLines.join('\n')}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-blue-900 uppercase mb-1">
-                        Job ID (जॉब नंबर):
+                        Job ID (Job Number):
                       </label>
                       <input
                         type="text"
@@ -2472,7 +3165,7 @@ ${formLines.join('\n')}
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                        Product Item (आइटम प्रकार):
+                        Product Item (Item Type):
                       </label>
                       <select
                         value={jobEditForm.product}
@@ -2507,13 +3200,13 @@ ${formLines.join('\n')}
                   {/* Reel Traceability & Weight Scrap Inputs */}
                   <div className="border border-blue-200 rounded-xl p-3 bg-blue-50/40 space-y-2">
                     <label className="text-xs font-extrabold text-blue-900 uppercase block flex items-center justify-between">
-                      <span>🎯 Reel Traceability & Jumbo Weights (रील नंबर व वजन सुधारें):</span>
+                      <span>🎯 Reel Traceability & Jumbo Weights (Correct Reel Number & Weight):</span>
                       <span className="text-[11px] font-bold text-purple-700">Admin Master Edit</span>
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-blue-800 uppercase mb-1">
-                          Reel No. (रील नंबर):
+                          Reel No. (Reel Number):
                         </label>
                         <input
                           type="text"
@@ -2593,7 +3286,7 @@ ${formLines.join('\n')}
                   {/* Stock balances editor */}
                   <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
                     <label className="text-xs font-extrabold text-slate-800 uppercase block">
-                      Direct Stage Stock Balances Overwrite (स्टॉक बैलेंस सीधा सुधारें):
+                      Direct Stage Stock Balances Overwrite (Correct Stock Balances Directly):
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
@@ -2655,7 +3348,7 @@ ${formLines.join('\n')}
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-extrabold text-amber-900 uppercase flex items-center gap-1.5">
                           <Box className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Crate Packing & Piece Counts (नंग) Overrides:</span>
+                          <span>Crate Packing & Piece Counts (Pieces) Overrides:</span>
                         </label>
                         <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded">
                           Job-Specific Override
@@ -2987,6 +3680,244 @@ ${formLines.join('\n')}
           {/* ------------------------------------------------------------- */}
           {/* SUB-TAB C: AUDIT LOGS OVERWRITE */}
           {/* ------------------------------------------------------------- */}
+
+          {/* ------------------------------------------------------------- */}
+          {/* SUB-TAB D: PPC / PLANNING MASTER OVERWRITE */}
+          {/* ------------------------------------------------------------- */}
+          {masterSubTab === 'plans' && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Select Production Plan to Edit / Overwrite:
+                  </label>
+                  <select
+                    value={selectedPlanIdToEdit}
+                    onChange={(e) => handleSelectPlanToEdit(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                  >
+                    {(state.productionPlans || []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.id} - {p.product} (Job: {p.jobId}) - Status: {p.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {planEditForm && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePlan(planEditForm.id)}
+                    className="mt-4 px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 font-extrabold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Plan
+                  </button>
+                )}
+              </div>
+
+              {planEditForm ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-2xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-blue-900 uppercase mb-1">
+                        Plan ID:
+                      </label>
+                      <input
+                        type="text"
+                        value={planEditForm.id}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, id: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-blue-300 rounded-lg text-xs font-bold text-slate-800 bg-blue-50/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Job ID (Linked Job):
+                      </label>
+                      <input
+                        type="text"
+                        value={planEditForm.jobId}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, jobId: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Plan Status:
+                      </label>
+                      <select
+                        value={planEditForm.status}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, status: e.target.value as any })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      >
+                        <option value="Scheduled">Scheduled (PLANNED)</option>
+                        <option value="In-Progress">In-Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Product:
+                      </label>
+                      <select
+                        value={planEditForm.product}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, product: e.target.value as any })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      >
+                        {productsList.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Layers:</label>
+                      <input
+                        type="number"
+                        value={planEditForm.targetLayers || 0}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, targetLayers: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Length (M):</label>
+                      <input
+                        type="number"
+                        value={planEditForm.targetLengthMeters || 0}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, targetLengthMeters: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target GSM:</label>
+                      <input
+                        type="text"
+                        value={planEditForm.targetGsm || ''}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, targetGsm: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Paper Brand:</label>
+                      <input
+                        type="text"
+                        value={planEditForm.paperBrand || ''}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, paperBrand: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Glue Brand:</label>
+                      <input
+                        type="text"
+                        value={planEditForm.adhesiveBrand || ''}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, adhesiveBrand: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Scrap Limit (%):</label>
+                      <input
+                        type="number"
+                        step={0.1}
+                        value={planEditForm.targetScrapLimitPct || 0}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, targetScrapLimitPct: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Qty (Pcs):</label>
+                      <input
+                        type="number"
+                        value={planEditForm.targetQuantity || 0}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, targetQuantity: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="adminPrintedRollRequired"
+                        checked={planEditForm.printedRollRequired || false}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, printedRollRequired: e.target.checked })}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                      />
+                      <label htmlFor="adminPrintedRollRequired" className="text-xs font-extrabold text-slate-700 uppercase cursor-pointer">
+                        Requires Printed Roll?
+                      </label>
+                    </div>
+                    {planEditForm.printedRollRequired && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Printed Brand / Design Name</label>
+                          <input
+                            type="text"
+                            value={planEditForm.printedRollDesign || ''}
+                            onChange={(e) => setPlanEditForm({ ...planEditForm, printedRollDesign: e.target.value })}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-bold text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Printed Layers</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={planEditForm.printedLayersCount || 2}
+                            onChange={(e) => setPlanEditForm({ 
+                              ...planEditForm, 
+                              printedLayersCount: Number(e.target.value),
+                              plainLayersCount: planEditForm.targetLayers - Number(e.target.value) 
+                            })}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-bold text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Plain Layers</label>
+                          <input
+                            type="number"
+                            disabled
+                            value={planEditForm.plainLayersCount || (planEditForm.targetLayers - (planEditForm.printedLayersCount || 2))}
+                            className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-500 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Allocated Machine:</label>
+                      <input
+                        type="text"
+                        value={planEditForm.assignedMachine || ''}
+                        onChange={(e) => setPlanEditForm({ ...planEditForm, assignedMachine: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={handleSavePlanEdit}
+                      className="px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
+                    >
+                      <Save className="w-4 h-4" /> Save Master Changes
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 text-center py-6">Select a Production Plan above to edit</div>
+              )}
+            </div>
+          )}
           {masterSubTab === 'logs' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -3092,14 +4023,14 @@ ${formLines.join('\n')}
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: WHATSAPP BACKUP & LIVE AUTO-REPORTING (व्हाट्सएप बैकअप) */}
+      {/* TAB 3: WHATSAPP BACKUP & LIVE AUTO-REPORTING (WhatsApp Backup) */}
       {/* ========================================================================= */}
       {activeTab === 'whatsapp' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-                WhatsApp Live Shift Changeover & Machine Reports (व्हाट्सएप शिफ्ट चेंजओवर रिपोर्ट)
+                WhatsApp Live Shift Changeover & Machine Reports (WhatsApp Shift Changeover Reports)
               </h4>
               <p className="text-xs text-slate-500 m-0">
                 Daily Shift Changeover hone ke baad all machines ke short reports with Operator names WhatsApp par auto/manual bhejein.
@@ -3170,7 +4101,7 @@ ${formLines.join('\n')}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <h5 className="text-xs font-black text-slate-900 uppercase m-0 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-blue-600" />
-                    Shift Changeover Auto Timing Settings (समय कस्टमाइज़)
+                    Shift Changeover Auto Timing Settings (Customize Timing)
                   </h5>
                   <span className="text-[10px] bg-blue-100 text-blue-800 font-extrabold px-2 py-0.5 rounded">
                     Day & Night Separate
@@ -3332,14 +4263,14 @@ ${formLines.join('\n')}
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 8: MAINTENANCE DESK MASTER & RIGHTS (मेंटेनेंस डेस्क मास्टर व राइट्स) */}
+      {/* TAB 8: MAINTENANCE DESK MASTER & RIGHTS (Maintenance Desk Master & Rights) */}
       {/* ========================================================================= */}
       {activeTab === 'maintenance_master' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
-                🔧 Maintenance Desk Master & Rights Suite (मेंटेनेंस डेस्क मास्टर एवं राइट्स)
+                🔧 Maintenance Desk Master & Rights Suite (Maintenance Desk Master & Rights Suite)
               </h4>
               <p className="text-xs text-slate-500 m-0">
                 Admin controls for Maintenance Desk permissions, technician directory, spare parts catalogue, and roll yield limits.
@@ -3504,7 +4435,7 @@ ${formLines.join('\n')}
               <div className="pt-2 border-t border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-slate-900 uppercase">
-                    Slitting: Roll to Pcs Setting (रील से पीस लिमिट)
+                    Slitting: Roll to Pcs Setting (Roll to Pcs Limit)
                   </span>
                   <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-1.5 py-0.5 rounded">
                     Admin Config
@@ -3811,6 +4742,448 @@ ${formLines.join('\n')}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 6: DEPARTMENT HEADS COORDINATION MATRIX & AUTO-ALERT RECIPIENTS */}
+      {/* ========================================================================= */}
+      {activeTab === 'coordination_matrix' && (
+        <div className="space-y-6" id="coordination-matrix-tab">
+          <div className="flex items-center justify-between flex-wrap gap-4 pb-3 border-b border-slate-200">
+            <div>
+              <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide m-0">
+                Department Heads Coordination Matrix & Auto-Alert Subscriptions
+              </h4>
+              <p className="text-xs text-slate-500 m-0">
+                Configure WhatsApp routing paths, mobile numbers, and subscribed alert categories for automated notifications.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                isAdmin 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                  : 'bg-amber-50 text-amber-700 border-amber-300'
+              }`}>
+                {isAdmin ? '🛡️ ADMIN EDIT MODE' : '👁️ VIEW-ONLY FLOOR MODE'}
+              </span>
+            </div>
+          </div>
+
+          {!isAdmin && (
+            <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h5 className="text-xs font-bold text-amber-900 m-0">Read-Only Mode Active</h5>
+                <p className="text-[11px] text-amber-700 mt-0.5 m-0">
+                  Editing or updating the coordination matrix is restricted to authorized Administrators. Supervisors and operators have view-only access.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Table Card */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h5 className="text-xs font-black text-slate-700 uppercase m-0">Subscribed Recipients Directory</h5>
+              <span className="text-[10px] text-slate-500 font-bold">{coordinationMatrixList.length} Contacts Listed</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/75 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">
+                    <th className="py-3 px-4">Role / Department</th>
+                    <th className="py-3 px-4">Contact Name</th>
+                    <th className="py-3 px-4">WhatsApp Phone</th>
+                    <th className="py-3 px-4">Subscribed Alert Categories</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-xs">
+                  {coordinationMatrixList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                        No contacts configured. Use the form below to add department heads.
+                      </td>
+                    </tr>
+                  ) : (
+                    coordinationMatrixList.map((item, idx) => {
+                      const isEditing = editingItemIdx === idx;
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition">
+                          {isEditing && editingItem ? (
+                            <>
+                              {/* Inline Editing Mode */}
+                              <td className="py-3 px-4">
+                                <input
+                                  type="text"
+                                  value={editingItem.roleName}
+                                  onChange={(e) => setEditingItem({ ...editingItem, roleName: e.target.value })}
+                                  placeholder="e.g. Electrical Breakdown Head"
+                                  className="px-2 py-1.5 border border-blue-300 bg-white text-xs font-bold rounded-lg w-full text-blue-950"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <input
+                                  type="text"
+                                  value={editingItem.contactName}
+                                  onChange={(e) => setEditingItem({ ...editingItem, contactName: e.target.value })}
+                                  placeholder="e.g. Kishan Patel"
+                                  className="px-2 py-1.5 border border-blue-300 bg-white text-xs font-bold rounded-lg w-full text-blue-950"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <input
+                                  type="text"
+                                  value={editingItem.phone}
+                                  onChange={(e) => setEditingItem({ ...editingItem, phone: e.target.value })}
+                                  placeholder="e.g. +91 98251 67890"
+                                  className="px-2 py-1.5 border border-blue-300 bg-white text-xs font-bold rounded-lg w-full text-blue-950"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-50 rounded-lg border border-slate-200 max-w-xs">
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.alertCategories.machineBreakdown}
+                                      onChange={(e) => setEditingItem({
+                                        ...editingItem,
+                                        alertCategories: { ...editingItem.alertCategories, machineBreakdown: e.target.checked }
+                                      })}
+                                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                    />
+                                    <span>Breakdown</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.alertCategories.electricalAlert}
+                                      onChange={(e) => setEditingItem({
+                                        ...editingItem,
+                                        alertCategories: { ...editingItem.alertCategories, electricalAlert: e.target.checked }
+                                      })}
+                                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                    />
+                                    <span>Electrical</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.alertCategories.productionHandover}
+                                      onChange={(e) => setEditingItem({
+                                        ...editingItem,
+                                        alertCategories: { ...editingItem.alertCategories, productionHandover: e.target.checked }
+                                      })}
+                                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                    />
+                                    <span>Handover</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.alertCategories.materialIndent}
+                                      onChange={(e) => setEditingItem({
+                                        ...editingItem,
+                                        alertCategories: { ...editingItem.alertCategories, materialIndent: e.target.checked }
+                                      })}
+                                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                    />
+                                    <span>Indent</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer col-span-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItem.alertCategories.qcFailure}
+                                      onChange={(e) => setEditingItem({
+                                        ...editingItem,
+                                        alertCategories: { ...editingItem.alertCategories, qcFailure: e.target.checked }
+                                      })}
+                                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                    />
+                                    <span>QC Failure</span>
+                                  </label>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingItem({ ...editingItem, isActive: !editingItem.isActive })}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase transition ${
+                                    editingItem.isActive
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-slate-100 text-slate-500 border-slate-300'
+                                  }`}
+                                >
+                                  {editingItem.isActive ? 'Active' : 'Inactive'}
+                                </button>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={handleSaveMatrixItem}
+                                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition cursor-pointer"
+                                    title="Save changes"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingItemIdx(null);
+                                      setEditingItem(null);
+                                    }}
+                                    className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition cursor-pointer"
+                                    title="Cancel"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              {/* Read/Display Mode */}
+                              <td className="py-3 px-4 font-black text-slate-800">
+                                {item.roleName}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-slate-600">
+                                {item.contactName}
+                              </td>
+                              <td className="py-3 px-4 font-extrabold text-blue-800">
+                                {item.phone}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex flex-wrap gap-1">
+                                  {item.alertCategories.machineBreakdown && (
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black uppercase">
+                                      Breakdown
+                                    </span>
+                                  )}
+                                  {item.alertCategories.electricalAlert && (
+                                    <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200 text-[9px] font-black uppercase">
+                                      Electrical
+                                    </span>
+                                  )}
+                                  {item.alertCategories.productionHandover && (
+                                    <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-black uppercase">
+                                      Handover
+                                    </span>
+                                  )}
+                                  {item.alertCategories.materialIndent && (
+                                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black uppercase">
+                                      Indent
+                                    </span>
+                                  )}
+                                  {item.alertCategories.qcFailure && (
+                                    <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-black uppercase">
+                                      QC Failure
+                                    </span>
+                                  )}
+                                  {!item.alertCategories.machineBreakdown &&
+                                   !item.alertCategories.electricalAlert &&
+                                   !item.alertCategories.productionHandover &&
+                                   !item.alertCategories.materialIndent &&
+                                   !item.alertCategories.qcFailure && (
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-400 border border-slate-200 text-[9px] font-medium italic">
+                                      No categories
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  disabled={!isAdmin}
+                                  onClick={() => handleToggleMatrixItemActive(idx)}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase transition ${
+                                    item.isActive
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-slate-100 text-slate-500 border-slate-300'
+                                  } ${!isAdmin ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-emerald-100'}`}
+                                >
+                                  {item.isActive ? 'Active' : 'Inactive'}
+                                </button>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTestWhatsAppAlert(item)}
+                                    className="px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg transition text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-xs"
+                                    title="Send a live test notification using WhatsApp Link"
+                                  >
+                                    <Send className="w-3 h-3" /> Test WA
+                                  </button>
+                                  {isAdmin && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditMatrixItem(idx)}
+                                        className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition cursor-pointer"
+                                        title="Edit this recipient config"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteMatrixItem(idx)}
+                                        className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition cursor-pointer"
+                                        title="Delete contact"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add New Contact Form Card (Admin Only) */}
+          {isAdmin && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                <Plus className="w-4 h-4 text-blue-600" />
+                <h5 className="text-xs font-black text-slate-800 uppercase m-0">Add New Recipient Contact to Matrix</h5>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Department / Role Name:
+                  </label>
+                  <input
+                    type="text"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    placeholder="e.g. Mechanical Breakdown Head"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none animate-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Contact Person Name:
+                  </label>
+                  <input
+                    type="text"
+                    value={newContactName}
+                    onChange={(e) => setNewContactName(e.target.value)}
+                    placeholder="e.g. Suresh Patel"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none animate-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    WhatsApp Phone Number (With Country Code):
+                  </label>
+                  <input
+                    type="text"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="e.g. +91 98250 11001"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none animate-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 m-0">
+                    Always start with country code (e.g. +91)
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wide">
+                  Subscribe Alert Categories (Check to auto-alert):
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newMachineBreakdown}
+                      onChange={(e) => setNewMachineBreakdown(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>Machine Breakdown</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newElectricalAlert}
+                      onChange={(e) => setNewElectricalAlert(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>Electrical Alert</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newProductionHandover}
+                      onChange={(e) => setNewProductionHandover(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>Production Handover</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newMaterialIndent}
+                      onChange={(e) => setNewMaterialIndent(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>Material Indent</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newQcFailure}
+                      onChange={(e) => setNewQcFailure(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>QC Failure</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-600 uppercase">Initial Status:</label>
+                  <button
+                    type="button"
+                    onClick={() => setNewIsActive(!newIsActive)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase transition ${
+                      newIsActive
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-slate-100 text-slate-500 border-slate-300'
+                    }`}
+                  >
+                    {newIsActive ? 'Active' : 'Inactive'}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddMatrixItem}
+                  className="px-5 py-2.5 bg-[#1a365d] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add Recipient to Matrix
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

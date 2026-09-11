@@ -87,10 +87,10 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
           </div>
           <div>
             <div className="text-xs font-extrabold text-emerald-950 uppercase tracking-wide">
-              सभी मशीनें सुचारू रूप से चालू हैं (All Machines Operational)
+              All Machines Operational
             </div>
             <div className="text-[11px] text-emerald-800 font-medium">
-              वर्तमान में प्लांट में कोई एक्टिव ब्रेकडाउन नहीं है। सभी मेंटेनेंस टेक्नीशियन उपलब्ध (Standby) हैं।
+              There are no active breakdowns in the plant currently. All maintenance technicians are available (Standby).
             </div>
           </div>
         </div>
@@ -114,7 +114,7 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
               🔴 Live Machine Breakdown & Technician Tracker
             </h4>
             <p className="text-[11px] text-slate-500 m-0">
-              वर्तमान में कौन सा टेक्नीशियन किस मशीन पर काम कर रहा है (Floor Live Traceability)
+              Which technician is currently working on which machine (Floor Live Traceability)
             </p>
           </div>
         </div>
@@ -180,7 +180,7 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-amber-900 font-extrabold flex items-center gap-1">
                       <User className="w-3.5 h-3.5 text-amber-700" />
-                      <span>कार्यरत: <b>{inc.technicianName}</b></span>
+                      <span>Working: <b>{inc.technicianName}</b></span>
                     </span>
                     <span className="font-mono font-bold text-amber-950">
                       ⏱️ {repairMins}m in progress
@@ -188,7 +188,7 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
                   </div>
                 ) : (
                   <div className="flex items-center justify-between text-red-800">
-                    <span className="font-bold">⚠️ कोई टेक्नीशियन नहीं पहुँचा</span>
+                    <span className="font-bold">⚠️ No Technician Arrived</span>
                     <span className="font-mono font-black text-rose-700">
                       ⏱️ {totalDownMins}m waiting
                     </span>
@@ -210,12 +210,12 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
                   {isRepairing ? (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>रिपेयर पूरा हुआ - मशीन ओके करें</span>
+                      <span>Repair Completed - Machine OK</span>
                     </>
                   ) : (
                     <>
                       <Wrench className="w-3.5 h-3.5" />
-                      <span>👨‍🔧 मैं अटेंड कर रहा हूँ (Start Repair)</span>
+                      <span>👨‍🔧 I am Attending (Start Repair)</span>
                     </>
                   )}
                 </button>
@@ -225,12 +225,12 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
         })}
       </div>
 
-      {/* Technician Roster Status (कौन फ्री है, कौन बिजी है) */}
+      {/* Technician Roster Status (Who is free, who is busy) */}
       {!compact && (
         <div className="pt-3 border-t border-slate-100">
           <div className="text-[11px] font-bold text-slate-600 uppercase mb-2 flex items-center gap-1.5">
             <User className="w-3.5 h-3.5 text-blue-600" />
-            <span>मेंटेनेंस टीम लाइव स्थिति (Technician Availability Roster):</span>
+            <span>Maintenance Team Live Status (Technician Availability Roster):</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -256,7 +256,7 @@ export const LiveMaintenanceTracker: React.FC<LiveMaintenanceTrackerProps> = ({
                   ) : (
                     <div className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>Available (उपलब्ध)</span>
+                      <span>Available</span>
                     </div>
                   )}
                 </div>

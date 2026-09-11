@@ -196,7 +196,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   const handleAddSparePart = () => {
     const finalPartName = isDirectPartInput ? directPartNameInput.trim() : newPartName.trim();
     if (!finalPartName) {
-      alert('⚠️ कृपया स्पेयर पार्ट का नाम दर्ज करें!');
+      alert('⚠️ Please enter the spare part name!');
       return;
     }
     const qty = parseInt(newPartQty) || 1;
@@ -279,7 +279,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
       logs: [newLog, ...(state.logs || [])]
     });
 
-    alert(`✅ ${technicianName} ने ${attendingModalIncident.machine} पर काम शुरू कर दिया है।\nस्थिति: "यह आदमी यहां पर काम कर रहा है" सक्रिय हो गई है।`);
+    alert(`✅ ${technicianName} has started working on ${attendingModalIncident.machine}.
+Status: "This person is working here" has been activated.`);
     setAttendingModalIncident(null);
   };
 
@@ -429,14 +430,64 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   ) => {
     const nowIso = new Date().toISOString();
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const headsListNames = deptHeads.map((h) => `${h.name} (${h.dept})`);
+
+    // Integrate Coordination Matrix routing & fallbacks
+    const matrix = state.coordinationMatrix || [];
+    const activeMatrix = matrix.length > 0 ? matrix.filter((item) => item.isActive) : [];
+    
+    let filteredMatrix = [];
+    const isElectrical = reason.toLowerCase().includes('electrical') || reason.toLowerCase().includes('sensor') || reason.toLowerCase().includes('fault') || reason.toLowerCase().includes('heater');
+    
+    if (isElectrical) {
+      filteredMatrix = activeMatrix.filter((item) => item.alertCategories.electricalAlert);
+    } else {
+      filteredMatrix = activeMatrix.filter((item) => item.alertCategories.machineBreakdown);
+    }
+
+    let recipients: MaintenanceContact[] = [];
+    if (filteredMatrix.length > 0) {
+      recipients = filteredMatrix.map((item) => ({
+        id: item.id,
+        name: item.contactName,
+        phone: item.phone,
+        role: item.roleName,
+        dept: item.roleName.toLowerCase().includes('electrical') ? 'Electrical' : 'Maintenance'
+      }));
+    } else {
+      // Fallback matching rules if no custom matrix list is matched
+      if (isElectrical) {
+        recipients = deptHeads
+          .filter((h) => h.role.toLowerCase().includes('electrical') || h.dept?.toLowerCase().includes('electrical'))
+          .map((h) => ({
+            id: h.id,
+            name: h.name,
+            phone: h.phone,
+            role: h.role,
+            dept: h.dept || 'Electrical'
+          }));
+        // If still empty fallback to the first default contact
+        if (recipients.length === 0 && deptHeads.length > 0) {
+          recipients = [deptHeads[0]];
+        }
+      } else {
+        recipients = deptHeads.map((h) => ({
+          id: h.id,
+          name: h.name,
+          phone: h.phone,
+          role: h.role,
+          dept: h.dept || 'Maintenance'
+        }));
+      }
+    }
+
+    const headsListNames = recipients.map((h) => `${h.name} (${h.dept || h.role})`);
 
     const broadcastLog: LogEntry = {
       jobId: machine,
       product: 'Workstation',
       stage: 'Cross-Dept Alert',
       machine,
-      action: `🚨 [CROSS-DEPT BROADCAST] Machine ${machine} status set to ${status.toUpperCase()}! Auto-notified all ${deptHeads.length} Department Heads (${headsListNames.join(', ')}) for immediate floor re-alignment.`,
+      action: `🚨 [CROSS-DEPT BROADCAST] Machine ${machine} status set to ${status.toUpperCase()}! Auto-notified ${recipients.length} contact(s) (${headsListNames.join(', ')}) for immediate floor re-alignment.`,
       user: reportedBy || 'Maintenance Lead',
       startTime: nowTime,
       rawDate: new Date().toISOString().split('T')[0],
@@ -451,7 +502,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
       `📋 *Reason:* ${reason}\n` +
       `👨‍🔧 *Reported By:* ${reportedBy}\n` +
       `⏰ *Time:* ${nowTime}\n\n` +
-      `📢 *ATTENTION ALL DEPARTMENT HEADS:*\n` +
+      `📢 *ATTENTION SUBSCRIBED CONTACTS:*\n` +
       `• *Slitting & Cutting:* Re-route job queues & hold matching reels feeding this line.\n` +
       `• *Forming & QC:* Check buffer stock and re-balance sister machine lines.\n` +
       `• *Packing & Dispatch:* Adjust shift dispatch targets.\n` +
@@ -466,7 +517,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
       reportedBy,
       time: nowTime,
       stage: detectedStage,
-      heads: deptHeads,
+      heads: recipients,
       waText: waBroadcastText
     };
 
@@ -1543,7 +1594,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                         >
                           <Wrench className="w-4 h-4" />
-                          <span>Attend / Start Repair (अटेंड करें)</span>
+                          <span>Attend / Start Repair</span>
                         </button>
                         <button
                           onClick={() => {
@@ -1571,7 +1622,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           </span>
                         </div>
 
-                        {/* PROMINENT ATTENDING TECHNICIAN BANNER: यह आदमी यहां पर काम कर रहा है */}
+                        {/* PROMINENT ATTENDING TECHNICIAN BANNER: This person is working here */}
                         <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-500 rounded-xl p-3 shadow-xs">
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2.5">
@@ -1583,15 +1634,15 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               </div>
                               <div>
                                 <div className="text-[10px] font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1">
-                                  <span>👨‍🔧 यह आदमी यहां पर काम कर रहा है (Active Attending):</span>
+                                  <span>👨‍🔧 This person is working here (Active Attending):</span>
                                 </div>
                                 <div className="text-sm font-black text-slate-900">
                                   {incident.technicianName || incident.attendedBy || repairTechName}
                                 </div>
                                 <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-2">
-                                  <span>काम शुरू: {incident.attendingStartedAt ? new Date(incident.attendingStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}</span>
+                                  <span>Work Started: {incident.attendingStartedAt ? new Date(incident.attendingStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}</span>
                                   {incident.attendingStartedAt && (
-                                    <span>• {Math.max(1, Math.round((Date.now() - new Date(incident.attendingStartedAt).getTime()) / 60000))} मिनट से कार्य चालू</span>
+                                    <span>• Working for {Math.max(1, Math.round((Date.now() - new Date(incident.attendingStartedAt).getTime()) / 60000))} minutes</span>
                                   )}
                                 </div>
                               </div>
@@ -1602,7 +1653,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               className="text-xs font-bold text-emerald-900 bg-white hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1.5 rounded-lg transition shadow-2xs cursor-pointer flex items-center gap-1"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
-                              <span>बदलें (Change Person)</span>
+                              <span>Change Person</span>
                             </button>
                           </div>
                         </div>
@@ -1646,7 +1697,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           <div className="flex items-center justify-between flex-wrap gap-1">
                             <span className="text-xs font-bold text-amber-950 flex items-center gap-1">
                               <Package className="w-3.5 h-3.5 text-amber-700" />
-                              <span>Spare Parts Replaced (स्पेयर पार्ट रिप्लेसमेंट):</span>
+                              <span>Spare Parts Replaced:</span>
                             </span>
                             <div className="flex items-center gap-1.5">
                               <button
@@ -1655,7 +1706,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 className="text-[10px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
                               >
                                 <Plus className="w-3 h-3" />
-                                <span>+ नया कस्टम पार्ट लिखें</span>
+                                <span>+ Enter New Custom Part</span>
                               </button>
                               <span className="text-[10px] text-amber-700 font-semibold">
                                 {sparePartsList.length} Item(s)
@@ -1703,16 +1754,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                           {/* Add Spare Part Inputs & Custom Part Buttons */}
                           <div className="pt-2 border-t border-amber-200/80 space-y-1.5">
                             <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                              <span className="text-[11px] font-bold text-amber-950">नया स्पेयर जोड़ें:</span>
+                              <span className="text-[11px] font-bold text-amber-950">Add New Spare:</span>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setIsCustomPartModalOpen(true)}
                                   className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                  title="नया स्पेयर पार्ट दर्ज करने के लिए पॉपअप खोलें"
+                                  title="Open popup to enter new spare part"
                                 >
                                   <Plus className="w-3 h-3 text-amber-700" />
-                                  <span>कस्टम पार्ट पॉप-अप</span>
+                                  <span>Custom Part Popup</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1723,7 +1774,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                       : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                                   }`}
                                 >
-                                  {isDirectPartInput ? '📋 लिस्ट से चुनें' : '✍️ सीधे नाम टाइप करें'}
+                                  {isDirectPartInput ? '📋 Choose from List' : '✍️ Type Name Directly'}
                                 </button>
                               </div>
                             </div>
@@ -1736,7 +1787,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                     autoFocus
                                     value={directPartNameInput}
                                     onChange={(e) => setDirectPartNameInput(e.target.value)}
-                                    placeholder="पार्ट का नाम टाइप करें..."
+                                    placeholder="Type part name..."
                                     className="w-full px-2 py-1.5 bg-white border-2 border-amber-400 rounded text-xs font-bold text-slate-900 outline-none"
                                   />
                                 ) : (
@@ -1751,7 +1802,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                     }}
                                     className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs text-slate-800 outline-none font-medium"
                                   >
-                                    <option value="CUSTOM_PART_POPUP">➕ नया कस्टम पार्ट लिखें (Custom Part Popup)...</option>
+                                    <option value="CUSTOM_PART_POPUP">➕ Enter New Custom Part (Popup)...</option>
                                     {availableSpareParts.map((sp) => (
                                       <option key={sp} value={sp}>
                                         {sp}
@@ -1798,7 +1849,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                                   <Clock className="w-4 h-4 text-orange-600" />
-                                  <span>Breakdown Timing & Duration Tracking (स्टार्ट / स्टॉप समय):</span>
+                                  <span>Breakdown Timing & Duration Tracking (Start / Stop Time):</span>
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-500">
                                   Live Difference Calculation
@@ -1809,7 +1860,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 {/* Breakdown Start Time Display */}
                                 <div className="bg-white border border-slate-200 p-2 rounded-lg">
                                   <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                                    Breakdown Start Time (शुरुआत का समय):
+                                    Breakdown Start Time:
                                   </span>
                                   <div className="text-xs font-black text-slate-900 mt-0.5">
                                     {new Date(incident.breakdownStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1823,7 +1874,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 <div className="bg-white border border-slate-200 p-2 rounded-lg">
                                   <div className="flex items-center justify-between mb-0.5">
                                     <span className="text-[10px] font-bold text-emerald-800 uppercase block">
-                                      Breakdown Stop Time (समाप्ति का समय):
+                                      Breakdown Stop Time:
                                     </span>
                                     <button
                                       type="button"
@@ -1857,7 +1908,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                               <div className="bg-orange-50 border border-orange-300 px-3 py-2 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
                                 <div className="font-bold text-orange-950 flex items-center gap-1.5">
                                   <Clock className="w-4 h-4 text-orange-700" />
-                                  <span>Downtime Difference (दोनों समय का अंतर):</span>
+                                  <span>Downtime Difference:</span>
                                 </div>
                                 <div className="text-orange-900 font-black text-xs bg-orange-200/90 px-2.5 py-1 rounded-md border border-orange-300">
                                   {formattedDiff} ({diffMinutes} Minutes)
@@ -1961,9 +2012,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <thead className="bg-slate-100 text-slate-800 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">Ticket / Machine</th>
-                    <th className="py-2.5 px-3">Breakdown Start (स्टार्ट समय)</th>
-                    <th className="py-2.5 px-3">Breakdown Stop (स्टॉप समय)</th>
-                    <th className="py-2.5 px-3">Difference / कुल अंतर</th>
+                    <th className="py-2.5 px-3">Breakdown Start</th>
+                    <th className="py-2.5 px-3">Breakdown Stop</th>
+                    <th className="py-2.5 px-3">Difference / Total</th>
                     <th className="py-2.5 px-3">Root Cause / Issue</th>
                     <th className="py-2.5 px-3">Action Taken</th>
                     <th className="py-2.5 px-3">Spare Parts Replaced</th>
@@ -2236,7 +2287,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
               <div>
                 <label className="block text-xs font-bold text-amber-950 uppercase mb-1 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Breakdown Start Date (तारीख):</span>
+                  <span>Breakdown Start Date:</span>
                 </label>
                 <input
                   type="date"
@@ -2249,7 +2300,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold text-amber-950 uppercase flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Breakdown Start Time (समय):</span>
+                    <span>Breakdown Start Time:</span>
                   </label>
                   <button
                     type="button"

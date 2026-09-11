@@ -282,14 +282,14 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black tracking-wide m-0">
-                  लाईव प्लांट मैनपावर व हेल्पर ट्रैकर (Live Floor Workforce Tracker)
+                  Live Floor Workforce Tracker
                 </h3>
                 <span className="text-[10px] font-extrabold bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
                   ● LIVE AUDIT
                 </span>
               </div>
               <p className="text-xs text-indigo-200 mt-0.5 m-0">
-                वर्तमान में फ्लोर पर कुल कार्यरत ऑपरेटर्स, प्रत्येक ऑपरेटर के साथ नियुक्त हेल्पर, सुपरवाइजर व मेंटेनेंस टीम
+                Total operators currently working on the floor, assigned helpers with each operator, supervisor & maintenance team
               </p>
             </div>
           </div>
@@ -300,7 +300,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <UserPlus className="w-4 h-4" />
-              <span>+ नया वर्कर / हेल्पर जोड़ें</span>
+              <span>+ Add New Worker / Helper</span>
             </button>
             <button
               onClick={generateWhatsAppAudit}
@@ -308,7 +308,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               title="WhatsApp Floor Manpower Report"
             >
               <MessageSquare className="w-4 h-4" />
-              <span>WhatsApp रिपोर्ट</span>
+              <span>WhatsApp Report</span>
             </button>
           </div>
         </div>
@@ -322,45 +322,45 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             </div>
             <div>
               <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-500 block">
-                कुल कार्यरत व्यक्ति (Total On Floor)
+                Total On Floor
               </span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-2xl font-black text-indigo-950 font-mono">{totalFloorCount}</span>
-                <span className="text-xs font-bold text-emerald-700">वर्कर एक्टिव</span>
+                <span className="text-xs font-bold text-emerald-700">Worker Active</span>
               </div>
             </div>
           </div>
 
           {/* Operators */}
           <div className="bg-white rounded-xl p-3 shadow-sm border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">ऑपरेटर्स (Operators)</span>
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Operators</span>
             <div className="flex items-baseline gap-1 mt-0.5">
               <span className="text-xl font-black text-blue-900 font-mono">{operatorCount}</span>
-              <span className="text-[11px] text-slate-400 font-bold">मशीन पर</span>
+              <span className="text-[11px] text-slate-400 font-bold">On Machine</span>
             </div>
           </div>
 
           {/* Helpers */}
           <div className="bg-white rounded-xl p-3 shadow-sm border border-amber-200 bg-amber-50/40">
-            <span className="text-[10px] uppercase font-bold text-amber-900 block">हेल्पर (Helpers)</span>
+            <span className="text-[10px] uppercase font-bold text-amber-900 block">Helpers</span>
             <div className="flex items-baseline gap-1 mt-0.5">
               <span className="text-xl font-black text-amber-950 font-mono">{helperCount}</span>
-              <span className="text-[11px] text-amber-700 font-bold">पेयर्ड</span>
+              <span className="text-[11px] text-amber-700 font-bold">Paired</span>
             </div>
           </div>
 
           {/* QC Inspectors */}
           <div className="bg-white rounded-xl p-3 shadow-sm border border-purple-200">
-            <span className="text-[10px] uppercase font-bold text-purple-900 block">क्यूसी (QC Team)</span>
+            <span className="text-[10px] uppercase font-bold text-purple-900 block">QC Team</span>
             <div className="flex items-baseline gap-1 mt-0.5">
               <span className="text-xl font-black text-purple-950 font-mono">{qcCount}</span>
-              <span className="text-[11px] text-purple-700 font-bold">इंस्पेक्टर</span>
+              <span className="text-[11px] text-purple-700 font-bold">Inspector</span>
             </div>
           </div>
 
           {/* Supervisors & Maintenance */}
           <div className="bg-white rounded-xl p-3 shadow-sm border border-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">सुपरवाइजर + मेंटेनेंस</span>
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Supervisor + Maintenance</span>
             <div className="flex items-baseline gap-1 mt-0.5">
               <span className="text-xl font-black text-slate-900 font-mono">{supervisorCount + maintenanceCount}</span>
               <span className="text-[10px] text-slate-500 font-medium">({supervisorCount} Sup / {maintenanceCount} Mnt)</span>
@@ -375,14 +375,14 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
           <div>
             <h4 className="text-sm font-black text-slate-900 uppercase tracking-wide m-0 flex items-center gap-1.5">
               <Package className="w-4 h-4 text-blue-600" />
-              <span>स्टेशनवार ऑपरेटर एवं नियुक्त हेल्पर सूची (Station-wise Operator & Helpers Allocation)</span>
+              <span>Station-wise Operator & Helpers Allocation</span>
             </h4>
             <p className="text-xs text-slate-500 mt-0.5 m-0">
-              प्रत्येक मशीन पर मुख्य ऑपरेटर और उसके साथ कार्य कर रहे हेल्परों की सटीक संख्या व नाम
+              Exact number and names of main operator and helpers working with them on each machine
             </p>
           </div>
           <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-            {Object.keys(stationMap).length} सक्रिय वर्कस्टेशन
+            {Object.keys(stationMap).length} Active Workstations
           </span>
         </div>
 
@@ -412,7 +412,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                     OP
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">मुख्य ऑपरेटर:</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Main Operator:</span>
                     <span className="font-extrabold text-slate-900">{st.operator}</span>
                   </div>
                 </div>
@@ -427,7 +427,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               <div className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-lg text-xs space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-amber-950 flex items-center gap-1 uppercase">
-                    🤝 <span>नियुक्त हेल्पर ({st.helpers.length} Helpers):</span>
+                    🤝 <span>Assigned Helpers ({st.helpers.length} Helpers):</span>
                   </span>
                   <button
                     onClick={() =>
@@ -441,13 +441,13 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                     className="text-[10px] font-bold text-blue-700 hover:text-blue-900 underline flex items-center gap-0.5 cursor-pointer"
                   >
                     <Edit2 className="w-3 h-3" />
-                    बदलें
+                    Change
                   </button>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
                   {st.helpers.length === 0 ? (
-                    <span className="text-[11px] text-slate-400 italic">कोई हेल्पर नहीं (अकेला ऑपरेटर)</span>
+                    <span className="text-[11px] text-slate-400 italic">No Helper (Single Operator)</span>
                   ) : (
                     st.helpers.map((hName, idx) => (
                       <span
@@ -471,10 +471,10 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
           <div>
             <h4 className="text-sm font-black text-slate-900 uppercase tracking-wide m-0 flex items-center gap-1.5">
               <UserCheck className="w-4 h-4 text-emerald-600" />
-              <span>फ्लोर मैनपावर हाजिरी व मास्टर रोस्टर (Workforce Attendance & Roster)</span>
+              <span>Workforce Attendance & Roster</span>
             </h4>
             <span className="text-xs text-slate-500">
-              उपस्थिति बदलने के लिए टॉगल बटन दबाएँ (Click present badge to toggle attendance)
+              Click present badge to toggle attendance
             </span>
           </div>
 
@@ -487,7 +487,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="खोजें (नाम, मशीन, ऑपरेटर)..."
+                placeholder="Search (name, machine, operator)..."
                 className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 outline-none w-48 focus:border-indigo-500"
               />
             </div>
@@ -498,7 +498,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               onChange={(e) => setSelectedDeptFilter(e.target.value)}
               className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 outline-none"
             >
-              <option value="ALL">सभी विभाग (All Depts)</option>
+              <option value="ALL">All Depts</option>
               <option value="Cutting">Cutting</option>
               <option value="Slitting">Slitting</option>
               <option value="Forming">Forming</option>
@@ -513,12 +513,12 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               onChange={(e) => setSelectedRoleFilter(e.target.value)}
               className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 outline-none"
             >
-              <option value="ALL">सभी पद (All Roles)</option>
-              <option value="OPERATOR">ऑपरेटर्स (Operators)</option>
-              <option value="HELPER">हेल्पर (Helpers)</option>
-              <option value="SUPERVISOR">सुपरवाइजर (Supervisors)</option>
-              <option value="QC_INSPECTOR">क्यूसी (QC Inspectors)</option>
-              <option value="MAINTENANCE">मेंटेनेंस (Maintenance)</option>
+              <option value="ALL">All Roles</option>
+              <option value="OPERATOR">Operators</option>
+              <option value="HELPER">Helpers</option>
+              <option value="SUPERVISOR">Supervisors</option>
+              <option value="QC_INSPECTOR">QC Inspectors</option>
+              <option value="MAINTENANCE">Maintenance</option>
             </select>
           </div>
         </div>
@@ -528,20 +528,20 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-100/80 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="p-3">कर्मचारी नाम (Worker Name)</th>
-                <th className="p-3">पद (Role)</th>
-                <th className="p-3">विभाग (Department)</th>
-                <th className="p-3">आवंटित स्टेशन / ऑपरेटर (Station / Paired Op)</th>
-                <th className="p-3">शिफ्ट (Shift)</th>
-                <th className="p-3">आने का समय (In-Time)</th>
-                <th className="p-3 text-right">उपस्थिति स्थिति (Status)</th>
+                <th className="p-3">Worker Name</th>
+                <th className="p-3">Role</th>
+                <th className="p-3">Department</th>
+                <th className="p-3">Station / Paired Op</th>
+                <th className="p-3">Shift</th>
+                <th className="p-3">In-Time</th>
+                <th className="p-3 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredWorkers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-slate-400 font-medium">
-                    कोई कर्मचारी नहीं मिला (No workers matched the filter)
+                    No workers matched the filter
                   </td>
                 </tr>
               ) : (
@@ -627,7 +627,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                             : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
                         }`}
                       >
-                        {w.isPresent ? '● उपस्थित (Present)' : '○ अनुपस्थित (Absent)'}
+                        {w.isPresent ? '● Present' : '○ Absent'}
                       </button>
                     </td>
                   </tr>
@@ -645,10 +645,10 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-sm font-black text-slate-900 uppercase tracking-wide m-0">
-                  हेल्पर असाइनमेंट ({editingStation.machine})
+                  Helper Assignment ({editingStation.machine})
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5 m-0">
-                  ऑपरेटर: <b>{editingStation.operator}</b> ({editingStation.dept})
+                  Operator: <b>{editingStation.operator}</b> ({editingStation.dept})
                 </p>
               </div>
               <button
@@ -662,11 +662,11 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  इस ऑपरेटर के साथ नियुक्त हेल्पर ({editingStation.currentHelpers.length} Helpers):
+                  Assigned Helpers with this Operator ({editingStation.currentHelpers.length} Helpers):
                 </label>
                 <div className="flex flex-wrap gap-1.5 min-h-8 p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   {editingStation.currentHelpers.length === 0 ? (
-                    <span className="text-xs text-slate-400 italic">कोई हेल्पर नहीं</span>
+                    <span className="text-xs text-slate-400 italic">No Helper</span>
                   ) : (
                     editingStation.currentHelpers.map((h) => (
                       <span
@@ -710,7 +710,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                       }
                     }
                   }}
-                  placeholder="हेल्पर का नाम लिखें (उदा. SUNIL_HELPER)..."
+                  placeholder="Write Helper Name (e.g. SUNIL_HELPER)..."
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none"
                 />
                 <button
@@ -727,14 +727,14 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                   }}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
                 >
-                  + जोड़ें
+                  + Add
                 </button>
               </div>
 
               {/* Quick Suggestions */}
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
-                  उपलब्ध हेल्पर (Quick Pick):
+                  Available Helpers (Quick Pick):
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {workers
@@ -763,14 +763,14 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                 onClick={() => setEditingStation(null)}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               >
-                रद्द करें
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSaveStationHelpers}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-lg shadow-sm transition cursor-pointer"
               >
-                सुरक्षित करें (Save Allocation)
+                Save Allocation
               </button>
             </div>
           </div>
@@ -787,10 +787,10 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h4 className="text-sm font-black text-slate-900 uppercase tracking-wide m-0">
-                  + नया फ्लोर वर्कर / हेल्पर जोड़ें
+                  + Add New Floor Worker / Helper
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5 m-0">
-                  नया ऑपरेटर, हेल्पर या सुपरवाइजर मास्टर रोस्टर में दर्ज करें
+                  Enter new operator, helper, or supervisor in the master roster
                 </p>
               </div>
               <button
@@ -805,13 +805,13 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  कर्मचारी का नाम (Worker Name) *:
+                  Worker Name *:
                 </label>
                 <input
                   type="text"
                   value={newWorkerName}
                   onChange={(e) => setNewWorkerName(e.target.value)}
-                  placeholder="उदा. SUNIL_HELPER"
+                  placeholder="e.g. SUNIL_HELPER"
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold uppercase text-slate-800 outline-none"
                   required
                 />
@@ -819,22 +819,22 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">पद (Role) *:</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Role *:</label>
                   <select
                     value={newWorkerRole}
                     onChange={(e) => setNewWorkerRole(e.target.value as WorkforceRole)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
                   >
-                    <option value="HELPER">हेल्पर (Helper)</option>
-                    <option value="OPERATOR">ऑपरेटर (Operator)</option>
-                    <option value="SUPERVISOR">सुपरवाइजर (Supervisor)</option>
-                    <option value="QC_INSPECTOR">क्यूसी इंस्पेक्टर (QC)</option>
-                    <option value="MAINTENANCE">मेंटेनेंस (Maintenance)</option>
+                    <option value="HELPER">Helper</option>
+                    <option value="OPERATOR">Operator</option>
+                    <option value="SUPERVISOR">Supervisor</option>
+                    <option value="QC_INSPECTOR">QC Inspector</option>
+                    <option value="MAINTENANCE">Maintenance</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">विभाग (Dept):</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Department (Dept):</label>
                   <select
                     value={newWorkerDept}
                     onChange={(e) => setNewWorkerDept(e.target.value)}
@@ -852,7 +852,7 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">शिफ्ट (Shift):</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Shift:</label>
                   <select
                     value={newWorkerShift}
                     onChange={(e) => setNewWorkerShift(e.target.value as 'DAY' | 'NIGHT')}
@@ -864,12 +864,12 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">आवंटित मशीन:</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Assigned Machine:</label>
                   <input
                     type="text"
                     value={newWorkerMachine}
                     onChange={(e) => setNewWorkerMachine(e.target.value)}
-                    placeholder="उदा. Cutting-1"
+                    placeholder="e.g. Cutting-1"
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
                   />
                 </div>
@@ -878,13 +878,13 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
               {newWorkerRole === 'HELPER' && (
                 <div>
                   <label className="block text-xs font-bold text-amber-900 uppercase mb-1">
-                    किस ऑपरेटर के साथ नियुक्त है (Paired With Operator):
+                    Paired With Operator:
                   </label>
                   <input
                     type="text"
                     value={newWorkerPairedOp}
                     onChange={(e) => setNewWorkerPairedOp(e.target.value)}
-                    placeholder="उदा. CUT_OP1"
+                    placeholder="e.g. CUT_OP1"
                     className="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs font-bold uppercase text-amber-950 outline-none"
                   />
                 </div>
@@ -897,13 +897,13 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                 onClick={() => setIsAddWorkerOpen(false)}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               >
-                रद्द करें
+                Cancel
               </button>
               <button
                 type="submit"
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-lg shadow-sm transition cursor-pointer"
               >
-                + वर्कर सेव करें
+                + Save Worker
               </button>
             </div>
           </form>

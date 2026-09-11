@@ -60,13 +60,13 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
   const getStageUnitLabel = () => {
     switch (stage) {
       case 'Rolls':
-        return 'Rolls (रोल्स)';
+        return 'Rolls';
       case 'Cutting':
       case 'Forming':
       case 'QC':
-        return 'Crates (क्रेट्स)';
+        return 'Crates';
       case 'Packed':
-        return 'Boxes (डिब्बे)';
+        return 'Boxes';
       default:
         return 'Units';
     }
@@ -75,7 +75,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
   const handleSaveOpeningStock = (e: React.FormEvent) => {
     e.preventDefault();
     if (parsedQty < 0) {
-      alert('⚠️ संख्या 0 या उससे अधिक होनी चाहिए।');
+      alert('⚠️ Quantity must be 0 or more.');
       return;
     }
 
@@ -219,7 +219,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
       logs: [newLog, ...(state.logs || [])]
     });
 
-    alert(`✅ प्रारंभिक स्टॉक सफलतापूर्वक अपडेट किया गया!\nउत्पाद: ${product}\nस्टेज: ${stage}\nमात्रा: ${parsedQty} ${getStageUnitLabel()} (${totalPieces.toLocaleString()} अनुमानित पीस)\nलाइव स्टॉक मैट्रिक्स रिफ्रेश हो गया है।`);
+    alert(`✅ Initial stock updated successfully!\nProduct: ${product}\nStage: ${stage}\nQuantity: ${parsedQty} ${getStageUnitLabel()} (${totalPieces.toLocaleString()} estimated pieces)\nLive stock matrix refreshed.`);
     onClose();
   };
 
@@ -238,7 +238,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
                 <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">1-Click Live Update</span>
               </h3>
               <p className="text-xs text-emerald-100 font-medium m-0">
-                किसी भी आइटम या स्टेज के लिए प्रारंभिक स्टॉक सीधे दर्ज या अपडेट करें
+                Directly enter or update the initial stock for any item or stage
               </p>
             </div>
           </div>
@@ -256,7 +256,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
           {/* 1. Select Product */}
           <div>
             <label className="block text-xs font-black text-slate-800 uppercase mb-1">
-              1. उत्पाद चुनें (Select Product): *
+              1. Select Product: *
             </label>
             <select
               value={product}
@@ -275,7 +275,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                पेपर मिल / ब्रांड (Mill):
+                Paper Mill / Brand:
               </label>
               <select
                 value={paperBrand}
@@ -306,8 +306,8 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
           {/* 3. Stage Selector */}
           <div>
             <label className="block text-xs font-black text-slate-800 uppercase mb-1.5 flex items-center justify-between">
-              <span>2. स्टॉक स्टेज चुनें (Select Production Stage): *</span>
-              <span className="text-[11px] font-bold text-emerald-700">वर्तमान चयन: {stage}</span>
+              <span>2. Select Production Stage: *</span>
+              <span className="text-[11px] font-bold text-emerald-700">Current Selection: {stage}</span>
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
@@ -321,7 +321,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               >
                 <Layers className="w-4 h-4" />
                 <span className="text-[11px] font-black leading-tight">1. Slit Rolls</span>
-                <span className="text-[9px] opacity-80">स्लिट रोल्स</span>
+                <span className="text-[9px] opacity-80">Slit Rolls</span>
               </button>
 
               <button
@@ -335,7 +335,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               >
                 <Scissors className="w-4 h-4" />
                 <span className="text-[11px] font-black leading-tight">2. Cut Crates</span>
-                <span className="text-[9px] opacity-80">कटिंग क्रेट्स</span>
+                <span className="text-[9px] opacity-80">Cutting Crates</span>
               </button>
 
               <button
@@ -349,7 +349,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               >
                 <Cog className="w-4 h-4" />
                 <span className="text-[11px] font-black leading-tight">3. Formed Crates</span>
-                <span className="text-[9px] opacity-80">फॉर्मिंग क्रेट्स</span>
+                <span className="text-[9px] opacity-80">Forming Crates</span>
               </button>
 
               <button
@@ -363,7 +363,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               >
                 <SearchCheck className="w-4 h-4" />
                 <span className="text-[11px] font-black leading-tight">4. QC Pass</span>
-                <span className="text-[9px] opacity-80">पास क्रेट्स</span>
+                <span className="text-[9px] opacity-80">Pass Crates</span>
               </button>
 
               <button
@@ -377,7 +377,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               >
                 <PackageCheck className="w-4 h-4" />
                 <span className="text-[11px] font-black leading-tight">5. Packed</span>
-                <span className="text-[9px] opacity-80">तैयार डिब्बे</span>
+                <span className="text-[9px] opacity-80">Ready Boxes</span>
               </button>
             </div>
           </div>
@@ -387,7 +387,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-black text-slate-800 uppercase mb-1">
-                  ओपनिंग स्टॉक संख्या ({getStageUnitLabel()}): *
+                  Opening Stock Quantity ({getStageUnitLabel()}): *
                 </label>
                 <input
                   type="number"
@@ -403,7 +403,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  अनुमानित पीस प्रति {stage === 'Rolls' ? 'रोल' : stage === 'Packed' ? 'बॉक्स' : 'क्रेट'} (Pcs/Unit):
+                  Estimated Pieces per {stage === 'Rolls' ? 'Roll' : stage === 'Packed' ? 'Box' : 'Crate'} (Pcs/Unit):
                 </label>
                 <input
                   type="number"
@@ -418,7 +418,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
             {/* Total Estimated Pieces Live Banner */}
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
               <span className="font-bold text-emerald-900">
-                कुल अनुमानित पीस (Total Equivalent Pieces):
+                Total Equivalent Pieces:
               </span>
               <span className="text-sm font-black text-emerald-950 font-mono">
                 {totalPieces.toLocaleString()} Pcs
@@ -430,7 +430,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                लॉट / रील संदर्भ (Lot Reference):
+                Lot / Reel Reference:
               </label>
               <input
                 type="text"
@@ -444,7 +444,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
             {/* 6. Mode: ADD vs SET */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                अपडेट का प्रकार (Action Mode):
+                Update Type (Action Mode):
               </label>
               <div className="flex gap-2">
                 <button
@@ -456,7 +456,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  + Add to Existing (जोड़ें)
+                  + Add to Existing
                 </button>
                 <button
                   type="button"
@@ -467,7 +467,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  Set Exact Balance (नया कुल)
+                  Set Exact Balance
                 </button>
               </div>
             </div>
@@ -480,14 +480,14 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
             >
-              रद्द करें (Cancel)
+              Cancel
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>💾 Save Opening Stock (ओपनिंग स्टॉक सेव करें)</span>
+              <span>💾 Save Opening Stock</span>
             </button>
           </div>
         </form>

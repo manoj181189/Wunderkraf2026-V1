@@ -18,7 +18,13 @@ import {
   ClipboardList,
   Sparkles,
   Edit3,
-  Check
+  Check,
+  Droplets,
+  ArrowRight,
+  Activity,
+  CheckCircle2,
+  Calendar,
+  Users
 } from 'lucide-react';
 import { CurrentView, FactoryState } from '../types';
 
@@ -28,6 +34,7 @@ interface NavigationHubProps {
   onSelectView: (view: CurrentView) => void;
   onOpenRequisitionModal?: () => void;
   onOpenManpowerModal?: () => void;
+  onOpenGlueModal?: () => void;
   onOpenAdmin?: () => void;
 }
 
@@ -47,6 +54,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
   onSelectView,
   onOpenRequisitionModal,
   onOpenManpowerModal,
+  onOpenGlueModal,
   onOpenAdmin
 }) => {
   const username = currentUser?.username || 'admin';
@@ -76,10 +84,10 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
     state?.materialRequisitions?.filter((r) => r.status === 'RECEIVED' && !r.acknowledgedByRequester).length || 0;
 
   // Daily Factory Inspiration Poem State
-  const DEFAULT_POEM = `मेहनत और लगन से हर रोल को नया रूप हम देते हैं,
-सटीक माप और शुद्ध गुणवत्ता से कारखाने का मान बढ़ाते हैं।
-हर चम्मच, हर कांटा, हर पैक में है विश्वास हमारा,
-वंडरक्राफ की शान है हर कामगार का पसीना प्यारा।`;
+  const DEFAULT_POEM = `With hard work and dedication, we give a new shape to every roll,
+We increase the factory\'s pride with exact measurements and pure quality.
+In every spoon, every fork, every pack lies our trust,
+Every worker\'s dear sweat is the pride of Wondercraft.`;
 
   const [poem, setPoem] = useState(() => {
     return localStorage.getItem('wunderkraf_daily_poem') || DEFAULT_POEM;
@@ -120,6 +128,15 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
       perm: 'Marketing',
       borderColor: 'border-emerald-600',
       badge: activeOrdersCount > 0 ? `${activeOrdersCount} Orders` : undefined
+    },
+    {
+      id: 'PLANNING',
+      title: 'Planning Desk (PPC)',
+      subtitle: 'Production Plans, Target Layers, Mother Reels & Glue Brands',
+      icon: <Calendar className="w-8 h-8 text-blue-600" />,
+      perm: 'Planning',
+      borderColor: 'border-blue-600',
+      badge: `${state?.productionPlans?.length || 0} Plans`
     },
     {
       id: 'DISPATCH',
@@ -189,7 +206,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
     {
       id: 'ANALYTICS',
       title: 'Machine & Operator Performance',
-      subtitle: '8-Day Machine Output, 5-Day/1-Mo/6-Mo Operator Audit & Filter Reports (मशीन व ऑपरेटर रिपोर्ट)',
+      subtitle: '8-Day Machine Output, 5-Day/1-Mo/6-Mo Operator Audit & Filter Reports (Machine & Operator Report)',
       icon: <TrendingUp className="w-8 h-8 text-violet-600" />,
       perm: 'Analytics',
       borderColor: 'border-violet-600',
@@ -223,7 +240,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
     {
       id: 'PURCHASE',
       title: 'Purchase Desk',
-      subtitle: 'Material Indents, Vendor POs & Incoming Goods (माल प्राप्ति)',
+      subtitle: 'Material Indents, Vendor POs & Incoming Goods (Goods Received)',
       icon: <ShoppingCart className="w-8 h-8 text-emerald-600" />,
       perm: 'Purchase',
       borderColor: 'border-emerald-600',
@@ -233,6 +250,15 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
           : pendingRequisitionsCount > 0
           ? `${pendingRequisitionsCount} Indents`
           : undefined
+    },
+    {
+      id: 'MANPOWER',
+      title: 'Executive & Manpower Desk',
+      subtitle: 'HR Headcount, Attendance, Labor Cost, Productivity & Live Floor Roster',
+      icon: <Users className="w-8 h-8 text-indigo-700" />,
+      perm: 'Manpower',
+      borderColor: 'border-indigo-700',
+      badge: `${state?.floorWorkers?.length || 0} Workforce`
     },
     {
       id: 'ADMIN',
@@ -280,13 +306,13 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* DAILY FACTORY INSPIRATION POEM (दैनिक प्रेरणा कविता) */}
+      {/* DAILY FACTORY INSPIRATION POEM (Daily Factory Inspiration Poem) */}
       {/* ======================================================== */}
       <div className="mb-4 bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-amber-50/80 border border-amber-200/90 rounded-xl p-3.5 shadow-2xs">
         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wide">
             <Sparkles className="w-4 h-4 text-amber-600" />
-            <span>दैनिक प्रेरणा कविता (Factory Floor Inspiration)</span>
+            <span>Factory Floor Inspiration Poem</span>
           </div>
           <div className="flex items-center gap-1.5">
             {!isEditingPoem ? (
@@ -299,7 +325,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
                 className="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-white border border-amber-300 px-2 py-0.5 rounded cursor-pointer transition flex items-center gap-1 shadow-2xs"
               >
                 <Edit3 className="w-3 h-3 text-amber-700" />
-                <span>कविता अपडेट करें (Edit Poem)</span>
+                <span>Edit Poem</span>
               </button>
             ) : (
               <div className="flex items-center gap-1">
@@ -309,21 +335,21 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
                   className="text-[11px] font-extrabold text-white bg-amber-700 hover:bg-amber-800 px-2.5 py-0.5 rounded cursor-pointer transition flex items-center gap-1 shadow-2xs"
                 >
                   <Check className="w-3 h-3" />
-                  <span>सेव करें (Save)</span>
+                  <span>Save</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditingPoem(false)}
                   className="text-[11px] font-bold text-slate-600 bg-white border border-slate-300 px-2 py-0.5 rounded cursor-pointer"
                 >
-                  रद्द करें
+                  Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleResetPoem}
                   className="text-[10px] font-semibold text-amber-800 underline ml-1 cursor-pointer"
                 >
-                  मूल कविता
+                  Original Poem
                 </button>
               </div>
             )}
@@ -337,7 +363,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
               value={poemInput}
               onChange={(e) => setPoemInput(e.target.value)}
               className="w-full p-2.5 bg-white border border-amber-300 rounded-lg text-xs font-medium text-slate-800 outline-none leading-relaxed"
-              placeholder="यहाँ अपनी पसंदीदा प्रेरणादायक कविता या कारखाना संदेश लिखें..."
+              placeholder="Write your favorite inspirational poem or factory message here..."
             />
           </div>
         ) : (
@@ -347,7 +373,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
         )}
       </div>
 
-      {/* Quick Action Banners: Material Requisition & Live Floor Manpower */}
+      {/* Quick Action Banners: Material Requisition, Plant Manpower */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
         {onOpenRequisitionModal && (
           <button
@@ -360,7 +386,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
-                  <span>Material Indent Desk (मटेरियल इंडेन्ट)</span>
+                  <span>Material Indent</span>
                   {arrivedRequisitionsCount > 0 ? (
                     <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-extrabold animate-pulse">
                       {arrivedRequisitionsCount} Arrived!
@@ -372,11 +398,11 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
                   )}
                 </div>
                 <div className="text-xs text-emerald-700 mt-0.5">
-                  मटेरियल / स्पेयर पार्ट डिमांड भरें और स्टेटस ट्रैक करें
+                  Track Material & Spare Demands
                 </div>
               </div>
             </div>
-            <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
+            <span className="text-xs font-bold text-emerald-700 bg-white border border-emerald-200 px-2 py-1 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
               Open &rarr;
             </span>
           </button>
@@ -393,22 +419,240 @@ export const NavigationHub: React.FC<NavigationHubProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
-                  <span>Plant Floor Manpower (लाइव ऑपरेटर व हेल्पर)</span>
+                  <span>Floor Manpower Tracker</span>
                   <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.5 rounded font-extrabold">
-                    {state?.floorWorkers ? `${state.floorWorkers.filter((w) => w.isPresent).length} On Duty` : 'Live Roster'}
+                    {state?.floorWorkers ? `${state.floorWorkers.filter((w) => w.isPresent).length} On Duty` : 'Live'}
                   </span>
                 </div>
                 <div className="text-xs text-amber-800 mt-0.5">
-                  प्लांट में कुल ऑपरेटर, हेल्पर और मशीन आवंटन लाइव देखें
+                  Operator, 2-Helper & Machine Allocation
                 </div>
               </div>
             </div>
-            <span className="text-xs font-bold text-amber-900 bg-white border border-amber-300 px-2.5 py-1 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition">
-              View Roster &rarr;
+            <span className="text-xs font-bold text-amber-900 bg-white border border-amber-300 px-2 py-1 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition">
+              Roster &rarr;
             </span>
           </button>
         )}
       </div>
+
+      {/* ======================================================== */}
+      {/* VISUAL PROGRESS BAR & FLOWCHART FOR ACTIVE JOBS */}
+      {/* ======================================================== */}
+      {false && state?.jobs && state.jobs.length > 0 && (
+        <div className="mb-5 bg-white border border-slate-200 text-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <Activity className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold uppercase tracking-wide m-0 text-slate-900 flex items-center gap-2">
+                  <span>Active Production Flowchart & Progress Track</span>
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold">
+                    {state.jobs.length} Active {state.jobs.length === 1 ? 'Job' : 'Jobs'} in Pipeline
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-500 m-0">
+                  Live Production Progress: Slitting ➔ Cutting ➔ Forming ➔ QC ➔ Packing (Click to go direct)
+                </p>
+              </div>
+            </div>
+            <div className="text-right text-[11px] text-slate-400 font-mono">
+              Live Stage Residency Indicator
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {state.jobs.slice(0, 3).map((job) => {
+              // Calculate current stage and progress percentage
+              const slitBatches = job.runningBatches?.filter((b) => b.stage === 'Slitting') || [];
+              const cutBatches = job.runningBatches?.filter((b) => b.stage === 'Cutting') || [];
+              const formBatches = job.runningBatches?.filter((b) => b.stage === 'Forming') || [];
+              const isSlitRunning = slitBatches.some((b) => b.status === 'Running');
+              const isCutRunning = cutBatches.some((b) => b.status === 'Running');
+              const isFormRunning = formBatches.some((b) => b.status === 'Running');
+
+              const hasSlitOutput = (job.availableRolls || 0) > 0 || cutBatches.length > 0;
+              const hasCutOutput = (job.availableCuttingCrates || 0) > 0 || (job.totalCutPieces || 0) > 0 || formBatches.length > 0;
+              const hasFormOutput = (job.availableFormingCrates || 0) > 0 || (job.totalFormedPieces || 0) > 0;
+              const hasQcOutput = (job.availableQcCrates || 0) > 0 || (job.totalQcPieces || 0) > 0;
+
+              // Estimated percentage
+              let progressPct = 10;
+              if (hasSlitOutput) progressPct = 30;
+              if (isCutRunning) progressPct = 45;
+              if (hasCutOutput) progressPct = 55;
+              if (isFormRunning) progressPct = 70;
+              if (hasFormOutput) progressPct = 80;
+              if (hasQcOutput) progressPct = 90;
+
+              // Define the 5 production pipeline stages
+              const stages = [
+                {
+                  id: 'Slitting' as CurrentView,
+                  name: '1. Slitting',
+                  hindi: 'Slitting',
+                  icon: <Scroll className="w-3.5 h-3.5" />,
+                  isActive: isSlitRunning,
+                  isDone: hasSlitOutput,
+                  qtyText: `${job.availableRolls || 0} Rolls Ready`,
+                  worker: slitBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  id: 'Cutting' as CurrentView,
+                  name: '2. Cutting',
+                  hindi: 'Cutting',
+                  icon: <Scissors className="w-3.5 h-3.5" />,
+                  isActive: isCutRunning,
+                  isDone: hasCutOutput,
+                  qtyText: `${job.availableCuttingCrates || 0} Crates (${(job.totalCutPieces || 0).toLocaleString()} Pcs)`,
+                  worker: cutBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  id: 'Forming' as CurrentView,
+                  name: '3. Forming',
+                  hindi: 'Forming',
+                  icon: <Cog className="w-3.5 h-3.5" />,
+                  isActive: isFormRunning,
+                  isDone: hasFormOutput,
+                  qtyText: `${job.availableFormingCrates || 0} Crates (${(job.totalFormedPieces || 0).toLocaleString()} Pcs)`,
+                  worker: formBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  id: 'QC' as CurrentView,
+                  name: '4. Quality QC',
+                  hindi: 'QC Inspection',
+                  icon: <SearchCheck className="w-3.5 h-3.5" />,
+                  isActive: (job.availableFormingCrates || 0) > 0,
+                  isDone: hasQcOutput,
+                  qtyText: `${job.availableQcCrates || 0} OK Crates`,
+                  worker: undefined
+                },
+                {
+                  id: 'Packing' as CurrentView,
+                  name: '5. Packing',
+                  hindi: 'Box Packing',
+                  icon: <Package className="w-3.5 h-3.5" />,
+                  isActive: (job.availableQcCrates || 0) > 0,
+                  isDone: false,
+                  qtyText: 'Ready to Pack',
+                  worker: undefined
+                }
+              ];
+
+              return (
+                <div
+                  key={job.id}
+                  className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 hover:border-slate-300 hover:shadow-2xs transition"
+                >
+                  {/* Job Header info & Progress Bar */}
+                  <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-slate-800 bg-slate-200 border border-slate-300 px-2 py-0.5 rounded text-xs">
+                        {job.id}
+                      </span>
+                      <span className="font-extrabold text-sm text-slate-950">{job.product}</span>
+                      <span className="text-xs text-slate-600 font-medium">
+                        ({job.paperBrand || 'ITC'} • {job.gsm || '280 GSM'})
+                      </span>
+                      {job.reelNo && (
+                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                          Reel: {job.reelNo}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 font-bold">
+                        Pipeline Progress:
+                      </span>
+                      <div className="w-28 sm:w-36 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono font-black text-emerald-600 w-9 text-right">
+                        {progressPct}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Flowchart 5-Node Interactive Stepper */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    {stages.map((stg, sIdx) => {
+                      let bgClass = 'bg-white border-slate-200 text-slate-500 hover:border-slate-300';
+                      let textClass = 'text-slate-500';
+                      let qtyClass = 'text-slate-400';
+                      let opClass = 'text-slate-500';
+                      let statusBadge = (
+                        <span className="text-[9px] text-slate-400 uppercase font-semibold">Pending</span>
+                      );
+
+                      if (stg.isActive) {
+                        bgClass = 'bg-emerald-50/50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-xs';
+                        textClass = 'text-emerald-800';
+                        qtyClass = 'text-emerald-700';
+                        opClass = 'text-emerald-800';
+                        statusBadge = (
+                          <span className="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded animate-pulse">
+                            ⚡ ACTIVE
+                          </span>
+                        );
+                      } else if (stg.isDone) {
+                        bgClass = 'bg-slate-100/70 border-slate-300 text-slate-700 hover:bg-slate-100';
+                        textClass = 'text-slate-800';
+                        qtyClass = 'text-slate-600';
+                        opClass = 'text-slate-600';
+                        statusBadge = (
+                          <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> DONE
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={stg.id}
+                          type="button"
+                          onClick={() => onSelectView(stg.id)}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer hover:scale-[1.02] flex flex-col justify-between group relative ${bgClass}`}
+                          title={`Click to open ${stg.name} desk`}
+                        >
+                          <div className="flex items-center justify-between mb-1 w-full">
+                            <div className={`flex items-center gap-1 font-bold text-xs ${textClass}`}>
+                              {stg.icon}
+                              <span>{stg.name}</span>
+                            </div>
+                            {statusBadge}
+                          </div>
+
+                          <div className={`text-[10px] font-medium truncate ${qtyClass}`}>
+                            {stg.qtyText}
+                          </div>
+
+                          {stg.worker && (
+                            <div className={`text-[9px] font-mono mt-1 font-semibold truncate ${opClass}`}>
+                              Op: {stg.worker}
+                            </div>
+                          )}
+
+                          {sIdx < stages.length - 1 && (
+                            <span className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-slate-400 group-hover:text-emerald-600 text-xs">
+                              ▶
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Main Module Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3.5">

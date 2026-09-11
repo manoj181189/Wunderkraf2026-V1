@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cloud, KeyRound, ShieldCheck, Home, ClipboardList, LogOut, UserCheck, TrendingUp, Users } from 'lucide-react';
+import { Cloud, KeyRound, ShieldCheck, Home, ClipboardList, LogOut, UserCheck, TrendingUp, Users, RefreshCw, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   currentUser?: { username: string; perms: string[] } | null;
@@ -15,6 +15,9 @@ interface HeaderProps {
   onOpenAdmin?: () => void;
   onLogout?: () => void;
   onSwitchUser?: () => void;
+  onRefreshState?: () => void;
+  isRefreshing?: boolean;
+  onOpenHandoverHistory?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,7 +33,10 @@ export const Header: React.FC<HeaderProps> = ({
   arrivedCount = 0,
   onOpenAdmin,
   onLogout,
-  onSwitchUser
+  onSwitchUser,
+  onRefreshState,
+  isRefreshing = false,
+  onOpenHandoverHistory
 }) => {
   const username = currentUser?.username || 'admin';
 
@@ -42,13 +48,19 @@ export const Header: React.FC<HeaderProps> = ({
         className="flex items-center gap-3.5 cursor-pointer group"
       >
         <div className="w-12 h-12 rounded-lg bg-white p-1 flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0 group-hover:scale-105 transition">
-          {brandLogoBase64 ? (
-            <img src={brandLogoBase64} alt="Wünderkraf Logo" className="w-full h-full object-contain" />
-          ) : (
-            <div className="flex items-center justify-center font-extrabold text-[#1a365d] text-xl tracking-wider">
-              WK
-            </div>
-          )}
+          <img 
+            src={brandLogoBase64 || "/logo.png"} 
+            alt="Wünderkraf Logo" 
+            className="w-full h-full object-contain" 
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextEl = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextEl) nextEl.style.display = 'flex';
+            }}
+          />
+          <div className="items-center justify-center font-extrabold text-[#1a365d] text-xl tracking-wider hidden w-full h-full">
+            WK
+          </div>
         </div>
         <div>
           <div className="flex items-center gap-2">
@@ -82,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onNavigateAnalytics}
             className="flex items-center gap-1 bg-violet-700 hover:bg-violet-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm active:scale-95 cursor-pointer"
-            title="Machine & Operator Performance Audit (मशीन व ऑपरेटर परफ़ॉर्मेंस ऑडिट)"
+            title="Machine & Operator Performance Audit"
           >
             <TrendingUp className="w-3.5 h-3.5 text-violet-200" />
             <span className="hidden sm:inline">Performance</span>
@@ -95,10 +107,10 @@ export const Header: React.FC<HeaderProps> = ({
             id="header-manpower-btn"
             onClick={onOpenManpowerModal}
             className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
-            title="Live Plant Floor Workforce & Helpers Audit (लाईव मैनपावर व हेल्पर ट्रैकर)"
+            title="Live Plant Floor Workforce & Helpers Audit"
           >
             <Users className="w-3.5 h-3.5 text-indigo-200" />
-            <span>मैनपावर {manpowerCount !== undefined ? `(${manpowerCount})` : ''}</span>
+            <span>Manpower {manpowerCount !== undefined ? `(${manpowerCount})` : ''}</span>
           </button>
         )}
 
@@ -108,15 +120,40 @@ export const Header: React.FC<HeaderProps> = ({
             id="header-requisition-btn"
             onClick={onOpenRequisitionModal}
             className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 cursor-pointer relative"
-            title="Material Requisition & Purchase Tracking (मटेरियल इंडेन्ट)"
+            title="Material Requisition & Purchase Tracking"
           >
             <ClipboardList className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">इंडेन्ट (Requisition)</span>
+            <span className="hidden sm:inline">Requisition</span>
             {arrivedCount > 0 && (
               <span className="bg-amber-400 text-slate-900 font-extrabold text-[10px] px-1.5 py-0.2 rounded-full animate-bounce">
                 {arrivedCount}
               </span>
             )}
+          </button>
+        )}
+
+        {/* Shift Handover Dossier */}
+        {onOpenHandoverHistory && (
+          <button
+            onClick={onOpenHandoverHistory}
+            className="flex items-center gap-1.5 bg-indigo-800 hover:bg-indigo-900 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm active:scale-95 cursor-pointer"
+            title="Shift Handover History & Operator Signatures Dossier"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-indigo-300" />
+            <span className="hidden md:inline">Handover</span>
+          </button>
+        )}
+
+        {/* Global Database Re-hydration Sync / Refresh */}
+        {onRefreshState && (
+          <button
+            onClick={onRefreshState}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 bg-slate-700/80 hover:bg-slate-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Re-hydrate & Synchronize State from IndexedDB"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-cyan-300 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
           </button>
         )}
 
@@ -158,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onSwitchUser}
               className="text-blue-100 hover:text-white hover:bg-white/10 px-2 py-1 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1"
-              title="Switch Active Operator Desk (यूज़र बदलें)"
+              title="Switch Active Operator Desk"
             >
               <UserCheck className="w-3 h-3 text-emerald-300" />
               <span className="hidden md:inline">Switch</span>

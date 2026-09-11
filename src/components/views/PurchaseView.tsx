@@ -126,7 +126,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
     if (!poModalReq) return;
 
     if (!vendorName.trim()) {
-      alert('कृपया वेंडर का नाम दर्ज करें (Vendor name required)');
+      alert('Please enter the vendor name (Vendor name required)');
       return;
     }
 
@@ -163,11 +163,11 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
       logs: [logEntry, ...(state.logs || [])]
     });
 
-    showToast(`PO #${poNumber} जारी किया गया! स्टेटस अपडेट होकर 'PO Issued' हो गया है।`);
+    showToast(`PO #${poNumber} Issued! Status updated to 'PO Issued'.`);
     setPoModalReq(null);
   };
 
-  // Open Goods Received Modal (जब माल आ गया है)
+  // Open Goods Received Modal
   const handleOpenReceiveModal = (req: MaterialRequisition) => {
     setReceiveModalReq(req);
     setReceivedQty(req.receivedQty || req.quantity);
@@ -176,7 +176,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
     setReceivedBy('Store Incharge');
   };
 
-  // Submit Goods Received (माल आ गया है)
+  // Submit Goods Received
   const handleSaveReceived = (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiveModalReq) return;
@@ -218,7 +218,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
     });
 
     showToast(
-      `🎉 माल प्राप्ति दर्ज! [${receiveModalReq.id}] ${receiveModalReq.itemName} का स्टेटस अब 'RECEIVED' है और संबंधित डिपार्टमेंट को सूचना मिल गई है!`
+      `🎉 Goods receipt recorded! [${receiveModalReq.id}] ${receiveModalReq.itemName} status is now \'RECEIVED\' and the concerned department has been notified!`
     );
     setReceiveModalReq(null);
   };
@@ -226,15 +226,19 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
   // Send WhatsApp Arrival Alert to Requester
   const handleSendWhatsAppAlert = (req: MaterialRequisition) => {
     const text = `*WÜNDERKRAF ERP - MATERIAL ARRIVAL NOTICE*\n\n` +
-      `नमस्ते ${req.requestedBy},\n` +
-      `आपके डिपार्टमेंट (${req.department}) द्वारा मांगा गया मटेरियल फैक्ट्री स्टोर में आ चुका है:\n\n` +
-      `📦 *मटेरियल:* ${req.itemName}\n` +
-      `🔢 *मात्रा:* ${req.receivedQty || req.quantity} ${req.unit}\n` +
-      `🔖 *इंडेन्ट ID:* ${req.id}\n` +
-      `📍 *स्टोर लोकेशन:* ${req.storageLocationOrBin || 'Main Factory Store'}\n` +
-      `📄 *GRN / बिल नं:* ${req.grnOrBillNo || 'N/A'}\n` +
-      `📅 *प्राप्ति तिथि:* ${req.receivedDate || 'Today'}\n\n` +
-      `कृपया फैक्ट्री स्टोर से सामग्री प्राप्त कर अपने डेस्क पर 'Acknowledge Receipt' मार्क करें।\n` +
+      `Hello ${req.requestedBy},
+` +
+      `The material requested by your department (${req.department}) has arrived at the factory store:
+
+` +
+      `📦 *Material:* ${req.itemName}\n` +
+      `🔢 *Quantity:* ${req.receivedQty || req.quantity} ${req.unit}\n` +
+      `🔖 *Indent ID:* ${req.id}\n` +
+      `📍 *Store Location:* ${req.storageLocationOrBin || 'Main Factory Store'}\n` +
+      `📄 *GRN / Bill No:* ${req.grnOrBillNo || 'N/A'}\n` +
+      `📅 *Receipt Date:* ${req.receivedDate || 'Today'}\n\n` +
+      `Please collect the material from the factory store and mark \'Acknowledge Receipt\' on your desk.
+` +
       `_Wünderkraf Paperware Procurement Suite_`;
 
     const encoded = encodeURIComponent(text);
@@ -277,11 +281,11 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                 Purchase Department & Procurement Desk
               </h1>
               <span className="bg-emerald-600 text-white text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-xs">
-                परचेस डेस्क
+                Procurement
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              प्लांट के सभी डिपार्टमेंट्स के इंडेन्ट्स, वेंडर PO जारी करना और माल आगमन (GRN) की केंद्रीय व्यवस्था
+              Centralized platform for plant department indents, vendor Purchase Orders (PO), and goods arrival (GRN) control.
             </p>
           </div>
         </div>
@@ -292,7 +296,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ नया इंडेन्ट भरें (Raise Requisition)</span>
+            <span>Raise Requisition</span>
           </button>
 
           <button
@@ -309,7 +313,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-            कुल इंडेन्ट्स
+            Total Indents
           </div>
           <div className="text-2xl font-extrabold text-[#1a365d] mt-1">{totalCount}</div>
           <div className="text-[10px] text-slate-400 mt-0.5">All Plant Requests</div>
@@ -318,7 +322,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
         <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 shadow-xs">
           <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wide flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>जांच में पेंडिंग</span>
+            <span>Pending Review</span>
           </div>
           <div className="text-2xl font-extrabold text-amber-900 mt-1">{pendingCount}</div>
           <div className="text-[10px] text-amber-700 mt-0.5">To review & issue PO</div>
@@ -327,7 +331,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
         <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 shadow-xs">
           <div className="text-[11px] font-bold text-blue-800 uppercase tracking-wide flex items-center gap-1">
             <Truck className="w-3.5 h-3.5 text-blue-600" />
-            <span>PO जारी / रास्ते में</span>
+            <span>PO Issued / Transit</span>
           </div>
           <div className="text-2xl font-extrabold text-blue-900 mt-1">{orderedCount}</div>
           <div className="text-[10px] text-blue-700 mt-0.5">Awaiting Delivery</div>
@@ -336,7 +340,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 shadow-xs">
           <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>माल आ गया (Store)</span>
+            <span>Arrived at Store</span>
           </div>
           <div className="text-2xl font-extrabold text-emerald-900 mt-1">{arrivedCount}</div>
           <div className="text-[10px] text-emerald-700 mt-0.5">Received at Plant</div>
@@ -345,7 +349,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
         <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-4 shadow-xs col-span-2 sm:col-span-1">
           <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wide flex items-center gap-1">
             <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-            <span>इमरजेंसी ब्रेकडाउन</span>
+            <span>Emergency Breakdown</span>
           </div>
           <div className="text-2xl font-extrabold text-rose-900 mt-1">{criticalCount}</div>
           <div className="text-[10px] text-rose-700 mt-0.5">High Priority Spares</div>
@@ -358,7 +362,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
           <Search className="w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="मटेरियल, इंडेन्ट ID, वेंडर, PO नंबर या डिपार्टमेंट से खोजें..."
+            placeholder="Search by Material, Indent ID, Vendor, PO Number or Department..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-transparent border-none text-xs font-semibold text-slate-800 focus:outline-hidden"
@@ -379,7 +383,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
             onChange={(e) => setSelectedDept(e.target.value)}
             className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700"
           >
-            <option value="ALL">सभी डिपार्टमेंट (All Depts)</option>
+            <option value="ALL">All Depts</option>
             <option value="Maintenance">Maintenance</option>
             <option value="Forming">Forming</option>
             <option value="Cutting">Cutting</option>
@@ -394,10 +398,10 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
             onChange={(e) => setSelectedStatus(e.target.value as any)}
             className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700"
           >
-            <option value="ALL">सभी स्टेटस (All Status)</option>
-            <option value="PENDING">⏳ Pending Review (पेंडिंग)</option>
-            <option value="PO_ISSUED">🚚 PO Issued / Ordered (ऑर्डर किया)</option>
-            <option value="RECEIVED">✅ Arrived at Store (माल आ गया)</option>
+            <option value="ALL">All Status</option>
+            <option value="PENDING">⏳ Pending Review</option>
+            <option value="PO_ISSUED">🚚 PO Issued / Ordered</option>
+            <option value="RECEIVED">✅ Arrived at Store</option>
             <option value="REJECTED">❌ Rejected</option>
           </select>
 
@@ -406,7 +410,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
             onChange={(e) => setSelectedUrgency(e.target.value)}
             className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700"
           >
-            <option value="ALL">सभी प्राथमिकताएं</option>
+            <option value="ALL">All Priorities</option>
             <option value="CRITICAL_BREAKDOWN">🚨 Emergency Breakdown</option>
             <option value="URGENT">⚡ Urgent (24h)</option>
             <option value="NORMAL">📦 Normal</option>
@@ -417,7 +421,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
       {/* Main List of Requisitions */}
       {filtered.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500 text-xs">
-          कोई रिक्विजिशन नहीं मिला। आप "+ नया इंडेन्ट भरें" से नई मांग दर्ज कर सकते हैं।
+          No requisition found. You can submit a new demand using "+ Raise Requisition".
         </div>
       ) : (
         <div className="space-y-4">
@@ -448,7 +452,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                       {req.department}
                     </span>
                     <span className="text-xs text-slate-500 font-medium">
-                      दिनांक: {req.requestedDate} {req.requestedTime || ''}
+                      Date: {req.requestedDate} {req.requestedTime || ''}
                     </span>
                     {isCritical && (
                       <span className="inline-flex items-center gap-1 bg-rose-600 text-white font-extrabold text-[10px] uppercase px-2 py-0.5 rounded shadow-xs animate-pulse">
@@ -463,19 +467,19 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                     {isArrived && (
                       <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-900 font-extrabold text-xs px-3 py-1 rounded-lg border border-emerald-300 shadow-xs">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>माल फैक्ट्री स्टोर में आ गया है (Received)</span>
+                        <span>Goods have arrived at factory store (Received)</span>
                       </span>
                     )}
                     {isOrdered && (
                       <span className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-900 font-bold text-xs px-3 py-1 rounded-lg border border-blue-200">
                         <Truck className="w-4 h-4 text-blue-600" />
-                        <span>PO जारी / वेंडर को ऑर्डर भेजा</span>
+                        <span>PO Issued / Order sent to vendor</span>
                       </span>
                     )}
                     {isPending && (
                       <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 font-bold text-xs px-3 py-1 rounded-lg border border-amber-200">
                         <Clock className="w-4 h-4 text-amber-600" />
-                        <span>जांच में लंबित (Awaiting PO)</span>
+                        <span>Pending review (Awaiting PO)</span>
                       </span>
                     )}
                   </div>
@@ -486,7 +490,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                   {/* Column 1: Item & Demand details */}
                   <div className="space-y-1">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                      मटेरियल / स्पेयर पार्ट
+                      Material / Spare Part
                     </div>
                     <div className="text-base font-extrabold text-slate-900">
                       {req.itemName}
@@ -497,13 +501,13 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                       </div>
                     )}
                     <div className="text-xs text-slate-600 mt-1">
-                      कैटेगरी: <span className="font-semibold text-slate-800">{req.itemCategory}</span>
+                      Category: <span className="font-semibold text-slate-800">{req.itemCategory}</span>
                     </div>
                     <div className="text-xs text-slate-600">
-                      मकसद: <span className="font-semibold text-slate-800">{req.machineOrPurpose || 'General'}</span>
+                      Purpose: <span className="font-semibold text-slate-800">{req.machineOrPurpose || 'General'}</span>
                     </div>
                     <div className="text-xs text-slate-600">
-                      मांगकर्ता: <span className="font-semibold text-slate-800">{req.requestedBy}</span>
+                      Requested By: <span className="font-semibold text-slate-800">{req.requestedBy}</span>
                     </div>
                     {req.remarks && (
                       <div className="text-xs italic text-slate-500 bg-slate-50 p-1.5 rounded mt-1">
@@ -515,7 +519,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                   {/* Column 2: Quantity & Procurement Spec */}
                   <div className="space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500 font-bold">मांगी गई मात्रा:</span>
+                      <span className="text-xs text-slate-500 font-bold">Requested Qty:</span>
                       <span className="text-sm font-extrabold text-[#1a365d]">
                         {req.quantity} {req.unit}
                       </span>
@@ -523,31 +527,31 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
                     {req.vendorName && (
                       <div className="text-xs text-slate-700">
-                        सप्लायर/वेंडर: <strong>{req.vendorName}</strong>
+                        Supplier/Vendor: <strong>{req.vendorName}</strong>
                       </div>
                     )}
 
                     {req.poNumber && (
                       <div className="text-xs text-slate-700">
-                        PO नंबर: <strong className="font-mono text-blue-700">{req.poNumber}</strong>
+                        PO Number: <strong className="font-mono text-blue-700">{req.poNumber}</strong>
                       </div>
                     )}
 
                     {req.expectedDeliveryDate && (
                       <div className="text-xs text-slate-700">
-                        अनुमानित डिलीवरी: <strong>{req.expectedDeliveryDate}</strong>
+                        Estimated Delivery: <strong>{req.expectedDeliveryDate}</strong>
                       </div>
                     )}
 
                     {req.estimatedCost ? (
                       <div className="text-xs text-slate-700">
-                        लागत: <strong>₹{req.estimatedCost.toLocaleString()}</strong>
+                        Cost: <strong>₹{req.estimatedCost.toLocaleString()}</strong>
                       </div>
                     ) : null}
 
                     {req.purchaseNotes && (
                       <div className="text-[11px] text-blue-800 bg-blue-50/80 p-1.5 rounded">
-                        परचेस नोट: {req.purchaseNotes}
+                        Purchase Note: {req.purchaseNotes}
                       </div>
                     )}
                   </div>
@@ -558,33 +562,33 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1">
                         <div className="font-extrabold text-emerald-900 flex items-center gap-1.5">
                           <Check className="w-4 h-4 text-emerald-600" />
-                          <span>माल स्टोर में उपलब्ध है</span>
+                          <span>Goods available in store</span>
                         </div>
                         <div className="text-emerald-950 font-medium">
-                          लोकेशन: <strong>{req.storageLocationOrBin || 'Main Factory Store'}</strong>
+                          Location: <strong>{req.storageLocationOrBin || 'Main Factory Store'}</strong>
                         </div>
                         <div className="text-emerald-800 text-[11px]">
-                          प्राप्ति: <strong>{req.receivedDate}</strong> {req.receivedTime || ''} | मात्रा: <strong>{req.receivedQty || req.quantity} {req.unit}</strong>
+                          Received: <strong>{req.receivedDate}</strong> {req.receivedTime || ''} | Qty: <strong>{req.receivedQty || req.quantity} {req.unit}</strong>
                         </div>
                         <div className="text-emerald-800 text-[11px]">
-                          GRN / इनवॉइस: <strong>{req.grnOrBillNo || 'N/A'}</strong> | जमाकर्ता: <strong>{req.receivedBy}</strong>
+                          GRN / Invoice: <strong>{req.grnOrBillNo || 'N/A'}</strong> | Deposited By: <strong>{req.receivedBy}</strong>
                         </div>
                         <div className="pt-1">
                           {req.acknowledgedByRequester ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>डिपार्टमेंट द्वारा प्राप्त किया गया</span>
+                              <span>Received by Department</span>
                             </span>
                           ) : (
                             <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded">
-                              ⏳ फ्लोर द्वारा उठाना बाकी
+                              ⏳ Pending pickup by floor
                             </span>
                           )}
                         </div>
                       </div>
                     ) : (
                       <div className="text-xs text-slate-500">
-                        परचेस कार्यवाही:
+                        Purchase Action:
                       </div>
                     )}
 
@@ -597,7 +601,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                           className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-xs hover:shadow transition cursor-pointer"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          <span>{isOrdered ? 'PO अपडेट करें' : 'PO / ऑर्डर जारी करें'}</span>
+                          <span>{isOrdered ? 'Update PO' : 'Issue PO / Order'}</span>
                         </button>
                       )}
 
@@ -608,7 +612,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-xs hover:shadow transition cursor-pointer active:scale-95"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>माल आ गया है (Mark Received)</span>
+                          <span>Goods Arrived (Mark Received)</span>
                         </button>
                       ) : (
                         <button
@@ -617,7 +621,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                           title="Send arrival notification on WhatsApp"
                         >
                           <Share2 className="w-3.5 h-3.5" />
-                          <span>WhatsApp सूचना भेजें</span>
+                          <span>Send WhatsApp Notification</span>
                         </button>
                       )}
                     </div>
@@ -635,7 +639,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-scaleIn">
             <div className="bg-[#1a365d] text-white p-4.5 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold">वेंडर को PO / ऑर्डर जारी करें</h3>
+                <h3 className="text-base font-bold">Issue PO / Order to Vendor</h3>
                 <p className="text-xs text-blue-200">
                   {poModalReq.id} — {poModalReq.itemName} ({poModalReq.quantity} {poModalReq.unit})
                 </p>
@@ -651,11 +655,11 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
             <form onSubmit={handleSavePO} className="p-5 space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  वेंडर / सप्लायर का नाम (Vendor Name)*
+                  Vendor / Supplier Name*
                 </label>
                 <input
                   type="text"
-                  placeholder="उदा. Shreeji Electricals, Apex Packaging, JK Paper, आदि"
+                  placeholder="e.g. Shreeji Electricals, Apex Packaging, JK Paper, etc."
                   value={vendorName}
                   onChange={(e) => setVendorName(e.target.value)}
                   required
@@ -666,7 +670,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    PO नंबर (Purchase Order No)*
+                    PO Number (Purchase Order No)*
                   </label>
                   <input
                     type="text"
@@ -679,7 +683,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    अनुमानित डिलीवरी डेट (Expected Date)*
+                    Expected Delivery Date*
                   </label>
                   <input
                     type="date"
@@ -694,7 +698,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    अनुमानित कुल लागत (Est Cost ₹)
+                    Estimated Total Cost (Est Cost ₹)
                   </label>
                   <input
                     type="number"
@@ -707,13 +711,13 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    परचेस रिमार्क / डिलीवरी शर्तें
+                    Purchase Remarks / Delivery Terms
                   </label>
                   <input
                     type="text"
                     value={purchaseNotes}
                     onChange={(e) => setPurchaseNotes(e.target.value)}
-                    placeholder="उदा. अर्जेंट डिलीवरी, कोरियर द्वारा"
+                    placeholder="e.g. Urgent delivery, by courier"
                     className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-500"
                   />
                 </div>
@@ -725,13 +729,13 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                   onClick={() => setPoModalReq(null)}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  रद्द करें
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm"
                 >
-                  ऑर्डर व PO सबमिट करें (Confirm PO)
+                  Submit Order & PO (Confirm PO)
                 </button>
               </div>
             </form>
@@ -739,7 +743,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
         </div>
       )}
 
-      {/* Material Received / GRN Modal (User requested: जब माल आ जाए तो सबमिट कर देगा तो सबको अपडेट मिल जाए) */}
+      {/* Material Received / GRN Modal (User requested: When material arrives, submitting it will notify everyone) */}
       {receiveModalReq && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-2xl border border-emerald-200 w-full max-w-lg overflow-hidden animate-scaleIn">
@@ -747,10 +751,10 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-200" />
-                  <h3 className="text-base font-bold">माल प्राप्ति दर्ज करें (Goods Received Note - GRN)</h3>
+                  <h3 className="text-base font-bold">Enter Goods Receipt (Goods Received Note - GRN)</h3>
                 </div>
                 <p className="text-xs text-emerald-100 mt-0.5">
-                  यह सबमिट करते ही {receiveModalReq.department} डेस्क को तुरंत सूचना मिल जाएगी कि मटेरियल स्टोर में आ गया है!
+                  Upon submitting, the {receiveModalReq.department} desk will immediately be notified that the material has arrived in the store!
                 </p>
               </div>
               <button
@@ -765,14 +769,14 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
               <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 text-xs">
                 <div className="font-bold text-emerald-950">{receiveModalReq.itemName}</div>
                 <div className="text-emerald-800">
-                  इंडेन्ट: <strong>{receiveModalReq.id}</strong> | डिपार्टमेंट: <strong>{receiveModalReq.department}</strong> | मांगकर्ता: <strong>{receiveModalReq.requestedBy}</strong>
+                  Indent: <strong>{receiveModalReq.id}</strong> | Department: <strong>{receiveModalReq.department}</strong> | Requested By: <strong>{receiveModalReq.requestedBy}</strong>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    प्राप्त मात्रा (Received Qty)*
+                    Received Qty*
                   </label>
                   <div className="flex items-center gap-1.5">
                     <input
@@ -789,13 +793,13 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    GRN नं / सप्लायर बिल नं (Bill No)
+                    GRN No / Supplier Bill No
                   </label>
                   <input
                     type="text"
                     value={grnBillNo}
                     onChange={(e) => setGrnBillNo(e.target.value)}
-                    placeholder="उदा. GRN-2026-095"
+                    placeholder="e.g. GRN-2026-095"
                     className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold font-mono text-slate-900 focus:bg-white focus:border-emerald-500"
                   />
                 </div>
@@ -803,11 +807,11 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  स्टोर लोकेशन / बिन रैक (Storage Location / Rack Bin)*
+                  Store Location / Rack Bin*
                 </label>
                 <input
                   type="text"
-                  placeholder="उदा. Maintenance Tool Crib Rack B2, Main Chemical Store Shelf 3"
+                  placeholder="e.g. Maintenance Tool Crib Rack B2, Main Chemical Store Shelf 3"
                   value={storageLocation}
                   onChange={(e) => setStorageLocation(e.target.value)}
                   required
@@ -817,7 +821,7 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  सामग्री प्राप्तकर्ता (Received By Store Incharge)*
+                  Received By Store Incharge*
                 </label>
                 <input
                   type="text"
@@ -834,13 +838,13 @@ export const PurchaseView: React.FC<PurchaseViewProps> = ({
                   onClick={() => setReceiveModalReq(null)}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  रद्द करें
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition cursor-pointer active:scale-95"
                 >
-                  ✓ माल आ गया है - सबमिट करें (Confirm Arrival)
+                  ✓ Goods Arrived - Submit (Confirm Arrival)
                 </button>
               </div>
             </form>
