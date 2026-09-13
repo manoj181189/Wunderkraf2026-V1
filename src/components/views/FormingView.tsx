@@ -460,6 +460,39 @@ export const FormingView: React.FC<FormingViewProps> = ({
       };
     });
 
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const updatedWorkers = (state.floorWorkers || []).map((w) => {
+      if (w.name.toUpperCase() === operator.trim().toUpperCase()) {
+        return {
+          ...w,
+          assignedMachine: selectedMachine,
+          isPresent: true,
+          status: 'PRODUCING' as const,
+          inTime: w.inTime || nowTime
+        };
+      }
+      if (helpers.some((h) => h.toUpperCase() === w.name.toUpperCase())) {
+        return {
+          ...w,
+          assignedMachine: selectedMachine,
+          pairedWithOperator: operator.trim().toUpperCase(),
+          isPresent: true,
+          status: 'PRODUCING' as const,
+          inTime: w.inTime || nowTime
+        };
+      }
+      // Unpair previously assigned helpers for this machine or operator
+      if (w.role === 'HELPER' && (w.assignedMachine === selectedMachine || w.pairedWithOperator === operator.trim().toUpperCase())) {
+        return {
+          ...w,
+          assignedMachine: undefined,
+          pairedWithOperator: undefined,
+          status: undefined
+        };
+      }
+      return w;
+    });
+
     const newLog = {
       jobId: job.id,
       product: job.product,
@@ -476,6 +509,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
     onSaveState({
       ...state,
       jobs: updatedJobs,
+      floorWorkers: updatedWorkers.length > 0 ? updatedWorkers : state.floorWorkers,
       logs: [newLog, ...(state.logs || [])]
     });
     alert('Crew assigned successfully!');
@@ -1817,6 +1851,9 @@ export const FormingView: React.FC<FormingViewProps> = ({
           availableWorkers={formWorkers}
           unitLabel="Formed Crates"
           piecesPerUnit={effectiveFormPcs}
+          initialProducedQty={parseFloat(outputCrates) || undefined}
+          initialLoosePieces={parseInt(loosePiecesInput, 10) || undefined}
+          initialScrapQty={parseFloat(scrapPcs) || undefined}
           onConfirmHandover={handleConfirmShiftHandover}
         />
       )}

@@ -1950,6 +1950,7 @@ export const PackingView: React.FC<PackingViewProps> = ({
           stageName="Packing"
           availableWorkers={DEPT_WORKERS['Packing'] || []}
           unitLabel="Boxes"
+          initialProducedQty={parseFloat(packedBoxesInput) || undefined}
           onConfirmHandover={handleConfirmShiftHandover}
         />
       )}

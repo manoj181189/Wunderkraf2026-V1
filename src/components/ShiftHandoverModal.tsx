@@ -192,7 +192,11 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-blue-200/90 mt-0.5 m-0">
-                Lock Operator A\'s production (crates, loose pieces & scrap) without stopping the machine and handover the batch to Operator B.
+                {stageName === 'Slitting'
+                  ? "Lock Operator A's production (slit rolls, length meters & scrap kg) without stopping the machine and handover the batch to Operator B."
+                  : stageName === 'Packing'
+                  ? "Lock Operator A's production (packed boxes & scrap) without stopping the machine and handover the batch to Operator B."
+                  : "Lock Operator A's production (crates, loose pieces & scrap) without stopping the machine and handover the batch to Operator B."}
               </p>
             </div>
           </div>
@@ -222,10 +226,28 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               <span className="font-bold text-slate-800">{job.product}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Crate Capacity:</span>
-              <span className="font-bold text-emerald-800">
-                {piecesPerUnit > 0 ? `${piecesPerUnit.toLocaleString()} Pcs/Crate` : 'Standard'}
-              </span>
+              {stageName === 'Slitting' ? (
+                <>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Target Length:</span>
+                  <span className="font-bold text-emerald-800">
+                    {job.planId ? '1200 Meters' : 'Standard Length'}
+                  </span>
+                </>
+              ) : stageName === 'Packing' ? (
+                <>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Target Boxes:</span>
+                  <span className="font-bold text-emerald-800">
+                    {job.targetLayers || 'Standard'} Boxes
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crate Capacity:</span>
+                  <span className="font-bold text-emerald-800">
+                    {piecesPerUnit > 0 ? `${piecesPerUnit.toLocaleString()} Pcs/Crate` : 'Standard'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -258,12 +280,24 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                       )}
                     </div>
                     <div className="font-mono text-xs">
-                      <span className="font-bold text-emerald-800">
-                        {slice.producedQty} {unitLabel}
-                        {slice.loosePieces ? ` + ${slice.loosePieces} Loose` : ''}
-                      </span>
+                      {stageName === 'Slitting' ? (
+                        <span className="font-bold text-emerald-800">
+                          {slice.producedQty} Rolls @ {slice.endMeterReading || slice.strokeCount || '-'} Meters
+                        </span>
+                      ) : stageName === 'Packing' ? (
+                        <span className="font-bold text-emerald-800">
+                          {slice.producedQty} Boxes
+                        </span>
+                      ) : (
+                        <span className="font-bold text-emerald-800">
+                          {slice.producedQty} {unitLabel}
+                          {slice.loosePieces ? ` + ${slice.loosePieces} Loose` : ''}
+                        </span>
+                      )}
                       {slice.scrapQty > 0 && (
-                        <span className="text-rose-700 ml-1.5">({slice.scrapQty}kg Scrap)</span>
+                        <span className="text-rose-700 ml-1.5">
+                          ({slice.scrapQty}{stageName === 'Forming' ? ' Pcs' : 'kg'} Scrap)
+                        </span>
                       )}
                       <span className="text-slate-400 text-[10px] ml-1.5">@{slice.handoverTime}</span>
                     </div>
@@ -301,137 +335,312 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
               </div>
             </div>
 
-            {/* Production & Rejection Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              {/* Crates Produced */}
-              <div>
-                <label className="block text-[11px] font-extrabold text-emerald-900 uppercase mb-1 flex items-center gap-1">
-                  <Package className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Cut Crates ({unitLabel}):</span>
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  value={sliceProducedQtyInput}
-                  onChange={(e) => setSliceProducedQtyInput(e.target.value)}
-                  placeholder={`e.g. 5 ${unitLabel}`}
-                  className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-lg text-sm font-black text-emerald-950 outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-                <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
-                  Number of fully prepared crates
-                </span>
-              </div>
+            {stageName === 'Slitting' ? (
+              <>
+                {/* Slitting-Specific Production & Rejection Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* Rolls Produced */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-emerald-900 uppercase mb-1 flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Produced Slit Rolls (Rolls):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceProducedQtyInput}
+                      onChange={(e) => setSliceProducedQtyInput(e.target.value)}
+                      placeholder="e.g. 8 Rolls"
+                      className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-lg text-sm font-black text-emerald-950 outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
+                      Number of finished slit rolls produced
+                    </span>
+                  </div>
 
-              {/* Loose Pieces */}
-              <div>
-                <label className="block text-[11px] font-extrabold text-indigo-900 uppercase mb-1 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Open / Loose Pieces (Loose Pcs):</span>
-                </label>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={sliceLoosePiecesInput}
-                  onChange={(e) => setSliceLoosePiecesInput(e.target.value)}
-                  placeholder="e.g. 500"
-                  className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-sm font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <span className="text-[10px] text-indigo-700 font-bold mt-0.5 block">
-                  Extra open pieces (e.g. 500 pieces)
-                </span>
-              </div>
+                  {/* Slit Length (Meters) */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-indigo-900 uppercase mb-1 flex items-center gap-1">
+                      <Gauge className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Actual Slit Length (Meters):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={meterReadingInput}
+                      onChange={(e) => setMeterReadingInput(e.target.value)}
+                      placeholder="e.g. 1200 M"
+                      className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-sm font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                    <span className="text-[10px] text-indigo-700 font-bold mt-0.5 block">
+                      Length of the slitted paper run in meters
+                    </span>
+                  </div>
 
-              {/* Scrap / Rejection in KG */}
-              <div>
-                <label className="block text-[11px] font-extrabold text-rose-900 uppercase mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                  <span>
-                    {stageName === 'Slitting' || stageName === 'Cutting'
-                      ? 'Rejection Scrap (Scrap in KG):'
-                      : 'Defect Pieces:'}
-                  </span>
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  value={sliceScrapQtyInput}
-                  onChange={(e) => setSliceScrapQtyInput(e.target.value)}
-                  placeholder="e.g. 1.0"
-                  className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-sm font-black text-rose-950 outline-none focus:ring-2 focus:ring-rose-500"
-                  required
-                />
-                <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">
-                  {stageName === 'Slitting' || stageName === 'Cutting'
-                    ? 'Cutting Scrap Weight (in KG)'
-                    : 'Defective / Rejected Pieces'}
-                </span>
-              </div>
-            </div>
+                  {/* Trim / Scrap Weight (KG) */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-rose-900 uppercase mb-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Trim / Scrap Weight (KG):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceScrapQtyInput}
+                      onChange={(e) => setSliceScrapQtyInput(e.target.value)}
+                      placeholder="e.g. 5.5 KG"
+                      className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-sm font-black text-rose-950 outline-none focus:ring-2 focus:ring-rose-500"
+                      required
+                    />
+                    <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">
+                      Wastage or trim weight in KG
+                    </span>
+                  </div>
+                </div>
 
-            {/* Live Calculation Card */}
-            <div className="bg-emerald-100/70 border border-emerald-300 rounded-xl p-3 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-emerald-950">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  <b>Total Produced Flat Blanks:</b>{' '}
-                  <span className="font-mono font-bold">
-                    {parsedProduced} Crates × {piecesPerUnit > 0 ? piecesPerUnit.toLocaleString() : 0} + {parsedLoose} Loose =
-                  </span>
-                </span>
-              </div>
-              <div className="font-mono text-sm font-black text-emerald-900 bg-white px-3 py-1 rounded-lg border border-emerald-300 shadow-xs">
-                {(calculatedPieces ?? 0).toLocaleString()} Pieces
-              </div>
-            </div>
+                {/* Handover Remarks & Core notes */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Handover Remarks / Notes:</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={handoverNotes}
+                    onChange={(e) => setHandoverNotes(e.target.value)}
+                    placeholder="e.g. Blade sharpness is perfect, core tension adjusted."
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Blade condition, raw material or special note</span>
+                </div>
 
-            {/* Optional Stroke / Meter Counter */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                  <Gauge className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Machine Stroke / Meter Counter (Stroke Count):</span>
-                </label>
-                <input
-                  type="number"
-                  value={meterReadingInput}
-                  onChange={(e) => setMeterReadingInput(e.target.value)}
-                  placeholder="e.g. 50500"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
-                />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">Machine stroke counter at handover time</span>
-              </div>
+                {/* Locked Data Card Notice */}
+                <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg text-xs flex items-center gap-2">
+                  <span className="text-base">🔒</span>
+                  <div>
+                    <b>Record Lock Notice:</b> Upon submission, against operator <b>{batch.worker}</b>'s name{' '}
+                    <span className="font-bold underline">
+                      {parsedProduced} Slit Rolls ({parsedMeter} Meters Length)
+                    </span>{' '}
+                    and <span className="font-bold underline">{parsedScrap} kg trim scrap</span> will be permanently recorded.
+                  </div>
+                </div>
+              </>
+            ) : stageName === 'Packing' ? (
+              <>
+                {/* Packing-Specific Production & Rejection Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Packed Boxes */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-emerald-900 uppercase mb-1 flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Packed Boxes (Boxes):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceProducedQtyInput}
+                      onChange={(e) => setSliceProducedQtyInput(e.target.value)}
+                      placeholder="e.g. 50 Boxes"
+                      className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-lg text-sm font-black text-emerald-950 outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
+                      Number of fully packed boxes
+                    </span>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Handover Remarks / Notes:</span>
-                </label>
-                <input
-                  type="text"
-                  value={handoverNotes}
-                  onChange={(e) => setHandoverNotes(e.target.value)}
-                  placeholder="e.g. 5 Crates + 500 loose pieces ready, 1 kg scrap, blade edge is fine."
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500"
-                />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">Blade condition, raw material or special note</span>
-              </div>
-            </div>
+                  {/* Scrap / Defect pieces or kg */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-rose-900 uppercase mb-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Rejection Scrap (KG or Pcs):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceScrapQtyInput}
+                      onChange={(e) => setSliceScrapQtyInput(e.target.value)}
+                      placeholder="e.g. 0"
+                      className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-sm font-black text-rose-950 outline-none focus:ring-2 focus:ring-rose-500"
+                      required
+                    />
+                    <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">
+                      Defects or rejected boxes/packing scrap
+                    </span>
+                  </div>
+                </div>
 
-            {/* Locked Data Card Notice */}
-            <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg text-xs flex items-center gap-2">
-              <span className="text-base">🔒</span>
-              <div>
-                <b>Record Lock Notice:</b> Upon submission, against operator <b>{batch.worker}</b>\'s name{' '}
-                <span className="font-bold underline">
-                  {parsedProduced} Crates + {parsedLoose} loose pieces ({calculatedPieces?.toLocaleString()} pieces)
-                </span>{' '}
-                and <span className="font-bold underline">{parsedScrap} kg scrap</span> will be permanently recorded.
-              </div>
-            </div>
+                {/* Handover Remarks */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Handover Remarks / Notes:</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={handoverNotes}
+                    onChange={(e) => setHandoverNotes(e.target.value)}
+                    placeholder="e.g. Label printer rolls replaced, packing boxes stacked."
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Tape, stickers, shrink film or machine setup note</span>
+                </div>
+
+                {/* Locked Data Card Notice */}
+                <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg text-xs flex items-center gap-2">
+                  <span className="text-base">🔒</span>
+                  <div>
+                    <b>Record Lock Notice:</b> Upon submission, against operator <b>{batch.worker}</b>'s name{' '}
+                    <span className="font-bold underline">
+                      {parsedProduced} Packed Boxes
+                    </span>{' '}
+                    and <span className="font-bold underline">{parsedScrap} kg/pcs scrap</span> will be permanently recorded.
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Default Grid (Cutting & Forming) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* Crates Produced */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-emerald-900 uppercase mb-1 flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Cut Crates ({unitLabel}):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceProducedQtyInput}
+                      onChange={(e) => setSliceProducedQtyInput(e.target.value)}
+                      placeholder={`e.g. 5 ${unitLabel}`}
+                      className="w-full px-3 py-2 bg-white border border-emerald-400 rounded-lg text-sm font-black text-emerald-950 outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
+                      Number of fully prepared crates
+                    </span>
+                  </div>
+
+                  {/* Loose Pieces */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-indigo-900 uppercase mb-1 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Open / Loose Pieces (Loose Pcs):</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={sliceLoosePiecesInput}
+                      onChange={(e) => setSliceLoosePiecesInput(e.target.value)}
+                      placeholder="e.g. 500"
+                      className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-sm font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-[10px] text-indigo-700 font-bold mt-0.5 block">
+                      Extra open pieces (e.g. 500 pieces)
+                    </span>
+                  </div>
+
+                  {/* Scrap / Rejection */}
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-rose-900 uppercase mb-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>
+                        {stageName === 'Slitting' || stageName === 'Cutting'
+                          ? 'Rejection Scrap (Scrap in KG):'
+                          : 'Defect Pieces:'}
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sliceScrapQtyInput}
+                      onChange={(e) => setSliceScrapQtyInput(e.target.value)}
+                      placeholder="e.g. 1.0"
+                      className="w-full px-3 py-2 bg-white border border-rose-300 rounded-lg text-sm font-black text-rose-950 outline-none focus:ring-2 focus:ring-rose-500"
+                      required
+                    />
+                    <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">
+                      {stageName === 'Slitting' || stageName === 'Cutting'
+                        ? 'Cutting Scrap Weight (in KG)'
+                        : 'Defective / Rejected Pieces'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live Calculation Card */}
+                <div className="bg-emerald-100/70 border border-emerald-300 rounded-xl p-3 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-emerald-950">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      <b>Total Produced Flat Blanks:</b>{' '}
+                      <span className="font-mono font-bold">
+                        {parsedProduced} Crates × {piecesPerUnit > 0 ? piecesPerUnit.toLocaleString() : 0} + {parsedLoose} Loose =
+                      </span>
+                    </span>
+                  </div>
+                  <div className="font-mono text-sm font-black text-emerald-900 bg-white px-3 py-1 rounded-lg border border-emerald-300 shadow-xs">
+                    {(calculatedPieces ?? 0).toLocaleString()} Pieces
+                  </div>
+                </div>
+
+                {/* Optional Stroke / Meter Counter & Remarks */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                      <Gauge className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Machine Stroke / Meter Counter (Stroke Count):</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={meterReadingInput}
+                      onChange={(e) => setMeterReadingInput(e.target.value)}
+                      placeholder="e.g. 50500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">Machine stroke counter at handover time</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Handover Remarks / Notes:</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={handoverNotes}
+                      onChange={(e) => setHandoverNotes(e.target.value)}
+                      placeholder="e.g. 5 Crates + 500 loose pieces ready, 1 kg scrap, blade edge is fine."
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">Blade condition, raw material or special note</span>
+                  </div>
+                </div>
+
+                {/* Locked Data Card Notice */}
+                <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg text-xs flex items-center gap-2">
+                  <span className="text-base">🔒</span>
+                  <div>
+                    <b>Record Lock Notice:</b> Upon submission, against operator <b>{batch.worker}</b>'s name{' '}
+                    <span className="font-bold underline">
+                      {parsedProduced} Crates + {parsedLoose} loose pieces ({calculatedPieces?.toLocaleString()} pieces)
+                    </span>{' '}
+                    and <span className="font-bold underline">{parsedScrap} kg scrap</span> will be permanently recorded.
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Section 2: Incoming Operator Assignment (Operator B) */}
@@ -620,9 +829,23 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                 className="mt-1 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
               />
               <span className="text-xs text-slate-700 leading-snug">
-                <b>Handover Physical Verification Acceptance:</b> I have physically verified the machine condition, raw material and operator{' '}
-                <b>{batch.worker}</b> prepared <b>{parsedProduced} Crates + {parsedLoose} Loose Pieces ({calculatedPieces?.toLocaleString()} Total Pieces)</b> and{' '}
-                <b>{parsedScrap} kg scrap</b> and handing over the new charge to operator <b>{finalRelievingOperator || '[Selected Operator]'}</b>.
+                <b>Handover Physical Verification Acceptance:</b> I have physically verified the machine condition, and operator{' '}
+                {stageName === 'Slitting' ? (
+                  <>
+                    <b>{batch.worker}</b> prepared <b>{parsedProduced} Slit Rolls ({parsedMeter} Meters Length)</b> and{' '}
+                    <b>{parsedScrap} kg scrap</b> and handing over the new charge to operator <b>{finalRelievingOperator || '[Selected Operator]'}</b>.
+                  </>
+                ) : stageName === 'Packing' ? (
+                  <>
+                    <b>{batch.worker}</b> prepared <b>{parsedProduced} Packed Boxes</b> and{' '}
+                    <b>{parsedScrap} kg/pcs scrap</b> and handing over the new charge to operator <b>{finalRelievingOperator || '[Selected Operator]'}</b>.
+                  </>
+                ) : (
+                  <>
+                    <b>{batch.worker}</b> prepared <b>{parsedProduced} Crates + {parsedLoose} Loose Pieces ({calculatedPieces?.toLocaleString()} Total Pieces)</b> and{' '}
+                    <b>{parsedScrap} kg scrap</b> and handing over the new charge to operator <b>{finalRelievingOperator || '[Selected Operator]'}</b>.
+                  </>
+                )}
               </span>
             </label>
           </div>

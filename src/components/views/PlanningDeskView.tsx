@@ -1227,49 +1227,20 @@ export const PlanningDeskView: React.FC<PlanningDeskViewProps> = ({
                 })()}
               </div>
 
-              {/* Glue Brand & Scrap Limit */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Specified Glue Brand:</label>
-                  <select
-                    value={formAdhesiveBrand}
-                    onChange={(e) => setFormAdhesiveBrand(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white"
-                  >
-                    {glueBrandList.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-bold text-slate-700 uppercase mb-1">Scrap Limit (%):</label>
-                    <select
-                      value={formTargetScrapLimitPct}
-                      onChange={(e) => setFormTargetScrapLimitPct(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800"
-                    >
-                      {scrapLimitsList.map((limit) => (
-                        <option key={limit} value={limit}>{limit}%</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 uppercase mb-1">Scrap (KG):</label>
-                    <select
-                      value={formTargetScrapLimitKg}
-                      onChange={(e) => setFormTargetScrapLimitKg(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800"
-                    >
-                      {scrapToleranceKgList.map((kg) => (
-                        <option key={kg} value={kg}>{kg} KG</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+              {/* Glue Brand */}
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Specified Glue Brand:</label>
+                <select
+                  value={formAdhesiveBrand}
+                  onChange={(e) => setFormAdhesiveBrand(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white"
+                >
+                  {glueBrandList.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Machine & Shift */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Activity, Layers, Package, Trash2, Scroll, Play, Pause, Circle, Wrench, AlertTriangle, Clock, SearchCheck, Box, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Activity, Layers, Package, Trash2, Scroll, Play, Pause, Circle, Wrench, AlertTriangle, Clock, SearchCheck, Box, ShieldCheck, CheckCircle2, FileText, Scissors, Cog, Truck } from 'lucide-react';
 import { FactoryState } from '../../types';
 import { calculateAvailableScrapKg } from '../../lib/utils';
 import { ALL_MACHINES_LIST } from '../../lib/constants';
@@ -130,6 +130,226 @@ export const MasterExecutiveDashboard: React.FC<MasterExecutiveDashboardProps> =
             <div className="text-xl font-extrabold text-rose-950">{availableScrap} KG</div>
           </div>
         </div>
+      </div>
+
+      {/* ACTIVE PRODUCTION FLOWCHART & PROGRESS TRACK */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs mb-6">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <Activity className="w-4 h-4 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold uppercase tracking-wide m-0 text-slate-900 flex items-center gap-2">
+                <span>Active Production Flowchart & Progress Track</span>
+                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold">
+                  {jobs.length} Active {jobs.length === 1 ? 'Job' : 'Jobs'} in Pipeline
+                </span>
+              </h4>
+              <p className="text-[11px] text-slate-500 m-0">
+                Live 6-Station Pipeline Progression: Planning ➔ Slitting ➔ Cutting ➔ Forming ➔ QC ➔ Dispatch
+              </p>
+            </div>
+          </div>
+          <div className="text-right text-[11px] text-slate-400 font-mono">
+            Executive Pipeline Visibility
+          </div>
+        </div>
+
+        {jobs.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 text-xs italic bg-slate-50 border border-slate-200 rounded-xl">
+            No active production jobs in the pipeline. Please schedule a new job in the Planning Desk.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {jobs.slice(0, 3).map((job) => {
+              const slitBatches = job.runningBatches?.filter((b) => b.stage === 'Slitting') || [];
+              const cutBatches = job.runningBatches?.filter((b) => b.stage === 'Cutting') || [];
+              const formBatches = job.runningBatches?.filter((b) => b.stage === 'Forming') || [];
+              const isSlitRunning = slitBatches.some((b) => b.status === 'Running');
+              const isCutRunning = cutBatches.some((b) => b.status === 'Running');
+              const isFormRunning = formBatches.some((b) => b.status === 'Running');
+
+              const hasSlitOutput = (job.availableRolls || 0) > 0 || cutBatches.length > 0;
+              const hasCutOutput = (job.availableCuttingCrates || 0) > 0 || (job.totalCutPieces || 0) > 0 || formBatches.length > 0;
+              const hasFormOutput = (job.availableFormingCrates || 0) > 0 || (job.totalFormedPieces || 0) > 0;
+              const hasQcOutput = (job.availableQcCrates || 0) > 0 || (job.totalQcPieces || 0) > 0;
+
+              // Dispatch calculations
+              const dispatchReadyPj = packJobs?.filter(pj => pj.kitType === job.product && (pj.packedBoxes || 0) > (pj.dispatchedBoxes || 0)) || [];
+              const totalDispatched = packJobs?.filter(pj => pj.kitType === job.product).reduce((sum, pj) => sum + (pj.dispatchedBoxes || 0), 0) || 0;
+              const isDispatchActive = dispatchReadyPj.length > 0;
+              const isDispatchDone = totalDispatched > 0;
+
+              let progressPct = 10;
+              if (hasSlitOutput) progressPct = 30;
+              if (isCutRunning) progressPct = 45;
+              if (hasCutOutput) progressPct = 60;
+              if (isFormRunning) progressPct = 75;
+              if (hasFormOutput) progressPct = 85;
+              if (hasQcOutput) progressPct = 95;
+              if (isDispatchDone) progressPct = 100;
+
+              const stages = [
+                {
+                  name: 'Planning',
+                  hindi: 'Planning',
+                  icon: <FileText className="w-3.5 h-3.5" />,
+                  isActive: false,
+                  isDone: true,
+                  qtyText: `Plan ID: ${job.planId || 'PPC-OK'}`,
+                  worker: 'PPC Desk'
+                },
+                {
+                  name: 'Slitting',
+                  hindi: 'Slitting',
+                  icon: <Scroll className="w-3.5 h-3.5" />,
+                  isActive: isSlitRunning,
+                  isDone: hasSlitOutput,
+                  qtyText: `${job.availableRolls || 0} Rolls Ready`,
+                  worker: slitBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  name: 'Cutting',
+                  hindi: 'Cutting',
+                  icon: <Scissors className="w-3.5 h-3.5" />,
+                  isActive: isCutRunning,
+                  isDone: hasCutOutput,
+                  qtyText: `${job.availableCuttingCrates || 0} Crates`,
+                  worker: cutBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  name: 'Forming',
+                  hindi: 'Forming',
+                  icon: <Cog className="w-3.5 h-3.5" />,
+                  isActive: isFormRunning,
+                  isDone: hasFormOutput,
+                  qtyText: `${job.availableFormingCrates || 0} Crates`,
+                  worker: formBatches.find((b) => b.status === 'Running')?.worker
+                },
+                {
+                  name: 'Quality QC',
+                  hindi: 'Quality Check',
+                  icon: <SearchCheck className="w-3.5 h-3.5" />,
+                  isActive: (job.availableFormingCrates || 0) > 0,
+                  isDone: hasQcOutput,
+                  qtyText: `${job.availableQcCrates || 0} OK Crates`,
+                  worker: undefined
+                },
+                {
+                  name: 'Dispatch',
+                  hindi: 'Dispatch',
+                  icon: <Truck className="w-3.5 h-3.5" />,
+                  isActive: isDispatchActive,
+                  isDone: isDispatchDone,
+                  qtyText: `${totalDispatched} Boxes Sent`,
+                  worker: undefined
+                }
+              ];
+
+              return (
+                <div
+                  key={job.id}
+                  className="bg-white border border-slate-200 rounded-xl p-3.5 hover:border-slate-300 transition"
+                >
+                  {/* Job Header info & Progress Bar */}
+                  <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-black text-slate-800 bg-slate-200 border border-slate-300 px-2 py-0.5 rounded text-xs">
+                        {job.id}
+                      </span>
+                      <span className="font-extrabold text-sm text-slate-950">{job.product}</span>
+                      <span className="text-xs text-slate-600 font-medium">
+                        ({job.paperBrand || 'ITC'} • {job.gsm || (job.plannedGsms && job.plannedGsms.join(', ')) || job.targetGsm || 'N/A'})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 font-bold">
+                        Pipeline Progress:
+                      </span>
+                      <div className="w-28 sm:w-36 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono font-black text-emerald-600 w-9 text-right">
+                        {progressPct}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Flowchart 6-Node Stepper */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {stages.map((stg, sIdx) => {
+                      let bgClass = 'bg-white border-slate-200 text-slate-500 hover:border-slate-300';
+                      let textClass = 'text-slate-500';
+                      let qtyClass = 'text-slate-400';
+                      let opClass = 'text-slate-500';
+                      let statusBadge = (
+                        <span className="text-[9px] text-slate-400 uppercase font-semibold">Pending</span>
+                      );
+
+                      if (stg.isActive) {
+                        bgClass = 'bg-emerald-50/50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-xs';
+                        textClass = 'text-emerald-800';
+                        qtyClass = 'text-emerald-700';
+                        opClass = 'text-emerald-800';
+                        statusBadge = (
+                          <span className="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded animate-pulse">
+                            ⚡ ACTIVE
+                          </span>
+                        );
+                      } else if (stg.isDone) {
+                        bgClass = 'bg-slate-100/70 border-slate-300 text-slate-700 hover:bg-slate-100';
+                        textClass = 'text-slate-800';
+                        qtyClass = 'text-slate-600';
+                        opClass = 'text-slate-600';
+                        statusBadge = (
+                          <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> DONE
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={stg.name}
+                          className={`p-2.5 rounded-xl border text-left flex flex-col justify-between group relative ${bgClass}`}
+                        >
+                          <div className="flex items-center justify-between mb-1 w-full">
+                            <div className={`flex items-center gap-1 font-bold text-xs ${textClass}`}>
+                              {stg.icon}
+                              <span>{stg.name}</span>
+                            </div>
+                            {statusBadge}
+                          </div>
+
+                          <div className={`text-[10px] font-medium truncate ${qtyClass}`}>
+                            {stg.qtyText}
+                          </div>
+
+                          {stg.worker && (
+                            <div className={`text-[9px] font-mono mt-1 font-semibold truncate ${opClass}`}>
+                              Op: {stg.worker}
+                            </div>
+                          )}
+
+                          {sIdx < stages.length - 1 && (
+                            <span className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-slate-400 text-xs font-bold">
+                              ➔
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Live Floor Maintenance & Breakdown Tracking Banner */}

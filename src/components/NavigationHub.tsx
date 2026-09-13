@@ -253,7 +253,7 @@ Every worker\'s dear sweat is the pride of Wondercraft.`;
     },
     {
       id: 'MANPOWER',
-      title: 'Executive & Manpower Desk',
+      title: 'Manpower Desk',
       subtitle: 'HR Headcount, Attendance, Labor Cost, Productivity & Live Floor Roster',
       icon: <Users className="w-8 h-8 text-indigo-700" />,
       perm: 'Manpower',

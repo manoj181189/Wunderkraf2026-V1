@@ -125,6 +125,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       if (activeBatchObj.batch.batchId !== lastShownSpecBatchId) {
         setShowSpecModal(true);
         setLastShownSpecBatchId(activeBatchObj.batch.batchId);
+        setActualGlueConsumed(activeBatchObj.batch.glueUsageKg ? String(activeBatchObj.batch.glueUsageKg) : '');
       }
     } else {
       setShowSpecModal(false);
@@ -151,6 +152,35 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
 
   const handlePcsPerKgChange = (val: string) => {
     setPcsPerKgInput(val);
+  };
+
+  const handleGlueConsumedChange = (val: string) => {
+    setActualGlueConsumed(val);
+    if (!activeBatchObj) return;
+    const numericVal = parseFloat(val) || 0;
+    const brandToDeduct = activeBatchObj.job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)';
+
+    const updatedJobs = jobs.map((j) => {
+      if (j.id !== activeBatchObj.job.id) return j;
+      return {
+        ...j,
+        glueUsageKg: numericVal,
+        glueBrand: brandToDeduct,
+        runningBatches: (j.runningBatches || []).map((b) => {
+          if (b.batchId !== activeBatchObj.batch.batchId) return b;
+          return {
+            ...b,
+            glueBrand: brandToDeduct,
+            glueUsageKg: numericVal
+          };
+        })
+      };
+    });
+
+    onSaveState({
+      ...state,
+      jobs: updatedJobs
+    });
   };
 
   // Live output numbers: Crates (in pcs) + Loose Pieces (-) ONLY Rejected Pieces = Net Main Counter Output
@@ -589,6 +619,15 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
             isPresent: true,
             status: 'PRODUCING' as const,
             inTime: w.inTime || nowTime
+          };
+        }
+        // Unpair previously assigned helpers for this machine or operator
+        if (w.role === 'HELPER' && (w.assignedMachine === selectedMachine || w.pairedWithOperator === operator.trim().toUpperCase())) {
+          return {
+            ...w,
+            assignedMachine: undefined,
+            pairedWithOperator: undefined,
+            status: undefined
           };
         }
         return w;
@@ -1478,7 +1517,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                     step="any"
                     min="0"
                     value={actualGlueConsumed}
-                    onChange={(e) => setActualGlueConsumed(e.target.value)}
+                    onChange={(e) => handleGlueConsumedChange(e.target.value)}
                     placeholder="0.00"
                     className="w-full px-3 py-2 bg-white border border-teal-400 rounded-lg text-sm font-black text-teal-950 outline-none focus:border-teal-600 shadow-2xs"
                   />
@@ -2037,7 +2076,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   const cutBatches = (j.runningBatches || []).filter((b) => b.stage === 'Cutting' || b.machine.startsWith('Cutting'));
                   const cutPcsStd = j.pcsPerCrateCutting || state.crateCapacityMaster?.[j.product]?.cuttingPcs || 10000;
                   const totalCutPieces = j.totalCutPieces || ((j.availableCuttingCrates || 0) * cutPcsStd);
-                  const totalScrapKg = cutBatches.reduce((sum, b) => sum + (b.scrapPcs || 0), 0);
+                  const totalScrapKg = cutBatches.reduce((sum, b) => sum + (b.scrapKg || 0), 0);
                   const totalInRolls = cutBatches.reduce((sum, b) => sum + (b.issuedQty || 0), 0);
                   const inKgEst = totalInRolls > 0 ? (totalInRolls * 12) : ((j.inputWeightKg || 200));
 
@@ -2510,8 +2549,32 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                     alert('⚠️ Please enter a valid quantity of glue consumed!');
                     return;
                   }
+                  const brandToDeduct = activeBatchObj.job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)';
+
+                  const updatedJobs = jobs.map((j) => {
+                    if (j.id !== activeBatchObj.job.id) return j;
+                    return {
+                      ...j,
+                      glueUsageKg: val,
+                      glueBrand: brandToDeduct,
+                      runningBatches: (j.runningBatches || []).map((b) => {
+                        if (b.batchId !== activeBatchObj.batch.batchId) return b;
+                        return {
+                          ...b,
+                          glueBrand: brandToDeduct,
+                          glueUsageKg: val
+                        };
+                      })
+                    };
+                  });
+
+                  onSaveState({
+                    ...state,
+                    jobs: updatedJobs
+                  });
+
                   setShowSpecModal(false);
-                  alert(`✅ Specification Confirmed!\n• Planned Brand: ${activeBatchObj.job.targetGlueBrand || 'Pidilite W-10 (Food Grade Adhesive)'}\n• Actual Glue: ${val} KG will be logged upon completing the cutting run.`);
+                  alert(`✅ Specification Confirmed!\n• Planned Brand: ${brandToDeduct}\n• Actual Glue: ${val} KG has been saved and integrated with the active run.`);
                 }}
                 className="px-4 py-2 text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-700 rounded-xl cursor-pointer shadow-xs flex items-center gap-1"
               >

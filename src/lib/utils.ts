@@ -322,11 +322,16 @@ export function getJobReelItemsBreakdown(job?: Job): JobReelItem[] {
  */
 export function formatGsmString(rawGsm?: string | number): string {
   if (!rawGsm) return '';
-  const s = String(rawGsm).trim();
+  let s = String(rawGsm).trim();
   if (!s) return '';
-  if (/gsm$/i.test(s)) {
-    return s.replace(/\s*gsm$/i, ' GSM');
+  // Remove "Mixed GSM" or similar parenthetical notes
+  s = s.replace(/\s*\(Mixed GSM\)/gi, '');
+  s = s.replace(/\s*\(Mixed\)/gi, '');
+  if (s.includes('+') || s.includes(',')) {
+    const parts = s.split(/[,+;/|]+/).map(p => p.trim()).filter(Boolean);
+    return parts.map(p => formatGsmString(p)).join(' + ');
   }
+  s = s.replace(/\s*gsm$/i, '').trim();
   return `${s} GSM`;
 }
 
@@ -338,33 +343,56 @@ export function getJobAllGsms(job?: Job): string[] {
   if (!job) return [];
   const gsms = new Set<string>();
 
-  // 1. From job.gsmList
+  // Collect actual GSMs from slitted reels and slitting batches
+  const actualGsms = new Set<string>();
+
+  // 1. From job.reelsList (actual slitted mother reels)
+  if (job.reelsList && Array.isArray(job.reelsList)) {
+    job.reelsList.forEach((item) => {
+      const formatted = formatGsmString(item.gsm);
+      if (formatted) {
+        const parts = formatted.split(/[,+;/|]+/).map((s) => s.trim().replace(/\s*gsm$/i, '')).filter(Boolean);
+        parts.forEach(p => {
+          const f = formatGsmString(p);
+          if (f) actualGsms.add(f);
+        });
+      }
+    });
+  }
+
+  // 2. From runningBatches in stage 'Slitting'
+  if (job.runningBatches && Array.isArray(job.runningBatches)) {
+    job.runningBatches.forEach((b) => {
+      if (b.stage === 'Slitting' || b.stage?.startsWith('Slit')) {
+        const formatted = formatGsmString(b.gsm);
+        if (formatted) {
+          const parts = formatted.split(/[,+;/|]+/).map((s) => s.trim().replace(/\s*gsm$/i, '')).filter(Boolean);
+          parts.forEach(p => {
+            const f = formatGsmString(p);
+            if (f) actualGsms.add(f);
+          });
+        }
+        if (b.gsmList && Array.isArray(b.gsmList)) {
+          b.gsmList.forEach((g) => {
+            const fg = formatGsmString(g);
+            if (fg) actualGsms.add(fg);
+          });
+        }
+      }
+    });
+  }
+
+  // If we have actual slitted GSMs, use them exclusively!
+  if (actualGsms.size > 0) {
+    return Array.from(actualGsms).filter(Boolean);
+  }
+
+  // Otherwise, fall back to planned/target GSMs
+  // 3. From job.gsmList
   if (job.gsmList && Array.isArray(job.gsmList)) {
     job.gsmList.forEach((g) => {
       const formatted = formatGsmString(g);
       if (formatted) gsms.add(formatted);
-    });
-  }
-
-  // 2. From job.reelsList
-  if (job.reelsList && Array.isArray(job.reelsList)) {
-    job.reelsList.forEach((item) => {
-      const formatted = formatGsmString(item.gsm);
-      if (formatted) gsms.add(formatted);
-    });
-  }
-
-  // 3. From runningBatches in stage 'Slitting'
-  if (job.runningBatches && Array.isArray(job.runningBatches)) {
-    job.runningBatches.forEach((b) => {
-      const formatted = formatGsmString(b.gsm);
-      if (formatted) gsms.add(formatted);
-      if (b.gsmList && Array.isArray(b.gsmList)) {
-        b.gsmList.forEach((g) => {
-          const fg = formatGsmString(g);
-          if (fg) gsms.add(fg);
-        });
-      }
     });
   }
 

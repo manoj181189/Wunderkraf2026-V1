@@ -85,48 +85,85 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
     }
   > = {};
 
-  // Initialize with known stations from running batches
+  // Build maps of active operators and helpers based strictly on active/held running batches
+  const activeOperatorToMachine: Record<string, { machine: string; dept: string; jobId: string }> = {};
+  const activeHelperToMachine: Record<string, { machine: string; dept: string; operator: string; jobId: string }> = {};
+  const activeMachineToCrew: Record<
+    string,
+    {
+      operator: string;
+      helpers: string[];
+      jobId: string;
+      product: string;
+      status: string;
+      dept: string;
+      shift: string;
+    }
+  > = {};
+
   (state.jobs || []).forEach((job) => {
     (job.runningBatches || []).forEach((b) => {
       if (b.status === 'Running' || b.status === 'Held') {
         const machine = b.machine;
         const op = b.worker || 'OPERATOR';
         const batchHelpers = b.helpers || [];
-        // Also look up helpers registered in floorWorkers paired with this op or machine
-        const registeredHelpers = workers
-          .filter(
-            (w) =>
-              w.role === 'HELPER' &&
-              w.isPresent &&
-              (w.assignedMachine === machine || w.pairedWithOperator === op)
-          )
-          .map((w) => w.name);
 
-        const allHelpers = Array.from(new Set([...batchHelpers, ...registeredHelpers]));
-
-        stationMap[machine] = {
-          machine,
-          dept: b.stage,
+        // Save active crew mapping
+        activeMachineToCrew[machine] = {
           operator: op,
-          helpers: allHelpers,
+          helpers: batchHelpers,
           jobId: job.id,
           product: job.product,
           status: b.status,
+          dept: b.stage,
           shift: b.shift || 'DAY'
         };
+
+        activeOperatorToMachine[op] = {
+          machine,
+          dept: b.stage,
+          jobId: job.id
+        };
+
+        batchHelpers.forEach((h) => {
+          activeHelperToMachine[h] = {
+            machine,
+            dept: b.stage,
+            operator: op,
+            jobId: job.id
+          };
+        });
       }
     });
   });
 
-  // Also scan registered workers who are assigned to machines not yet in stationMap
+  // 1. Populate stationMap from active running batches (takes absolute precedence)
+  Object.keys(activeMachineToCrew).forEach((machine) => {
+    const crew = activeMachineToCrew[machine];
+    stationMap[machine] = {
+      machine,
+      dept: crew.dept,
+      operator: crew.operator,
+      helpers: crew.helpers,
+      jobId: crew.jobId,
+      product: crew.product,
+      status: crew.status,
+      shift: crew.shift
+    };
+  });
+
+  // 2. Fallback to registered workers only for machines not currently active in stationMap
   workers.forEach((w) => {
     if (w.isPresent && w.assignedMachine && !stationMap[w.assignedMachine] && w.role === 'OPERATOR') {
+      if (activeOperatorToMachine[w.name]) return; // Skip if already active on another machine
+
       const assignedHelpers = workers
         .filter(
           (h) =>
             h.role === 'HELPER' &&
             h.isPresent &&
-            (h.assignedMachine === w.assignedMachine || h.pairedWithOperator === w.name)
+            (h.assignedMachine === w.assignedMachine || h.pairedWithOperator === w.name) &&
+            !activeHelperToMachine[h.name]
         )
         .map((h) => h.name);
 
@@ -143,13 +180,15 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
 
   // Ensure default presence of key machines like Cutting-1 with its 2 helpers if empty
   if (!stationMap['Cutting-1']) {
+    const opName = 'CUT_OP1';
     const cut1Helpers = workers
-      .filter((w) => w.role === 'HELPER' && w.isPresent && (w.assignedMachine === 'Cutting-1' || w.pairedWithOperator === 'CUT_OP1'))
+      .filter((w) => w.role === 'HELPER' && w.isPresent && (w.assignedMachine === 'Cutting-1' || w.pairedWithOperator === 'CUT_OP1') && !activeHelperToMachine[w.name])
       .map((w) => w.name);
+
     stationMap['Cutting-1'] = {
       machine: 'Cutting-1',
       dept: 'Cutting',
-      operator: 'CUT_OP1',
+      operator: opName,
       helpers: cut1Helpers.length > 0 ? cut1Helpers : ['SUNIL_HELPER', 'DINESH_HELPER'],
       status: 'Active',
       shift: 'DAY'
@@ -176,6 +215,14 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
           assignedMachine: machine,
           pairedWithOperator: operator,
           isPresent: true
+        };
+      }
+      // If the worker was a helper previously assigned to this machine or paired with this operator, clear their assignment
+      if (w.role === 'HELPER' && (w.assignedMachine === machine || w.pairedWithOperator === operator)) {
+        return {
+          ...w,
+          assignedMachine: undefined,
+          pairedWithOperator: undefined
         };
       }
       return w;
@@ -598,18 +645,49 @@ export const LiveFloorManpowerTracker: React.FC<LiveFloorManpowerTrackerProps> =
                     <td className="p-3 font-semibold text-slate-700">{w.department}</td>
 
                     <td className="p-3">
-                      {w.role === 'HELPER' ? (
-                        <div className="font-bold text-amber-950">
-                          <span>🤝 With {w.pairedWithOperator || 'Operator'}</span>
-                          {w.assignedMachine && (
-                            <span className="text-[10px] text-slate-500 block font-normal">
-                              Station: {w.assignedMachine}
+                      {(() => {
+                        const activeHelper = activeHelperToMachine[w.name];
+                        const activeOp = activeOperatorToMachine[w.name];
+
+                        if (w.role === 'HELPER') {
+                          if (activeHelper) {
+                            return (
+                              <div className="font-bold text-emerald-950">
+                                <span className="text-emerald-700 font-extrabold flex items-center gap-1">🟢 Active on {activeHelper.machine}</span>
+                                <span className="text-[10px] text-emerald-600 block font-normal mt-0.5">
+                                  With {activeHelper.operator} (Job #{activeHelper.jobId})
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="font-bold text-slate-500 opacity-60">
+                              <span>🤝 With {w.pairedWithOperator || 'Operator'}</span>
+                              {w.assignedMachine && (
+                                <span className="text-[10px] text-slate-400 block font-normal">
+                                  Roster: {w.assignedMachine} (Idle)
+                                </span>
+                              )}
+                            </div>
+                          );
+                        } else {
+                          if (activeOp) {
+                            return (
+                              <div className="font-bold text-blue-950">
+                                <span className="text-blue-700 font-extrabold flex items-center gap-1">🟢 Active on {activeOp.machine}</span>
+                                <span className="text-[10px] text-blue-600 block font-normal mt-0.5">
+                                  Running (Job #{activeOp.jobId})
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <span className="font-bold text-slate-400 opacity-60">
+                              {w.assignedMachine ? `Roster: ${w.assignedMachine} (Idle)` : 'Floor / General'}
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="font-bold text-blue-900">{w.assignedMachine || 'Floor / General'}</span>
-                      )}
+                          );
+                        }
+                      })()}
                     </td>
 
                     <td className="p-3">

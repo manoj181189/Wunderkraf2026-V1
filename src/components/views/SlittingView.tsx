@@ -206,6 +206,38 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       });
 
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const updatedWorkers = (state.floorWorkers || []).map((w) => {
+        if (w.name.toUpperCase() === operator.trim().toUpperCase()) {
+          return {
+            ...w,
+            assignedMachine: 'Slitting-1',
+            isPresent: true,
+            status: 'PRODUCING' as const,
+            inTime: w.inTime || nowTime
+          };
+        }
+        if (helpers.some((h) => h.toUpperCase() === w.name.toUpperCase())) {
+          return {
+            ...w,
+            assignedMachine: 'Slitting-1',
+            pairedWithOperator: operator.trim().toUpperCase(),
+            isPresent: true,
+            status: 'PRODUCING' as const,
+            inTime: w.inTime || nowTime
+          };
+        }
+        // Unpair previously assigned helpers for this machine or operator
+        if (w.role === 'HELPER' && (w.assignedMachine === 'Slitting-1' || w.pairedWithOperator === operator.trim().toUpperCase())) {
+          return {
+            ...w,
+            assignedMachine: undefined,
+            pairedWithOperator: undefined,
+            status: undefined
+          };
+        }
+        return w;
+      });
+
       const newLog: LogEntry = {
         jobId: job.id,
         product: job.product,
@@ -221,6 +253,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
       onSaveState({
         ...state,
         jobs: updatedJobs,
+        floorWorkers: updatedWorkers.length > 0 ? updatedWorkers : state.floorWorkers,
         logs: [newLog, ...(state.logs || [])]
       });
     }
@@ -1673,31 +1706,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
             )}
           </div>
 
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
-            <input
-              type="checkbox"
-              id="isHotFoilLayer"
-              checked={isHotFoilLayer}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setIsHotFoilLayer(checked);
-                if (checked) {
-                  setSelectedMotherReelId('');
-                  setPaperBrand('Specialty Laminate');
-                  setReelNo('HOT-FOIL-LAYER');
-                  setJumboWeightKg('50'); // Usually auxiliary rolls are lighter
-                } else {
-                  setPaperBrand(paperBrandList[0] || 'ITC');
-                  setReelNo('');
-                  setJumboWeightKg('200');
-                }
-              }}
-              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-            />
-            <label htmlFor="isHotFoilLayer" className="text-[11px] font-bold text-amber-900 cursor-pointer select-none">
-              Specialty Auxiliary Layer (Hot Foil / Hot Layer) — NOT counted in Mother Jumbo Reel stock or paper layers count
-            </label>
-          </div>
+
           {selectedPlanId && (() => {
             const sp = productionPlans.find(p => p.id === selectedPlanId);
             return sp ? (
@@ -2461,30 +2470,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
               />
             </div>
 
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
-              <input
-                type="checkbox"
-                id="addReelIsHotFoilLayer"
-                checked={addReelIsHotFoilLayer}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setAddReelIsHotFoilLayer(checked);
-                  if (checked) {
-                    setAddReelNo('HOT-FOIL-ADDON');
-                    setAddReelRemarks('Specialty Hot Foil Layer');
-                    setAddReelWeightKg('50');
-                  } else {
-                    setAddReelNo('');
-                    setAddReelRemarks('');
-                    setAddReelWeightKg('200');
-                  }
-                }}
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <label htmlFor="addReelIsHotFoilLayer" className="text-[11px] font-bold text-amber-900 cursor-pointer select-none">
-                Specialty Auxiliary Layer (Hot Foil / Hot Layer) — NOT counted in paper layers count
-              </label>
-            </div>
+
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
@@ -2574,6 +2560,8 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
           stageName="Slitting"
           availableWorkers={slitWorkers}
           unitLabel="Rolls"
+          initialProducedQty={parseFloat(outputRolls) || undefined}
+          initialScrapQty={parseFloat(scrapKgInput) || undefined}
           onConfirmHandover={handleConfirmShiftHandover}
         />
       )}
