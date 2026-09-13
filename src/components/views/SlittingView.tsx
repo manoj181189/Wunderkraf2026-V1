@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw, Play, Pause, Lock, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw, Calendar, Clock } from 'lucide-react';
-import { FactoryState, Job, JobReelItem, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
+import { ArrowLeft, RefreshCw, Play, Pause, Lock, Square, XCircle, Plus, AlertCircle, Check, Search, Tag, ShieldCheck, Layers, Eye, AlertTriangle, RotateCcw, Calendar, Clock, CheckCircle2 } from 'lucide-react';
+import { FactoryState, Job, JobReelItem, ProductType, RunningBatch, OperatorRunSlice, LogEntry, PlannedLayer } from '../../types';
 import { PRODUCTS, PAPER_BRANDS, DEPT_WORKERS, PRODUCT_PREFIX_MAP } from '../../lib/constants';
 import {
   getCurrentExpectedShift,
@@ -9,8 +9,19 @@ import {
   getJobReelItemsBreakdown,
   formatGsmString,
   getJobAllGsms,
-  getJobGsmsSummary
+  getJobGsmsSummary,
+  calculateLayerFulfillmentMatrix,
+  isJobLayersFullySlit,
+  getJobPlannedLayers,
+  parseNumericGsm,
+  normalizeGsmLabel,
+  LayerFulfillmentStatus
 } from '../../lib/utils';
+import {
+  getNumberingMaster,
+  generateUnifiedJobId,
+  generateSlittingBatchId
+} from '../../lib/numberingMaster';
 
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
@@ -49,6 +60,22 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   const [selectedMotherReelId, setSelectedMotherReelId] = useState<string>('');
   const [actualSlitLengthMeters, setActualSlitLengthMeters] = useState<string>('');
 
+  // Selected Plan Object & its Planned GSMs
+  const selectedPlan = productionPlans.find((p) => p.id === selectedPlanId);
+  const planAvailableGsms: string[] = React.useMemo(() => {
+    if (!selectedPlan) return [];
+    if (selectedPlan.plannedGsms && selectedPlan.plannedGsms.length > 0) {
+      return selectedPlan.plannedGsms;
+    }
+    if (selectedPlan.targetGsm) {
+      return selectedPlan.targetGsm
+        .split(/[,+/]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    return [];
+  }, [selectedPlan]);
+
   const [product, setProduct] = useState<ProductType>(() => {
     if (preSelectedPlanId) {
       const p = productionPlans.find((plan) => plan.id === preSelectedPlanId);
@@ -74,7 +101,20 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   
   // Separate Reel Number, GSM, and Remarks
   const [reelNo, setReelNo] = useState('');
-  const [gsm, setGsm] = useState('280 GSM');
+  const [gsm, setGsm] = useState(() => {
+    if (preSelectedPlanId) {
+      const p = productionPlans.find((plan) => plan.id === preSelectedPlanId);
+      if (p) {
+        if (p.plannedGsms && p.plannedGsms.length > 0) return p.plannedGsms[0];
+        if (p.targetGsm) {
+          const parts = p.targetGsm.split(/[,+/]/).map(s => s.trim()).filter(Boolean);
+          if (parts.length > 0) return parts[0];
+          return p.targetGsm;
+        }
+      }
+    }
+    return '120 GSM';
+  });
   const [customGsm, setCustomGsm] = useState('');
   const [reelRemarks, setReelRemarks] = useState('');
   const [jumboWeightKg, setJumboWeightKg] = useState('200');
@@ -93,6 +133,9 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   const [addReelPrintedRollIcon, setAddReelPrintedRollIcon] = useState('Sparkles');
 
   const [isLengthWarningModalOpen, setIsLengthWarningModalOpen] = useState(false);
+
+  // Planned Slit Output Limit Exceed Modal (Applies strictly to Output Rolls Produced)
+  const [isExceedOutputModalOpen, setIsExceedOutputModalOpen] = useState(false);
 
   const [outputRolls, setOutputRolls] = useState('');
   const [outputWeightKg, setOutputWeightKg] = useState('');
@@ -116,7 +159,7 @@ export const SlittingView: React.FC<SlittingViewProps> = ({
   const [addReelJobId, setAddReelJobId] = useState('');
   const [addReelWorker, setAddReelWorker] = useState(slitWorkers[0] || 'SLIT_RAMESH');
   const [addReelNo, setAddReelNo] = useState('');
-  const [addReelGsm, setAddReelGsm] = useState('280 GSM');
+  const [addReelGsm, setAddReelGsm] = useState(() => (state.targetGsmMaster && state.targetGsmMaster.length > 0 ? state.targetGsmMaster[0] : '120 GSM'));
   const [addReelRemarks, setAddReelRemarks] = useState('');
   const [addReelWeightKg, setAddReelWeightKg] = useState('200');
 
@@ -210,22 +253,18 @@ Only one active job can run on a machine at a time. Until the current job is Hel
       return;
     }
 
-    const prefixMap: Record<string, string> = {
-      ...PRODUCT_PREFIX_MAP,
-      ...(state.productPrefixMap || {})
-    };
-    let prefix = prefixMap[product] || product.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || 'ITM';
-    if (!prefix.endsWith('-')) prefix += '-';
+    const master = getNumberingMaster(seriesConfig);
+    const targetPlan = selectedPlanId ? productionPlans.find(p => p.id === selectedPlanId) : null;
+    const generated = generateUnifiedJobId(product, seriesConfig, state.productPrefixMap);
+    const newJobId = generated.jobId;
 
-    const currentSeq = (seriesConfig.productSeqs && seriesConfig.productSeqs[product]) || 1;
-    const formattedSeq = String(currentSeq).padStart(3, '0');
-    const newJobId = `${prefix}${formattedSeq}`;
-
-    const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
+    const batchId = generateSlittingBatchId(newJobId, [], master);
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Effective GSM
-    const effectiveGsm = gsm === 'Custom' ? (customGsm.trim() || '280 GSM') : gsm;
+    // Effective GSM dynamically bound from selected PPC plan or target master
+    const effectiveGsm = gsm === 'Custom'
+      ? (customGsm.trim() || targetPlan?.targetGsm || (targetPlan?.plannedGsms && targetPlan.plannedGsms[0]) || (state.targetGsmMaster && state.targetGsmMaster[0]) || '120 GSM')
+      : gsm;
     // Effective Reel Number
     const effectiveReelNo =
       reelNo.trim() ||
@@ -322,11 +361,6 @@ Only one active job can run on a machine at a time. Until the current job is Hel
       timestamp: new Date().toLocaleString()
     };
 
-    const nextSeqs = {
-      ...seriesConfig.productSeqs,
-      [product]: currentSeq + 1
-    };
-
     const updatedPlans = productionPlans.map((p) => {
       if (p.id === selectedPlanId) {
         return { ...p, status: 'In-Progress' as const, jobId: newJobId };
@@ -352,10 +386,7 @@ Only one active job can run on a machine at a time. Until the current job is Hel
       ...state,
       jobs: [newJob, ...state.jobs],
       logs: [...state.logs, newLog],
-      seriesConfig: {
-        ...seriesConfig,
-        productSeqs: nextSeqs
-      },
+      seriesConfig: generated.updatedSeriesConfig,
       productionPlans: updatedPlans,
       motherReelInventory: updatedMotherReels
     });
@@ -384,25 +415,28 @@ Only one active job can run on a machine at a time. Until the current job is Hel
       return;
     }
 
+    // Decoupled: Input Mother Jumbo Reels mounting on the unwinder is NOT restricted by output limits.
+    // The restriction applies exclusively to the final operator input "Actual Slitted Output Rolls Produced".
+    const existingReelsList = targetJob.reelsList && targetJob.reelsList.length > 0
+      ? targetJob.reelsList
+      : getJobReelItemsBreakdown(targetJob);
+
     // If a job is currently running on Slitting-1, operator can only add reel to THAT running job!
     if (currentRunningBatch && currentRunningBatch.job.id !== targetJob.id) {
       alert(
-        `⚠️ Single Active Job Constraint:
-
-Job [${currentRunningBatch.job.id}] is currently running on machine [Slitting-1]! You can only add-on extra reels to this active job [${currentRunningBatch.job.id}].
-
-To run another job [${targetJob.id}], first Hold or Complete the current job!`
+        `⚠️ Single Active Job Constraint:\n\nJob [${currentRunningBatch.job.id}] is currently running on machine [Slitting-1]! You can only add-on extra reels to this active job [${currentRunningBatch.job.id}].\n\nTo run another job [${targetJob.id}], first Hold or Complete the current job!`
       );
       return;
     }
 
-    const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
+    const master = getNumberingMaster(seriesConfig);
+    const batchId = generateSlittingBatchId(targetJob.id, targetJob.runningBatches || [], master);
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const effectiveReelNo =
       addReelNo.trim() ||
       `RL-${(targetJob.paperBrand || 'ITC').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const effectiveGsm = addReelGsm.trim() || targetJob.gsm || '280 GSM';
+    const effectiveGsm = addReelGsm.trim() || targetJob.gsm || (targetJob.plannedGsms && targetJob.plannedGsms[0]) || (state.targetGsmMaster && state.targetGsmMaster[0]) || '120 GSM';
     const parsedAddWeight = parseFloat(addReelWeightKg) || 0;
 
     const newBatch: RunningBatch = {
@@ -451,10 +485,6 @@ To run another job [${targetJob.id}], first Hold or Complete the current job!`
       printedRollDesign: addReelIsPrintedRoll ? addReelPrintedRollDesign : undefined,
       printedRollIcon: addReelIsPrintedRoll ? addReelPrintedRollIcon : undefined
     };
-
-    const existingReelsList = targetJob.reelsList && targetJob.reelsList.length > 0
-      ? targetJob.reelsList
-      : getJobReelItemsBreakdown(targetJob);
 
     const updatedReelsList = [...existingReelsList, newReelItem];
 
@@ -655,7 +685,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
     alert(`✅ Shift Handover Complete! Ongoing batch transferred from ${batch.worker} to ${handoverData.relievedByOperator} without stopping. ${handoverData.sliceProducedQty} Slit Rolls locked to ${batch.worker}.`);
   };
 
-  const handleCompleteSlitting = (bypassWarning = false) => {
+  const handleCompleteSlitting = (bypassWarning = false, bypassOutputLimit = false) => {
     if (!activeBatchObj) return alert('No active slitting batch to finish!');
     const rollsCount = parseInt(outputRolls, 10) || 0;
     const weightKg = parseFloat(outputWeightKg) || 0;
@@ -667,6 +697,32 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
     }
 
     const { job, batch } = activeBatchObj;
+
+    // Shift from single run to cumulative job-level counting
+    const ppcPlannedTarget = job.planId
+      ? (productionPlans.find((p) => p.id === job.planId)?.targetLayers || job.targetLayers || 8)
+      : (job.targetLayers || 8);
+
+    const currentBatchId = batch.batchId;
+    const currentReelNo = batch.reelNo;
+
+    const totalSlitOutputSoFar = (
+      job.reelsList && job.reelsList.length > 0
+        ? job.reelsList
+        : getJobReelItemsBreakdown(job)
+    ).reduce((sum, r) => {
+      if (r.batchId === currentBatchId || (currentReelNo && r.reelNo === currentReelNo)) {
+        return sum;
+      }
+      return sum + (r.rolls || 0);
+    }, 0);
+
+    const projectedTotal = totalSlitOutputSoFar + rollsCount;
+
+    if (projectedTotal > ppcPlannedTarget && !bypassOutputLimit) {
+      setIsExceedOutputModalOpen(true);
+      return;
+    }
 
     // Compare actual length (meters) against planned target length
     const actualLen = parseFloat(actualSlitLengthMeters) || 0;
@@ -838,6 +894,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
     setScrapKgInput('');
     setActualSlitLengthMeters('');
     setIsLengthWarningModalOpen(false);
+    setIsExceedOutputModalOpen(false);
     setSelectedActiveBatchId('');
     alert(`✅ Slitting Finished!\n• Output: ${rollsCount} Rolls (${weightKg} KG)\n• Jumbo Loaded: ${inputWeight} KG\n• Scrap Wastage: ${finalScrapKg} KG (${finalScrapPercent}%)\nLogged to Total Traceability and Inventory!`);
   };
@@ -934,7 +991,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
             {activeBatches.map(({ job, batch }) => {
               const isSelected = (selectedActiveBatchId || activeBatchObj?.batch.batchId) === batch.batchId;
               const displayReel = batch.reelNo || job.reelNo || `RL-${(job.paperBrand || 'ITC').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase()}-${job.id.replace(/[^0-9]/g, '').padStart(4, '0')}`;
-              const displayGsm = batch.gsm || job.gsm || '280 GSM';
+              const displayGsm = batch.gsm || job.gsm || (job.plannedGsms && job.plannedGsms.join(', ')) || job.targetGsm || 'N/A';
               const displayWeight = batch.inputWeightKg || job.inputWeightKg || 200;
               return (
                 <button
@@ -983,7 +1040,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
             const effectiveScrap = scrapKgInput.trim() !== '' ? (parseFloat(scrapKgInput) || 0) : autoScrap;
             const effectiveWastagePercent = activeInputWeight > 0 && parsedOutWeight > 0 ? Number(((effectiveScrap / activeInputWeight) * 100).toFixed(2)) : 0;
             const activeReelDisplay = activeBatchObj.batch.reelNo || activeBatchObj.job.reelNo || `RL-${(activeBatchObj.job.paperBrand || 'ITC').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase()}-1024`;
-            const activeGsmDisplay = activeBatchObj.batch.gsm || activeBatchObj.job.gsm || '280 GSM';
+            const activeGsmDisplay = activeBatchObj.batch.gsm || activeBatchObj.job.gsm || (activeBatchObj.job.plannedGsms && activeBatchObj.job.plannedGsms.join(', ')) || activeBatchObj.job.targetGsm || 'N/A';
 
             return (
             <div className="pt-2 border-t border-slate-200 space-y-3">
@@ -1053,18 +1110,161 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                 </div>
               )}
 
+              {/* REAL-TIME UI STATUS CARD ON SLITTING SCREEN */}
+              {(() => {
+                const targetPlan = activeBatchObj.job.planId
+                  ? productionPlans.find(p => p.id === activeBatchObj.job.planId)
+                  : null;
+                const ppcPlannedTarget = targetPlan?.targetLayers || activeBatchObj.job.targetLayers || 8;
+                const currentBatchId = activeBatchObj.batch.batchId;
+                const currentReelNo = activeBatchObj.batch.reelNo;
+
+                const totalSlitOutputSoFar = (
+                  activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                    ? activeBatchObj.job.reelsList
+                    : getJobReelItemsBreakdown(activeBatchObj.job)
+                ).reduce((sum, r) => {
+                  if (r.batchId === currentBatchId || (currentReelNo && r.reelNo === currentReelNo)) {
+                    return sum;
+                  }
+                  return sum + (r.rolls || 0);
+                }, 0);
+
+                const remainingAllowed = Math.max(0, ppcPlannedTarget - totalSlitOutputSoFar);
+                const enteredCurrent = parseInt(outputRolls, 10) || 0;
+                const projectedTotal = totalSlitOutputSoFar + enteredCurrent;
+                const isOverLimit = projectedTotal > ppcPlannedTarget;
+
+                return (
+                  <div className={`p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-between flex-wrap gap-3 ${
+                    isOverLimit
+                      ? 'bg-rose-50 border-rose-300 text-rose-950 shadow-md'
+                      : 'bg-indigo-50/70 border-indigo-200 text-indigo-950 shadow-xs'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <Layers className={`w-5 h-5 shrink-0 ${isOverLimit ? 'text-rose-600 animate-bounce' : 'text-indigo-600'}`} />
+                      <div className="text-xs space-y-1">
+                        <span className="font-extrabold uppercase tracking-wider text-[10px] text-slate-500 block">
+                          Real-Time Cumulative Job Progress
+                        </span>
+                        <div className="text-sm font-semibold text-slate-800 leading-normal">
+                          Cumulative Job Output: <b className={isOverLimit ? 'text-rose-700 font-black' : 'text-indigo-900 font-black'}>{totalSlitOutputSoFar} / {ppcPlannedTarget}</b> Rolls Slit (Remaining Quota: <b className="text-emerald-700 font-black">{remainingAllowed} Rolls</b>)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {enteredCurrent > 0 && (
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-lg border ${
+                          isOverLimit
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}>
+                          Current Run Entry: +{enteredCurrent} Rolls ({projectedTotal}/{ppcPlannedTarget} Total)
+                        </span>
+                      )}
+                      {isOverLimit && (
+                        <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-2 py-1 rounded-lg animate-pulse">
+                          ⛔ Over PPC Target!
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-emerald-800 uppercase mb-1">
-                    Output Slit Rolls Count:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-emerald-800 uppercase">
+                      Output Slit Rolls Count:
+                    </label>
+                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="Remaining allowed based on PPC plan target and previously completed runs">
+                      Remaining Allowed: {(() => {
+                        const targetPlan = activeBatchObj ? (productionPlans.find(p => p.id === activeBatchObj.job.planId) || activeBatchObj.job) : null;
+                        const ppcPlannedTarget = targetPlan?.targetLayers || 8;
+                        const totalSlitOutputSoFar = activeBatchObj
+                          ? (activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                              ? activeBatchObj.job.reelsList
+                              : getJobReelItemsBreakdown(activeBatchObj.job)
+                            ).reduce((sum, r) => {
+                              if (r.batchId === activeBatchObj.batch.batchId || (activeBatchObj.batch.reelNo && r.reelNo === activeBatchObj.batch.reelNo)) {
+                                return sum;
+                              }
+                              return sum + (r.rolls || 0);
+                            }, 0)
+                          : 0;
+                        return Math.max(0, ppcPlannedTarget - totalSlitOutputSoFar);
+                      })()} Rolls
+                    </span>
+                  </div>
                   <input
                     type="number"
+                    max={(() => {
+                      const targetPlan = activeBatchObj ? (productionPlans.find(p => p.id === activeBatchObj.job.planId) || activeBatchObj.job) : null;
+                      const ppcPlannedTarget = targetPlan?.targetLayers || 8;
+                      const totalSlitOutputSoFar = activeBatchObj
+                        ? (activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                            ? activeBatchObj.job.reelsList
+                            : getJobReelItemsBreakdown(activeBatchObj.job)
+                          ).reduce((sum, r) => {
+                            if (r.batchId === activeBatchObj.batch.batchId || (activeBatchObj.batch.reelNo && r.reelNo === activeBatchObj.batch.reelNo)) {
+                              return sum;
+                            }
+                            return sum + (r.rolls || 0);
+                          }, 0)
+                        : 0;
+                      return Math.max(0, ppcPlannedTarget - totalSlitOutputSoFar);
+                    })()}
+                    min={1}
                     value={outputRolls}
                     onChange={(e) => setOutputRolls(e.target.value)}
-                    placeholder="e.g. 8 Rolls"
-                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                    placeholder="e.g. 1"
+                    className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-bold text-slate-800 outline-none transition ${
+                      (() => {
+                        const targetPlan = activeBatchObj ? (productionPlans.find(p => p.id === activeBatchObj.job.planId) || activeBatchObj.job) : null;
+                        const ppcPlannedTarget = targetPlan?.targetLayers || 8;
+                        const totalSlitOutputSoFar = activeBatchObj
+                          ? (activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                              ? activeBatchObj.job.reelsList
+                              : getJobReelItemsBreakdown(activeBatchObj.job)
+                            ).reduce((sum, r) => {
+                              if (r.batchId === activeBatchObj.batch.batchId || (activeBatchObj.batch.reelNo && r.reelNo === activeBatchObj.batch.reelNo)) {
+                                return sum;
+                              }
+                              return sum + (r.rolls || 0);
+                            }, 0)
+                          : 0;
+                        const remainingAllowed = Math.max(0, ppcPlannedTarget - totalSlitOutputSoFar);
+                        return (parseInt(outputRolls, 10) || 0) > remainingAllowed;
+                      })()
+                        ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-400 text-rose-900'
+                        : 'border-emerald-300 focus:border-emerald-500'
+                    }`}
                   />
+                  {(() => {
+                    const targetPlan = activeBatchObj ? (productionPlans.find(p => p.id === activeBatchObj.job.planId) || activeBatchObj.job) : null;
+                    const ppcPlannedTarget = targetPlan?.targetLayers || 8;
+                    const totalSlitOutputSoFar = activeBatchObj
+                      ? (activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                          ? activeBatchObj.job.reelsList
+                          : getJobReelItemsBreakdown(activeBatchObj.job)
+                        ).reduce((sum, r) => {
+                          if (r.batchId === activeBatchObj.batch.batchId || (activeBatchObj.batch.reelNo && r.reelNo === activeBatchObj.batch.reelNo)) {
+                            return sum;
+                          }
+                          return sum + (r.rolls || 0);
+                        }, 0)
+                      : 0;
+                    const remainingAllowed = Math.max(0, ppcPlannedTarget - totalSlitOutputSoFar);
+                    const isExceeded = (parseInt(outputRolls, 10) || 0) > remainingAllowed;
+                    if (!isExceeded) return null;
+                    return (
+                      <span className="text-[10px] font-black text-rose-600 block mt-1">
+                        ⛔ Entered current run output ({outputRolls} rolls) exceeds the remaining allowed quota of {remainingAllowed} rolls for this job!
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-blue-800 uppercase mb-1">
@@ -1285,28 +1485,25 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                   const val = e.target.value;
                   setSelectedPlanId(val);
                   if (val) {
-                    const selectedPlan = productionPlans.find((p) => p.id === val);
-                    if (selectedPlan) {
-                      setProduct(selectedPlan.product);
-                      if (selectedPlan.paperBrand) setPaperBrand(selectedPlan.paperBrand);
-                      if (selectedPlan.targetGsm) {
-                        const numericGsm = selectedPlan.targetGsm.replace(/[^0-9]/g, '');
-                        const standardOptions = ['120 GSM', '60 GSM', '115 GSM', '125 GSM', '150 GSM', '90 GSM'];
-                        const matched = standardOptions.find(opt => opt.includes(numericGsm));
-                        if (matched) {
-                          setGsm(matched);
-                        } else {
-                          setGsm('Custom');
-                          setCustomGsm(selectedPlan.targetGsm);
-                        }
+                    const selPlan = productionPlans.find((p) => p.id === val);
+                    if (selPlan) {
+                      setProduct(selPlan.product);
+                      if (selPlan.paperBrand) setPaperBrand(selPlan.paperBrand);
+                      const gsms = (selPlan.plannedGsms && selPlan.plannedGsms.length > 0)
+                        ? selPlan.plannedGsms
+                        : (selPlan.targetGsm ? selPlan.targetGsm.split(/[,+/]/).map(s => s.trim()).filter(Boolean) : []);
+                      if (gsms.length > 0) {
+                        setGsm(gsms[0]);
+                      } else if (selPlan.targetGsm) {
+                        setGsm(selPlan.targetGsm);
                       }
-                      if (selectedPlan.assignedShift) setShift(selectedPlan.assignedShift);
+                      if (selPlan.assignedShift) setShift(selPlan.assignedShift);
                       
                       // Auto-populate printed roll configuration from PPC plan
-                      if (selectedPlan.printedRollRequired) {
+                      if (selPlan.printedRollRequired) {
                         setIsPrintedRoll(true);
-                        setPrintedRollDesign(selectedPlan.printedRollDesign || '');
-                        setPrintedRollIcon(selectedPlan.printedRollIcon || 'Sparkles');
+                        setPrintedRollDesign(selPlan.printedRollDesign || '');
+                        setPrintedRollIcon(selPlan.printedRollIcon || 'Sparkles');
                       } else {
                         setIsPrintedRoll(false);
                         setPrintedRollDesign('');
@@ -1317,12 +1514,18 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                       const matchingReel = motherReelInventory.find(
                         (r) =>
                           r.status === 'Available' &&
-                          r.brand.toLowerCase() === (selectedPlan.paperBrand || '').toLowerCase()
+                          r.brand.toLowerCase() === (selPlan.paperBrand || '').toLowerCase()
                       );
                       if (matchingReel) {
                         setSelectedMotherReelId(matchingReel.id);
                         setJumboWeightKg(String(matchingReel.weightKg));
                         setReelNo(matchingReel.id);
+                        if (matchingReel.gsm) {
+                          const matchedInPlan = gsms.find(g => g.toLowerCase().includes(String(matchingReel.gsm).toLowerCase()));
+                          if (matchedInPlan) {
+                            setGsm(matchedInPlan);
+                          }
+                        }
                       } else {
                         setSelectedMotherReelId('');
                       }
@@ -1508,9 +1711,12 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                   <Lock className="w-3 h-3 text-indigo-700" /> 100% Read-Only (Locked to PPC #{sp.id})
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div>
-                  Target Layers: <b className="text-indigo-900">{sp.targetLayers} Layers</b>
+                  Target Layers: <b className="text-indigo-900">{sp.targetLayers} Layers (Max {sp.targetLayers} Reels)</b>
+                </div>
+                <div>
+                  Planned GSMs: <b className="text-indigo-900">{(sp.plannedGsms && sp.plannedGsms.join(', ')) || sp.targetGsm || 'N/A'}</b>
                 </div>
                 <div>
                   Target Length: <b className="text-indigo-900">{sp.targetLengthMeters} Meters</b>
@@ -1676,42 +1882,69 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold text-slate-700 uppercase mb-1">
-              GSM (Thickness):
-            </label>
-            {selectedPlanId ? (
-              <div className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 cursor-not-allowed flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{(productionPlans.find(p => p.id === selectedPlanId)?.targetGsm) || gsm}</span>
-                </div>
-                <span className="text-[10px] text-slate-500 font-semibold uppercase">Locked to PPC Spec</span>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-extrabold text-slate-700 uppercase flex items-center gap-1">
+                <span>GSM (Thickness):</span>
+              </label>
+              {planAvailableGsms.length > 0 && (
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                  {planAvailableGsms.length} Planned
+                </span>
+              )}
+            </div>
+
+            <select
+              value={gsm}
+              onChange={(e) => setGsm(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {planAvailableGsms.length > 0 && (
+                <optgroup label="📋 Planned GSMs from PPC Desk">
+                  {planAvailableGsms.map((g) => (
+                    <option key={g} value={g}>
+                      ✓ {g} (Planned)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Other Standard GSMs">
+                {['60 GSM', '80 GSM', '100 GSM', '115 GSM', '120 GSM', '125 GSM', '140 GSM', '150 GSM', '160 GSM', '180 GSM', '200 GSM', '220 GSM', '250 GSM', '280 GSM', '300 GSM', '320 GSM', '350 GSM']
+                  .filter((g) => !planAvailableGsms.includes(g))
+                  .map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                <option value="Custom">Custom GSM...</option>
+              </optgroup>
+            </select>
+            {gsm === 'Custom' && (
+              <input
+                type="text"
+                value={customGsm}
+                onChange={(e) => setCustomGsm(e.target.value)}
+                placeholder="Enter custom GSM (e.g. 70 GSM)"
+                className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
+              />
+            )}
+            {planAvailableGsms.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                <span className="text-[10px] text-slate-500 font-semibold">Select:</span>
+                {planAvailableGsms.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGsm(g)}
+                    className={`text-[10px] px-2 py-0.5 rounded font-black cursor-pointer transition ${
+                      gsm === g
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <>
-                <select
-                  value={gsm}
-                  onChange={(e) => setGsm(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-                >
-                  <option value="120 GSM">120 GSM (Standard Cutlery)</option>
-                  <option value="60 GSM">60 GSM (Heavy Export Grade)</option>
-                  <option value="115 GSM">115 GSM (Reinforced Edge)</option>
-                  <option value="125 GSM">125 GSM (High Tensile)</option>
-                  <option value="150 GSM">150 GSM (Heavy Rigidity)</option>
-                  <option value="90 GSM">90 GSM (Special Heavy)</option>
-                  <option value="Custom">Custom GSM...</option>
-                </select>
-                {gsm === 'Custom' && (
-                  <input
-                    type="text"
-                    value={customGsm}
-                    onChange={(e) => setCustomGsm(e.target.value)}
-                    placeholder="Enter custom GSM (e.g. 260 GSM)"
-                    className="w-full mt-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
-                  />
-                )}
-              </>
             )}
           </div>
 
@@ -1985,16 +2218,28 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                 const selectedJob = jobs.find((j) => j.id === addReelJobId);
                 if (!selectedJob) return null;
                 const currReels = getJobAllReels(selectedJob);
+                const targetPlan = selectedJob.planId ? productionPlans.find((p) => p.id === selectedJob.planId) : null;
+                const plannedLimit = targetPlan?.targetLayers || selectedJob.targetLayers || 8;
+                const isLimitReached = currReels.length >= plannedLimit;
+
                 return (
-                  <div className="mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs space-y-1">
+                  <div className="mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-blue-950 uppercase text-[10px]">
-                        Existing Jumbo Reels ({currReels.length}):
+                        Existing Jumbo Reels in Job ({currReels.length} / {plannedLimit} Planned):
                       </span>
                       <span className="text-[10px] font-mono text-blue-800 font-bold">
                         Job {selectedJob.id} ({selectedJob.product})
                       </span>
                     </div>
+
+                    {isLimitReached && (
+                      <div className="p-2 bg-amber-100/90 border border-amber-300 rounded-md text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>⚠️ Planned Reel Limit Reached ({currReels.length}/{plannedLimit} Reels). Adding another reel will trigger confirmation popup.</span>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-1">
                       {currReels.map((r, idx) => (
                         <span
@@ -2053,17 +2298,65 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GSM:</label>
-                <input
-                  type="text"
-                  value={(jobs.find(j => j.id === addReelJobId)?.planId && productionPlans.find(p => p.id === jobs.find(j => j.id === addReelJobId)?.planId)?.targetGsm) || addReelGsm}
-                  onChange={(e) => setAddReelGsm(e.target.value)}
-                  placeholder="e.g. 280 GSM"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                  disabled={!!(jobs.find(j => j.id === addReelJobId)?.planId)}
-                />
-              </div>
+              {(() => {
+                const targetJob = jobs.find(j => j.id === addReelJobId);
+                const targetPlan = targetJob?.planId ? productionPlans.find(p => p.id === targetJob.planId) : null;
+                const jobPlannedGsms: string[] = targetPlan?.plannedGsms && targetPlan.plannedGsms.length > 0
+                  ? targetPlan.plannedGsms
+                  : (targetPlan?.targetGsm ? targetPlan.targetGsm.split(/[,+/]/).map(s => s.trim()).filter(Boolean) : []);
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-700 uppercase">GSM:</label>
+                      {jobPlannedGsms.length > 0 && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                          {jobPlannedGsms.length} Planned
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      value={addReelGsm}
+                      onChange={(e) => setAddReelGsm(e.target.value)}
+                      className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-xs font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {jobPlannedGsms.length > 0 && (
+                        <optgroup label="📋 Planned GSMs for this Job">
+                          {jobPlannedGsms.map((g) => (
+                            <option key={g} value={g}>✓ {g} (Planned)</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Standard GSMs">
+                        {['60 GSM', '80 GSM', '100 GSM', '115 GSM', '120 GSM', '125 GSM', '140 GSM', '150 GSM', '180 GSM', '200 GSM', '250 GSM', '280 GSM', '300 GSM']
+                          .filter(g => !jobPlannedGsms.includes(g))
+                          .map(g => (
+                            <option key={g} value={g}>{g}</option>
+                          ))}
+                      </optgroup>
+                    </select>
+                    {jobPlannedGsms.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                        <span className="text-[10px] text-slate-500 font-semibold">Select:</span>
+                        {jobPlannedGsms.map((g) => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setAddReelGsm(g)}
+                            className={`text-[10px] px-2 py-0.5 rounded font-black cursor-pointer transition ${
+                              addReelGsm === g
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
+                            }`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Operator Name:</label>
                 <input
@@ -2203,7 +2496,7 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
               </button>
               <button
                 type="button"
-                onClick={handleConfirmAddReelToJob}
+                onClick={() => handleConfirmAddReelToJob()}
                 disabled={!addReelJobId}
                 className="px-4 py-2 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl cursor-pointer shadow-xs flex items-center gap-1"
               >
@@ -2270,19 +2563,6 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
         onConfirmCrew={handleConfirmCrew}
       />
 
-      {/* Station Crew Assignment Modal */}
-      <StationCrewModal
-        isOpen={isCrewModalOpen}
-        onClose={() => setIsCrewModalOpen(false)}
-        machine="Slitting-1"
-        stage="Slitting"
-        shift={activeBatchObj?.batch.shift || "DAY"}
-        currentOperator={activeBatchObj?.batch.worker || ""}
-        currentHelpers={activeBatchObj?.batch.helpers || []}
-        state={state}
-        onConfirmCrew={handleConfirmCrew}
-      />
-
       {/* Shift Handover Modal */}
       {activeBatchObj && (
         <ShiftHandoverModal
@@ -2333,6 +2613,109 @@ Only one job can run at a time. Please Hold or Finish job [${otherRunning.job.id
                 className="px-4 py-2 text-xs font-extrabold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer shadow-xs flex items-center gap-1 transition"
               >
                 <Check className="w-4 h-4" /> Yes, Confirm & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Strict Output Guard Modal (Applies strictly to Cumulative Output Rolls Produced) */}
+      {isExceedOutputModalOpen && activeBatchObj && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border-2 border-rose-500 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 border-b border-rose-100 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-rose-600">
+                  CRITICAL PROCESS DEVIATION GUARD
+                </div>
+                <h3 className="text-base font-black text-slate-900 m-0">
+                  CUMULATIVE JOB OUTPUT LIMIT EXCEEDED
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-4 bg-rose-50/70 border border-rose-200 rounded-xl text-xs space-y-3 text-slate-800">
+              {(() => {
+                const targetPlan = activeBatchObj.job.planId
+                  ? productionPlans.find(p => p.id === activeBatchObj.job.planId)
+                  : null;
+                const plannedOutput = targetPlan?.targetLayers || activeBatchObj.job.targetLayers || 8;
+                const currentBatchId = activeBatchObj.batch.batchId;
+                const currentReelNo = activeBatchObj.batch.reelNo;
+
+                const totalSlitOutputSoFar = (
+                  activeBatchObj.job.reelsList && activeBatchObj.job.reelsList.length > 0
+                    ? activeBatchObj.job.reelsList
+                    : getJobReelItemsBreakdown(activeBatchObj.job)
+                ).reduce((sum, r) => {
+                  if (r.batchId === currentBatchId || (currentReelNo && r.reelNo === currentReelNo)) {
+                    return sum;
+                  }
+                  return sum + (r.rolls || 0);
+                }, 0);
+
+                const remainingAllowed = Math.max(0, plannedOutput - totalSlitOutputSoFar);
+                const enteredOutput = parseInt(outputRolls, 10) || 0;
+                const excess = enteredOutput - remainingAllowed;
+
+                return (
+                  <>
+                    <div className="space-y-2 text-xs bg-white p-3.5 rounded-xl border border-rose-200 shadow-2xs font-bold text-slate-700">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500 uppercase text-[10px]">Job ID:</span>
+                        <span className="font-mono text-slate-900 text-xs">{activeBatchObj.job.id}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500 uppercase text-[10px]">PPC Planned Target:</span>
+                        <span className="text-slate-900">{plannedOutput} Rolls</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500 uppercase text-[10px]">Already Slit & Recorded:</span>
+                        <span className="text-slate-700">{totalSlitOutputSoFar} Rolls</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5 bg-emerald-50 px-2 py-1 rounded text-emerald-800">
+                        <span className="uppercase text-[10px]">Maximum Remaining Allowed:</span>
+                        <span className="font-black">{remainingAllowed} Rolls</span>
+                      </div>
+                      <div className="flex justify-between bg-rose-50 px-2 py-1 rounded text-rose-800">
+                        <span className="uppercase text-[10px]">You Entered:</span>
+                        <span className="font-black">{enteredOutput} Rolls (Exceeds by {excess} Rolls)</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-xs font-black text-rose-950 leading-relaxed space-y-1.5">
+                      <p className="m-0 text-rose-950">
+                        ⚠️ This job cannot absorb more than {remainingAllowed} additional rolls.
+                      </p>
+                      <p className="m-0 text-rose-800 font-bold">
+                        Please adjust the current run output to {remainingAllowed} Rolls or confirm an authorized supervisor deviation.
+                      </p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsExceedOutputModalOpen(false)}
+                className="px-4 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition"
+              >
+                Cancel / Revise Output
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExceedOutputModalOpen(false);
+                  handleCompleteSlitting(false, true);
+                }}
+                className="px-5 py-2.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer shadow-md flex items-center gap-1.5 transition"
+              >
+                <Check className="w-4 h-4" /> Authorize Deviation & Save
               </button>
             </div>
           </div>

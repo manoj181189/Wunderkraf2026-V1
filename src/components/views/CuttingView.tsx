@@ -3,6 +3,7 @@ import { ArrowLeft, Scissors, Play, Pause, Square, Zap, Undo2, XCircle, Check, L
 import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry, GlueUsageEntry } from '../../types';
 import { PRODUCTS, DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobReelsSummary, getJobReelItemsBreakdown, getJobAllGsms } from '../../lib/utils';
+import { getNumberingMaster, generateCuttingBatchId } from '../../lib/numberingMaster';
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 import { ShiftHandoverModal } from '../ShiftHandoverModal';
@@ -91,8 +92,6 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
   const [showLiveManpowerRoster, setShowLiveManpowerRoster] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showGlueVarianceModal, setShowGlueVarianceModal] = useState(false);
-  const [pendingFinishData, setPendingFinishData] = useState<any>(null);
 
   // Pending queue of slit rolls
   let pendingSlitJobs = jobs.filter((j) => {
@@ -219,10 +218,11 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       alert(`✅ Top-up Successful! Added ${rollsCount} more rolls to running Job ${job.id} on ${selectedMachine}.`);
     } else {
       // Fresh batch
-      const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
+      const master = getNumberingMaster(state.seriesConfig);
+      const batchId = generateCuttingBatchId(job.id, job.runningBatches || [], master);
       const allJobReels = getJobAllReels(job);
       const reelsSummary = getJobReelsSummary(job);
-      const slitBatchId = job.runningBatches?.find((b) => b.stage === 'Slitting' || b.machine.startsWith('Slitting'))?.batchId || job.tracedLots?.Slitting || `SLIT-${job.id}`;
+      const slitBatchId = job.runningBatches?.find((b) => b.stage === 'Slitting' || b.machine.startsWith('Slitting'))?.batchId || job.tracedLots?.Slitting || `${job.id}-SLIT-01`;
       const newBatch: RunningBatch = {
         batchId,
         stage: 'Cutting',
@@ -658,7 +658,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
   };
 
 
-  const executeFinishJob = (overrideVariance = false) => {
+  const executeFinishJob = () => {
     try {
       setIsSaving(true);
       if (!activeBatchObj) throw new Error('Select batch to finish!');
@@ -674,19 +674,6 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       const grossCutPcs = Math.round(cratesDone * effectiveCutPcs) + looseDone;
       const totalCutPcs = Math.max(0, grossCutPcs - rejectedPcsVal);
       const inputRolls = batch.issuedQty || 0;
-
-      const STANDARD_GLUE_KG_PER_1000 = 0.15;
-      const expectedGlueKg = (totalCutPcs / 1000) * STANDARD_GLUE_KG_PER_1000;
-      
-      if (!overrideVariance && glueUsedVal > 0 && expectedGlueKg > 0) {
-        const deviationPct = Math.abs(glueUsedVal - expectedGlueKg) / expectedGlueKg;
-        if (deviationPct > 0.25) {
-          setPendingFinishData({ expectedGlueKg, glueUsedVal, deviationPct });
-          setShowGlueVarianceModal(true);
-          setIsSaving(false);
-          return;
-        }
-      }
 
       const maxPcsPerRoll = state.maxPiecesPerSlitRoll || 30000;
       const totalMaxTheoreticalInputPieces = (inputRolls > 0 ? inputRolls : 1) * maxPcsPerRoll;
@@ -850,8 +837,6 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       alert(`Database Save Failed: ${err.message}. Please check console or retry.`);
     } finally {
       setIsSaving(false);
-      setShowGlueVarianceModal(false);
-      setPendingFinishData(null);
     }
   };
 
@@ -878,17 +863,12 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
       return;
     }
     
-    if (actualGlueConsumed.trim() === '' || isNaN(parseFloat(actualGlueConsumed))) {
-      alert('Cannot finish job: Actual Glue Consumed (KG) is required or invalid.');
-      return;
-    }
-    
     if (scrapKg.trim() === '' || isNaN(parseFloat(scrapKg))) {
       alert('Cannot finish job: Cutting Skeleton Scrap (KG) is required or invalid.');
       return;
     }
 
-    executeFinishJob(false);
+    executeFinishJob();
   };
 
   const handleConfirmCancelRun = () => {
@@ -1206,7 +1186,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                     );
                   })()}
                   <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold border border-amber-200">
-                    {activeBatchObj.job.gsm || '280 GSM'}
+                    {activeBatchObj.job.gsm || activeBatchObj.job.targetGsm || '-'}
                   </span>
                   <span className="text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold border border-slate-200">
                     {activeBatchObj.job.paperBrand || 'ITC'}
@@ -1481,15 +1461,15 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 </div>
               </div>
 
-              {/* Row 2.5: Adhesive/Glue Inline Consumption Input */}
+              {/* Row 2.5: Adhesive/Glue Inline Consumption Input (Optional) */}
               <div className="bg-teal-50/70 p-3.5 rounded-xl border border-teal-300 space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-teal-950 uppercase flex items-center gap-1.5">
                     <Droplets className="w-4 h-4 text-teal-600 shrink-0" />
-                    <span>3. Actual Glue Consumed KG *:</span>
+                    <span>3. Adhesive Glue Consumed (KG) [Optional]:</span>
                   </label>
                   <span className="text-[10px] font-black text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md border border-teal-300">
-                    INLINE RAW MATERIAL CONSUMPTION
+                    OPTIONAL CONSUMPTION LOG
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1801,7 +1781,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   : `Reel: ${allReels[0] || j.reelNo || 'RL-RAW-001'}`;
                 return (
                   <option key={j.id} value={j.id}>
-                    {j.id} - {j.product} [{reelsLabel}] [{j.gsm || '280 GSM'}] [{j.paperBrand || 'ITC'}] (Avail: {j.availableRolls} Rolls)
+                    {j.id} - {j.product} [{reelsLabel}] [{j.gsm || j.targetGsm || '-'}] [{j.paperBrand || 'ITC'}] (Avail: {j.availableRolls} Rolls)
                   </option>
                 );
               })}
@@ -1871,7 +1851,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                       </span>
                       <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
                         <Lock className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{selectedPendingJob.targetGsm || selectedPendingJob.gsm || '280 GSM'}</span>
+                        <span>{selectedPendingJob.targetGsm || selectedPendingJob.gsm || '-'}</span>
                       </div>
                     </div>
                   </div>
@@ -1926,7 +1906,7 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-800 font-bold">
                     <span className="text-slate-500 uppercase">📄 Specified Paper:</span>
                     <span className="text-blue-900 font-extrabold bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
-                      {selectedPendingJob.paperBrand || 'ITC'} • {selectedPendingJob.gsm || '280 GSM'}
+                      {selectedPendingJob.paperBrand || 'ITC'} • {selectedPendingJob.gsm || selectedPendingJob.targetGsm || '-'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-800 font-bold">
@@ -2536,49 +2516,6 @@ export const CuttingView: React.FC<CuttingViewProps> = ({
                 className="px-4 py-2 text-xs font-extrabold text-white bg-teal-600 hover:bg-teal-700 rounded-xl cursor-pointer shadow-xs flex items-center gap-1"
               >
                 <Check className="w-4 h-4" /> Save Specification & Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-          {/* Glue Variance Modal */}
-      {showGlueVarianceModal && pendingFinishData && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
-            <div className="bg-amber-500 text-white p-4">
-              <h3 className="font-extrabold text-sm uppercase flex items-center gap-2">
-                ⚠️ Glue Variance Alert
-              </h3>
-            </div>
-            <div className="p-5 space-y-4 text-xs text-slate-700">
-              <p>The amount of glue entered significantly deviates from the standard BOM expectation (±25%).</p>
-              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 grid grid-cols-2 gap-2">
-                <div className="font-bold">Expected:</div>
-                <div>{pendingFinishData.expectedGlueKg.toFixed(2)} KG</div>
-                <div className="font-bold">Entered:</div>
-                <div className="text-amber-700 font-extrabold">{pendingFinishData.glueUsedVal} KG</div>
-                <div className="font-bold">Deviation:</div>
-                <div className="text-rose-600 font-extrabold">{(pendingFinishData.deviationPct * 100).toFixed(1)}%</div>
-              </div>
-              <p className="font-bold">Are you sure you want to proceed and record this variance?</p>
-            </div>
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGlueVarianceModal(false);
-                  setPendingFinishData(null);
-                }}
-                className="px-4 py-2 text-slate-600 font-bold bg-white border border-slate-300 rounded-lg"
-              >
-                Cancel / Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => executeFinishJob(true)}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg"
-              >
-                Proceed with Variance
               </button>
             </div>
           </div>

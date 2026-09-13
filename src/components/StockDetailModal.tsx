@@ -231,7 +231,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
           Product: j.product,
           'Reel No(s)': getJobReelsSummary(j),
           'Paper Brand': j.paperBrand || 'ITC',
-          GSM: j.gsm || '280 GSM',
+          GSM: j.gsm || j.targetGsm || '-',
           [`Stock Qty (${stageConfig.unit})`]: qty,
           'Estimated Pcs': qty * stageConfig.estPcsPerUnit,
           Specifications: j.customRemark || 'Standard Food Grade',
@@ -340,7 +340,7 @@ in               {totalLotsCount} different job lots
             <span className="text-[10px] text-slate-500 font-medium truncate block mt-0.5">
               {normalizedStage === 'Packed'
                 ? 'Ready for dispatch'
-                : Array.from(new Set(matchedJobs.map((j) => j.gsm || '280 GSM'))).join(', ')}
+                : Array.from(new Set(matchedJobs.map((j) => j.gsm || j.targetGsm).filter(Boolean))).join(', ') || 'Standard'}
             </span>
           </div>
         </div>
@@ -568,7 +568,7 @@ in               {totalLotsCount} different job lots
                         {/* GSM */}
                         <td className="p-3">
                           <span className="font-extrabold text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px]">
-                            {j.gsm || '280 GSM'}
+                            {j.gsm || j.targetGsm || '-'}
                           </span>
                         </td>
 

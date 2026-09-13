@@ -232,7 +232,7 @@ export const INITIAL_BOMS: BomDefinition[] = [
     components: [
       { componentSku: 'SUB-SLIT-120G', quantityPerParent: 7, scrapFactor: 0.03, level: 1, notes: 'Inner 7 structural core plies' },
       { componentSku: 'SUB-SLIT-60G', quantityPerParent: 2, scrapFactor: 0.02, level: 1, notes: 'Top & bottom outer barrier plies' },
-      { componentSku: 'RAW-GLUE-FOODGRADE', quantityPerParent: 1.8, scrapFactor: 0.05, level: 1, notes: 'Food-safe aqueous adhesive lamination' },
+      { componentSku: 'RAW-GLUE-FOODGRADE', quantityPerParent: 1.8, scrapFactor: 0, level: 1, notes: 'Food-safe aqueous adhesive lamination' },
       { componentSku: 'PKG-CRATE-CORRUGATED', quantityPerParent: 1, scrapFactor: 0.01, level: 1, notes: 'Bulk corrugated shipper packaging' }
     ]
   },
@@ -249,7 +249,7 @@ export const INITIAL_BOMS: BomDefinition[] = [
     components: [
       { componentSku: 'SUB-SLIT-120G', quantityPerParent: 7, scrapFactor: 0.04, level: 1, notes: 'High tensile core plies' },
       { componentSku: 'SUB-SLIT-60G', quantityPerParent: 2, scrapFactor: 0.02, level: 1, notes: 'Fine outer surface plies' },
-      { componentSku: 'RAW-GLUE-FOODGRADE', quantityPerParent: 2.0, scrapFactor: 0.05, level: 1, notes: 'Lamination glue bath' },
+      { componentSku: 'RAW-GLUE-FOODGRADE', quantityPerParent: 2.0, scrapFactor: 0, level: 1, notes: 'Lamination glue bath' },
       { componentSku: 'PKG-CRATE-CORRUGATED', quantityPerParent: 1, scrapFactor: 0.01, level: 1, notes: 'Bulk crate' }
     ]
   }

@@ -1,4 +1,4 @@
-import { FactoryState, Job, JobReelItem, LogEntry, PackJob, ProductType, ShiftConfig } from '../types';
+import { FactoryState, Job, JobReelItem, LogEntry, PackJob, PlannedLayer, ProductionPlan, ProductType, ShiftConfig } from '../types';
 import { PRODUCTS } from './constants';
 
 export function calculateLiveStock(jobs: Job[], packJobs: PackJob[], customProducts?: string[]) {
@@ -309,7 +309,7 @@ export function getJobReelItemsBreakdown(job?: Job): JobReelItem[] {
       reelNo: fallbackReel,
       rolls: job.availableRolls || 0,
       weightKg: job.inputWeightKg || 200,
-      gsm: job.gsm || '280 GSM',
+      gsm: job.gsm || job.targetGsm || '120 GSM',
       paperBrand: job.paperBrand || 'ITC'
     });
   }
@@ -318,12 +318,12 @@ export function getJobReelItemsBreakdown(job?: Job): JobReelItem[] {
 }
 
 /**
- * Normalizes GSM string (e.g. "280" -> "280 GSM", "280 gsm" -> "280 GSM").
+ * Normalizes GSM string (e.g. "120" -> "120 GSM", "120 gsm" -> "120 GSM").
  */
 export function formatGsmString(rawGsm?: string | number): string {
-  if (!rawGsm) return '280 GSM';
+  if (!rawGsm) return '';
   const s = String(rawGsm).trim();
-  if (!s) return '280 GSM';
+  if (!s) return '';
   if (/gsm$/i.test(s)) {
     return s.replace(/\s*gsm$/i, ' GSM');
   }
@@ -335,62 +335,218 @@ export function formatGsmString(rawGsm?: string | number): string {
  * batches, and gsmList for complete transparency when multiple GSMs are combined.
  */
 export function getJobAllGsms(job?: Job): string[] {
-  if (!job) return ['280 GSM'];
+  if (!job) return [];
   const gsms = new Set<string>();
 
   // 1. From job.gsmList
   if (job.gsmList && Array.isArray(job.gsmList)) {
     job.gsmList.forEach((g) => {
-      if (g) gsms.add(formatGsmString(g));
+      const formatted = formatGsmString(g);
+      if (formatted) gsms.add(formatted);
     });
   }
 
   // 2. From job.reelsList
   if (job.reelsList && Array.isArray(job.reelsList)) {
     job.reelsList.forEach((item) => {
-      if (item.gsm) gsms.add(formatGsmString(item.gsm));
+      const formatted = formatGsmString(item.gsm);
+      if (formatted) gsms.add(formatted);
     });
   }
 
   // 3. From runningBatches in stage 'Slitting'
   if (job.runningBatches && Array.isArray(job.runningBatches)) {
     job.runningBatches.forEach((b) => {
-      if (b.gsm) gsms.add(formatGsmString(b.gsm));
+      const formatted = formatGsmString(b.gsm);
+      if (formatted) gsms.add(formatted);
       if (b.gsmList && Array.isArray(b.gsmList)) {
         b.gsmList.forEach((g) => {
-          if (g) gsms.add(formatGsmString(g));
+          const fg = formatGsmString(g);
+          if (fg) gsms.add(fg);
         });
       }
     });
   }
 
-  // 4. From job.gsm (may be "280 GSM + 300 GSM" or "280, 300")
+  // 4. From job.gsm
   if (job.gsm) {
     const raw = String(job.gsm).trim();
     if (raw) {
       const parts = raw.split(/[,+;/|]+/).map((s) => s.trim()).filter(Boolean);
       parts.forEach((p) => {
-        gsms.add(formatGsmString(p));
+        const formatted = formatGsmString(p);
+        if (formatted) gsms.add(formatted);
       });
     }
   }
 
-  if (gsms.size === 0) {
-    gsms.add('280 GSM');
+  // 5. From job.targetGsm
+  if (gsms.size === 0 && job.targetGsm) {
+    const parts = String(job.targetGsm).split(/[,+;/|]+/).map((s) => s.trim()).filter(Boolean);
+    parts.forEach((p) => {
+      const formatted = formatGsmString(p);
+      if (formatted) gsms.add(formatted);
+    });
   }
 
-  return Array.from(gsms);
+  return Array.from(gsms).filter(Boolean);
 }
 
 /**
  * Formats a clean summary of GSMs used in a job.
- * e.g. "280 GSM" or "280 GSM + 300 GSM (Mixed GSM)"
+ * e.g. "120 GSM" or "120 GSM + 140 GSM (Mixed GSM)"
  */
 export function getJobGsmsSummary(job?: Job): string {
-  if (!job) return '280 GSM';
+  if (!job) return '-';
   const allGsms = getJobAllGsms(job);
-  if (allGsms.length === 0) return '280 GSM';
+  if (allGsms.length === 0) return String(job.targetGsm || job.gsm || '-');
   if (allGsms.length === 1) return allGsms[0];
   return `${allGsms.join(' + ')} (Mixed GSM)`;
 }
+
+export interface LayerFulfillmentStatus {
+  gsm: number | string;
+  type: 'Plain' | 'Printed';
+  requiredReels: number;
+  actualSlitCount: number;
+  isComplete: boolean;
+  statusText: 'MET' | 'PENDING' | 'NOT_STARTED';
+}
+
+/**
+ * Extracts pure numeric GSM value for robust matching, e.g. "120 GSM" -> 120, 120 -> 120
+ */
+export function parseNumericGsm(val?: string | number): number {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const match = String(val).match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+}
+
+/**
+ * Normalizes GSM label for display, e.g. 120 -> "120 GSM", "120 GSM" -> "120 GSM"
+ */
+export function normalizeGsmLabel(val?: string | number): string {
+  const num = parseNumericGsm(val);
+  return num > 0 ? `${num} GSM` : (val ? String(val).trim() : '');
+}
+
+/**
+ * Resolves planned layers profile for a job.
+ * If job.plannedLayers is present, uses it.
+ * Otherwise, checks linked plan.plannedLayers.
+ * If neither exists, dynamically generates a profile from targetLayers, printedLayersCount, and plannedGsms/targetGsm.
+ */
+export function getJobPlannedLayers(job?: Job, plan?: ProductionPlan | null): PlannedLayer[] {
+  if (job?.plannedLayers && job.plannedLayers.length > 0) {
+    return job.plannedLayers;
+  }
+  if (plan?.plannedLayers && plan.plannedLayers.length > 0) {
+    return plan.plannedLayers;
+  }
+
+  // Fallback generation if not explicitly defined
+  const targetLayers = job?.targetLayers || plan?.targetLayers || 0;
+  if (targetLayers <= 0) return [];
+
+  const printedRequired = job?.printedRollRequired ?? plan?.printedRollRequired ?? false;
+  const printedLayers = printedRequired ? (job?.printedLayersCount ?? plan?.printedLayersCount ?? 1) : 0;
+  const plainLayers = Math.max(0, targetLayers - printedLayers);
+
+  const gsms = job?.plannedGsms && job.plannedGsms.length > 0
+    ? job.plannedGsms
+    : (plan?.plannedGsms && plan.plannedGsms.length > 0 ? plan.plannedGsms : (job?.targetGsm ? [job.targetGsm] : ['120 GSM']));
+
+  const parsedGsms = gsms.map(g => parseNumericGsm(g)).filter(n => n > 0);
+  const plainGsm = parsedGsms[0] || 120;
+  const printedGsm = parsedGsms.length > 1 ? parsedGsms[1] : (parsedGsms[0] || 60);
+
+  const layers: PlannedLayer[] = [];
+  if (plainLayers > 0) {
+    layers.push({ gsm: plainGsm, type: 'Plain', requiredReels: plainLayers });
+  }
+  if (printedLayers > 0) {
+    layers.push({ gsm: printedGsm, type: 'Printed', requiredReels: printedLayers });
+  }
+  return layers;
+}
+
+/**
+ * Computes live layer fulfillment matrix for a job.
+ * Returns each layer requirement with actual slit rolls count, completion boolean, and status.
+ */
+export function calculateLayerFulfillmentMatrix(
+  job: Job,
+  inProgressRun?: { gsm?: string | number; isPrinted?: boolean; rollsCount: number; layerType?: 'Plain' | 'Printed' } | null,
+  linkedPlan?: ProductionPlan | null
+): LayerFulfillmentStatus[] {
+  const planned = getJobPlannedLayers(job, linkedPlan);
+  if (planned.length === 0) return [];
+
+  const completedReels = job.reelsList && job.reelsList.length > 0 ? job.reelsList : getJobReelItemsBreakdown(job);
+
+  return planned.map((layer) => {
+    const targetGsmNum = parseNumericGsm(layer.gsm);
+    const isTargetPrinted = layer.type === 'Printed';
+
+    let actualSlitCount = 0;
+
+    completedReels.forEach((r) => {
+      const reelGsmNum = parseNumericGsm(r.gsm);
+      const isReelPrinted = Boolean(r.isPrintedRoll) || r.layerType === 'Printed';
+
+      const typeMatches = isTargetPrinted ? isReelPrinted : !isReelPrinted;
+      const gsmMatches = targetGsmNum === 0 || reelGsmNum === targetGsmNum || reelGsmNum === 0;
+
+      if (typeMatches && gsmMatches) {
+        // Output rolls produced from this reel
+        const rolls = (r.rolls && r.rolls > 0) ? r.rolls : (r.endTime ? 1 : 0);
+        actualSlitCount += rolls;
+      }
+    });
+
+    // Also include in-progress run output if provided
+    if (inProgressRun && inProgressRun.rollsCount > 0) {
+      const inProgGsmNum = parseNumericGsm(inProgressRun.gsm);
+      const inProgIsPrinted = Boolean(inProgressRun.isPrinted) || inProgressRun.layerType === 'Printed';
+
+      const typeMatches = isTargetPrinted ? inProgIsPrinted : !inProgIsPrinted;
+      const gsmMatches = targetGsmNum === 0 || inProgGsmNum === targetGsmNum || inProgGsmNum === 0;
+
+      if (typeMatches && gsmMatches) {
+        actualSlitCount += inProgressRun.rollsCount;
+      }
+    }
+
+    const isComplete = actualSlitCount >= layer.requiredReels;
+    const statusText: 'MET' | 'PENDING' | 'NOT_STARTED' = isComplete
+      ? 'MET'
+      : actualSlitCount > 0
+      ? 'PENDING'
+      : 'NOT_STARTED';
+
+    return {
+      gsm: layer.gsm,
+      type: layer.type,
+      requiredReels: layer.requiredReels,
+      actualSlitCount,
+      isComplete,
+      statusText
+    };
+  });
+}
+
+/**
+ * Validates if all planned GSM layer requirements are 100% fulfilled.
+ */
+export function isJobLayersFullySlit(
+  job: Job,
+  inProgressRun?: { gsm?: string | number; isPrinted?: boolean; rollsCount: number; layerType?: 'Plain' | 'Printed' } | null,
+  linkedPlan?: ProductionPlan | null
+): boolean {
+  const matrix = calculateLayerFulfillmentMatrix(job, inProgressRun, linkedPlan);
+  if (matrix.length === 0) return true;
+  return matrix.every((item) => item.isComplete);
+}
+
 

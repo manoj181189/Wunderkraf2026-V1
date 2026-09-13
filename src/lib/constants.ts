@@ -1,4 +1,12 @@
-import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity, FloorWorker, GlueUsageEntry, ProductionPlan, MotherReelItem, ShiftHandoverRecord, CoordinationMatrixItem } from '../types';
+import { FactoryState, ProductType, CustomerComplaint, MaterialRequisition, ProductCrateCapacity, FloorWorker, GlueUsageEntry, ProductionPlan, MotherReelItem, ShiftHandoverRecord, CoordinationMatrixItem, NumberingSeriesMaster } from '../types';
+
+export const DEFAULT_NUMBERING_MASTER: NumberingSeriesMaster = {
+  jobSeries: { prefix: 'WK-LOT', paddingDigits: 3, nextSeq: 101 },
+  slitSeries: { prefix: 'SLIT', paddingDigits: 2, nextSeq: 1 },
+  cutSeries: { prefix: 'CUT', paddingDigits: 2, nextSeq: 1 },
+  qcSeries: { prefix: 'QC', paddingDigits: 2, nextSeq: 1 },
+  useGlobalJobPrefix: false
+};
 
 export const PRODUCTS: ProductType[] = ['Spoon', 'Fork', 'Knife', 'Dessert Spoon'];
 
@@ -109,8 +117,23 @@ export const DEFAULT_FLOOR_WORKERS: FloorWorker[] = [
 
 export const PAPER_BRANDS = ['ITC', 'CENTURY', 'JK PAPER', 'WEST COAST', 'EMAMI', 'APP (ASIA PULP)'];
 
-export const TARGET_LAYERS_DEFAULT = [4, 6, 8, 10, 12, 14, 16];
-export const TARGET_GSM_DEFAULT = ['180 GSM', '200 GSM', '250 GSM', '280 GSM', '300 GSM', '350 GSM'];
+export const TARGET_LAYERS_DEFAULT = [4, 6, 8, 9, 10, 12, 14, 16];
+export const TARGET_GSM_DEFAULT = [
+  '60 GSM',
+  '80 GSM',
+  '100 GSM',
+  '120 GSM',
+  '140 GSM',
+  '160 GSM',
+  '180 GSM',
+  '200 GSM',
+  '220 GSM',
+  '250 GSM',
+  '280 GSM',
+  '300 GSM',
+  '320 GSM',
+  '350 GSM'
+];
 
 export const GLUE_BRANDS = [
   'Pidilite Fevicol SH',
@@ -1021,7 +1044,8 @@ export const INITIAL_STATE: FactoryState = {
       'Fork': 2,
       'Knife': 2,
       'Dessert Spoon': 2
-    }
+    },
+    numberingMaster: DEFAULT_NUMBERING_MASTER
   },
   whatsappConfig: {
     phone: '',

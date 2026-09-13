@@ -358,7 +358,7 @@ export const ExecutiveManpowerView: React.FC<ExecutiveManpowerViewProps> = ({
                         </span>
                         <span className="font-extrabold text-sm text-slate-950">{job.product}</span>
                         <span className="text-xs text-slate-600 font-medium">
-                          ({job.paperBrand || 'ITC'} • {job.gsm || '280 GSM'})
+                          ({job.paperBrand || 'ITC'} • {job.gsm || (job.plannedGsms && job.plannedGsms.join(', ')) || job.targetGsm || 'N/A'})
                         </span>
                       </div>
 

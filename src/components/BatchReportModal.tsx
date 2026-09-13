@@ -131,7 +131,7 @@ export const BatchReportModal: React.FC<BatchReportModalProps> = ({
   // Product and material metadata
   const productName = selectedJob ? selectedJob.product : selectedOrder ? selectedOrder.kitType : 'Paper Cutlery';
   const paperBrand = targetJob?.paperBrand || 'ITC CyberXL';
-  const paperGsm = targetJob?.gsm || '280 GSM';
+  const paperGsm = targetJob?.gsm || (targetJob?.plannedGsms && targetJob.plannedGsms.join(', ')) || targetJob?.targetGsm || 'N/A';
   const allReels = targetJob ? getJobAllReels(targetJob) : ['RL-RAW-001'];
   const paperReelsSummary = targetJob ? getJobReelsSummary(targetJob) : 'RL-RAW-001';
   const paperReelBreakdown = targetJob ? getJobReelItemsBreakdown(targetJob) : [];

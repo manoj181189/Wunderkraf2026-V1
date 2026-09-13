@@ -3,6 +3,7 @@ import { ArrowLeft, Cog, Play, Pause, Square, Zap, Undo2, XCircle, Check, Layers
 import { FactoryState, Job, ProductType, RunningBatch, OperatorRunSlice, LogEntry } from '../../types';
 import { PRODUCTS, DEPT_WORKERS, MACHINES } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobAllGsms, getJobReelsSummary } from '../../lib/utils';
+import { getNumberingMaster, generateFormingBatchId } from '../../lib/numberingMaster';
 import { MachineBreakdownBanner } from '../MachineBreakdownBanner';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 import { ShiftHandoverModal } from '../ShiftHandoverModal';
@@ -154,7 +155,9 @@ export const FormingView: React.FC<FormingViewProps> = ({
       alert(`✅ Top-up Successful! Added ${cratesCount} more crates to running Job ${job.id} on ${selectedMachine}.`);
     } else {
       // Fresh batch
-      const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
+      const master = getNumberingMaster(state.seriesConfig);
+      const batchId = generateFormingBatchId(job.id, job.runningBatches || [], master);
+      const upstreamBatchId = job.tracedLots?.Cutting || job.tracedLots?.Slitting || job.id;
       const newBatch: RunningBatch = {
         batchId,
         stage: 'Forming',
@@ -162,6 +165,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
         shift,
         startTime: nowTime,
         status: 'Running',
+        parentBatchId: upstreamBatchId,
         issuedQty: cratesCount,
         producedQty: 0,
         worker: operatorName.trim().toUpperCase(),
@@ -172,6 +176,7 @@ export const FormingView: React.FC<FormingViewProps> = ({
         if (j.id !== job.id) return j;
         return {
           ...j,
+          tracedLots: { ...(j.tracedLots || {}), Forming: batchId },
           availableCuttingCrates: (j.availableCuttingCrates || 0) - cratesCount,
           runningBatches: [...(j.runningBatches || []), newBatch]
         };

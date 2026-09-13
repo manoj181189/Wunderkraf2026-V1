@@ -554,7 +554,7 @@ Every worker\'s dear sweat is the pride of Wondercraft.`;
                       </span>
                       <span className="font-extrabold text-sm text-slate-950">{job.product}</span>
                       <span className="text-xs text-slate-600 font-medium">
-                        ({job.paperBrand || 'ITC'} • {job.gsm || '280 GSM'})
+                        ({job.paperBrand || 'ITC'} • {job.gsm || (job.plannedGsms && job.plannedGsms.join(', ')) || job.targetGsm || 'N/A'})
                       </span>
                       {job.reelNo && (
                         <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">

@@ -46,7 +46,8 @@ import {
   UserAccount,
   ProductCrateCapacity,
   CoordinationMatrixItem,
-  ProductionPlan
+  ProductionPlan,
+  NumberingSeriesMaster
 } from '../../types';
 import {
   PRODUCTS,
@@ -61,6 +62,7 @@ import {
 import { triggerWhatsAppShiftNotification } from '../../lib/whatsappReports';
 import { exportToJSON, getCurrentExpectedShift } from '../../lib/utils';
 import { exportDatabaseBackup, importDatabaseBackup, getStorageHealth, pruneFactoryState } from '../../lib/storage';
+import { getNumberingMaster, repairAndSyncAllSequences } from '../../lib/numberingMaster';
 
 interface AdminSettingsViewProps {
   state: FactoryState;
@@ -70,7 +72,7 @@ interface AdminSettingsViewProps {
 }
 
 type AdminTab = 'brand_items_paper' | 'crate_master' | 'users' | 'master_data' | 'whatsapp' | 'sequences_shifts' | 'backup_restore' | 'maintenance_master' | 'coordination_matrix';
-type MasterDataSubTab = 'jobs' | 'orders' | 'logs' | 'plans';
+type MasterDataSubTab = 'jobs' | 'orders' | 'logs' | 'plans' | 'numbering';
 
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   state,
@@ -277,6 +279,63 @@ _If you received this message, your contact number and routing configuration are
       getStorageHealth().then(setStorageHealth).catch(() => {});
     }
   }, [activeTab]);
+
+  // ==========================================
+  // AUTO-NUMBERING & BATCH PREFIX MASTER STATE
+  // ==========================================
+  const [numberingForm, setNumberingForm] = useState<NumberingSeriesMaster>(() =>
+    getNumberingMaster(state.seriesConfig)
+  );
+
+  useEffect(() => {
+    setNumberingForm(getNumberingMaster(state.seriesConfig));
+  }, [state.seriesConfig]);
+
+  const handleSaveNumberingMaster = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators are authorized to configure Numbering & Batch Series.');
+      return;
+    }
+    const nextConfig = {
+      ...(state.seriesConfig || { orderSeq: 1, productSeqs: {} }),
+      numberingMaster: numberingForm
+    };
+    onSaveState({
+      ...state,
+      seriesConfig: nextConfig
+    });
+    alert('✅ Auto-Numbering & Batch Prefix Master successfully saved and active!');
+  };
+
+  const handleRepairAndSyncSequences = () => {
+    if (!isAdmin) {
+      alert('⛔ Access Restricted: Only Administrators can execute collision repair.');
+      return;
+    }
+    if (
+      !window.confirm(
+        '⚠️ RESET COUNTERS & REPAIR SEQUENCE COLLISIONS?\n\n' +
+        'This procedure will safely scan all existing production jobs, standardize any legacy or collision batch IDs into the clean parent lot hierarchy, and synchronize next sequence counters beyond the highest active numbers in IndexedDB.\n\n' +
+        'Would you like to execute this repair now?'
+      )
+    ) {
+      return;
+    }
+    const { repairedState, repairedJobsCount, repairedBatchesCount } = repairAndSyncAllSequences(state);
+    const newMaster = getNumberingMaster(repairedState.seriesConfig);
+    setNumberingForm(newMaster);
+    onSaveState(repairedState);
+    alert(
+      `✅ Sequence Repair & Collision Resolution Complete!\n\n` +
+      `• Records Standardized & Repaired: ${repairedBatchesCount} batches across ${repairedJobsCount} jobs\n` +
+      `• Job ID Next Counter: ${newMaster.jobSeries.nextSeq}\n` +
+      `• Slitting Run Next Counter: ${newMaster.slitSeries.nextSeq}\n` +
+      `• Cutting Crate Next Counter: ${newMaster.cutSeries.nextSeq}\n` +
+      `• QC Inspection Next Counter: ${newMaster.qcSeries.nextSeq}\n\n` +
+      `All counters are now cleanly synchronized in IndexedDB with zero collision risk.`
+    );
+  };
 
   // ==========================================
   // BRAND ITEMS & PAPER MILL MASTER STATE
@@ -3111,6 +3170,16 @@ ${formLines.join('\n')}
               >
                 Audit History Logs
               </button>
+              <button
+                type="button"
+                onClick={() => setMasterSubTab('numbering')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  masterSubTab === 'numbering' ? 'bg-indigo-600 text-white shadow-xs' : 'text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Auto-Numbering & Batch Prefix Master
+              </button>
             </div>
           </div>
 
@@ -4019,11 +4088,463 @@ ${formLines.join('\n')}
               </div>
             </div>
           )}
+
+          {/* ------------------------------------------------------------- */}
+          {/* SUB-TAB E: AUTO-NUMBERING & BATCH PREFIX MASTER */}
+          {/* ------------------------------------------------------------- */}
+          {masterSubTab === 'numbering' && (
+            <div className="space-y-6">
+              {/* Header & Quick Action Card */}
+              <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-900/40">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-[11px] font-bold uppercase tracking-wider mb-2">
+                      <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                      Traceability Architecture & Sequence Master
+                    </div>
+                    <h3 className="text-xl font-black tracking-tight text-white m-0">
+                      Auto-Numbering & Batch Prefix Master
+                    </h3>
+                    <p className="text-xs text-indigo-200/80 mt-1 max-w-2xl leading-relaxed">
+                      Configure Prefix formatting, padding digit length (e.g., 3-digit <span className="font-mono text-amber-300">001</span> vs 4-digit <span className="font-mono text-amber-300">0001</span>), and Next Sequence Counters across all manufacturing stages with unified traceability hierarchy.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleRepairAndSyncSequences}
+                      className="px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md"
+                      title="Scan IndexedDB, standardize legacy rogue batch IDs to parent lot, and sync counters safely past highest existing IDs."
+                    >
+                      <RotateCcw className="w-4 h-4 text-amber-400" />
+                      Reset Counter / Repair Collision
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveNumberingMaster}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30"
+                    >
+                      <Save className="w-4 h-4" />
+                      Save Numbering Master
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Architecture Lineage Hierarchy Banner */}
+                <div className="mt-6 pt-5 border-t border-indigo-800/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                      1. Parent Job / Master Lot
+                    </div>
+                    <div className="font-mono font-black text-sm text-emerald-300 truncate">
+                      {!numberingForm.useGlobalJobPrefix ? 'SPN' : numberingForm.jobSeries.prefix}-{String(numberingForm.jobSeries.nextSeq).padStart(numberingForm.jobSeries.paddingDigits, '0')}
+                    </div>
+                    <div className="text-[10px] text-indigo-200/60 mt-0.5">Primary Root Lot ID</div>
+                  </div>
+
+                  <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                      2. Slitted Mother Reel Run
+                    </div>
+                    <div className="font-mono font-black text-sm text-cyan-300 truncate">
+                      [LOT]-{numberingForm.slitSeries.prefix}-{String(numberingForm.slitSeries.nextSeq).padStart(numberingForm.slitSeries.paddingDigits, '0')}
+                    </div>
+                    <div className="text-[10px] text-indigo-200/60 mt-0.5">e.g. WK-LOT-001-SLIT-01</div>
+                  </div>
+
+                  <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                      3. Blank Punching / Cutting Crate
+                    </div>
+                    <div className="font-mono font-black text-sm text-amber-300 truncate">
+                      [LOT]-{numberingForm.cutSeries.prefix}-{String(numberingForm.cutSeries.nextSeq).padStart(numberingForm.cutSeries.paddingDigits, '0')}
+                    </div>
+                    <div className="text-[10px] text-indigo-200/60 mt-0.5">e.g. WK-LOT-001-CUT-01</div>
+                  </div>
+
+                  <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                      4. QC Stage Inspection Lot
+                    </div>
+                    <div className="font-mono font-black text-sm text-purple-300 truncate">
+                      [LOT]-{numberingForm.qcSeries.prefix}-{String(numberingForm.qcSeries.nextSeq).padStart(numberingForm.qcSeries.paddingDigits, '0')}
+                    </div>
+                    <div className="text-[10px] text-indigo-200/60 mt-0.5">e.g. WK-LOT-001-QC-01</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of Configuration Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Job ID Master Series */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:border-indigo-300 transition-colors">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800 uppercase m-0">
+                          Job ID Master Series
+                        </h4>
+                        <span className="text-[11px] text-slate-500">Root production lot number configuration</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      LIVE PREVIEW: {!numberingForm.useGlobalJobPrefix ? 'SPN' : numberingForm.jobSeries.prefix}-{String(numberingForm.jobSeries.nextSeq).padStart(numberingForm.jobSeries.paddingDigits, '0')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Global Prefix Code:
+                      </label>
+                      <input
+                        type="text"
+                        value={numberingForm.jobSeries.prefix}
+                        disabled={!numberingForm.useGlobalJobPrefix}
+                        onChange={(e) =>
+                          setNumberingForm({
+                            ...numberingForm,
+                            jobSeries: { ...numberingForm.jobSeries, prefix: e.target.value.toUpperCase().trim() }
+                          })
+                        }
+                        placeholder="e.g. WK-LOT or JOB"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 disabled:opacity-50 outline-none focus:border-indigo-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <input
+                        type="checkbox"
+                        id="useProductPrefixCheck"
+                        checked={!numberingForm.useGlobalJobPrefix}
+                        onChange={(e) =>
+                          setNumberingForm({
+                            ...numberingForm,
+                            useGlobalJobPrefix: !e.target.checked
+                          })
+                        }
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <label htmlFor="useProductPrefixCheck" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                        Use Product-specific prefix (e.g. <span className="font-mono font-bold text-indigo-600">SPN, FRK, TBL</span>) instead of single global prefix
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Padding Digits:
+                        </label>
+                        <select
+                          value={numberingForm.jobSeries.paddingDigits}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              jobSeries: { ...numberingForm.jobSeries, paddingDigits: Number(e.target.value) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                        >
+                          <option value={3}>3 Digits (001 - 999)</option>
+                          <option value={4}>4 Digits (0001 - 9999)</option>
+                          <option value={5}>5 Digits (00001 - 99999)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Next Sequence Counter:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={numberingForm.jobSeries.nextSeq}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              jobSeries: { ...numberingForm.jobSeries, nextSeq: Math.max(1, Number(e.target.value) || 1) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Slitting Sub-Batch Series */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:border-cyan-300 transition-colors">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-cyan-50 text-cyan-600">
+                        <Scissors className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800 uppercase m-0">
+                          Slitting Run Series
+                        </h4>
+                        <span className="text-[11px] text-slate-500">Sub-lot code for slitted reels</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-cyan-50 text-cyan-800 border border-cyan-200">
+                      LIVE PREVIEW: [LOT]-{numberingForm.slitSeries.prefix}-{String(numberingForm.slitSeries.nextSeq).padStart(numberingForm.slitSeries.paddingDigits, '0')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Stage Tag / Sub-Prefix:
+                      </label>
+                      <input
+                        type="text"
+                        value={numberingForm.slitSeries.prefix}
+                        onChange={(e) =>
+                          setNumberingForm({
+                            ...numberingForm,
+                            slitSeries: { ...numberingForm.slitSeries, prefix: e.target.value.toUpperCase().trim() }
+                          })
+                        }
+                        placeholder="e.g. SLIT"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-cyan-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Padding Digits:
+                        </label>
+                        <select
+                          value={numberingForm.slitSeries.paddingDigits}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              slitSeries: { ...numberingForm.slitSeries, paddingDigits: Number(e.target.value) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-cyan-500 focus:bg-white"
+                        >
+                          <option value={2}>2 Digits (01 - 99)</option>
+                          <option value={3}>3 Digits (001 - 999)</option>
+                          <option value={4}>4 Digits (0001 - 9999)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Default Next Counter:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={numberingForm.slitSeries.nextSeq}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              slitSeries: { ...numberingForm.slitSeries, nextSeq: Math.max(1, Number(e.target.value) || 1) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-cyan-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Cutting Crate Series */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:border-amber-300 transition-colors">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-amber-50 text-amber-700">
+                        <Box className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800 uppercase m-0">
+                          Cutting Crate Series
+                        </h4>
+                        <span className="text-[11px] text-slate-500">Punching blanks & crate ID code</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-amber-50 text-amber-800 border border-amber-200">
+                      LIVE PREVIEW: [LOT]-{numberingForm.cutSeries.prefix}-{String(numberingForm.cutSeries.nextSeq).padStart(numberingForm.cutSeries.paddingDigits, '0')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Stage Tag / Sub-Prefix:
+                      </label>
+                      <input
+                        type="text"
+                        value={numberingForm.cutSeries.prefix}
+                        onChange={(e) =>
+                          setNumberingForm({
+                            ...numberingForm,
+                            cutSeries: { ...numberingForm.cutSeries, prefix: e.target.value.toUpperCase().trim() }
+                          })
+                        }
+                        placeholder="e.g. CUT"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Padding Digits:
+                        </label>
+                        <select
+                          value={numberingForm.cutSeries.paddingDigits}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              cutSeries: { ...numberingForm.cutSeries, paddingDigits: Number(e.target.value) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-amber-500 focus:bg-white"
+                        >
+                          <option value={2}>2 Digits (01 - 99)</option>
+                          <option value={3}>3 Digits (001 - 999)</option>
+                          <option value={4}>4 Digits (0001 - 9999)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Default Next Counter:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={numberingForm.cutSeries.nextSeq}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              cutSeries: { ...numberingForm.cutSeries, nextSeq: Math.max(1, Number(e.target.value) || 1) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. QC Inspection Stage Series */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:border-purple-300 transition-colors">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-purple-50 text-purple-700">
+                        <SearchCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800 uppercase m-0">
+                          QC Inspection Lot Series
+                        </h4>
+                        <span className="text-[11px] text-slate-500">Quality inspection audit code</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-purple-50 text-purple-800 border border-purple-200">
+                      LIVE PREVIEW: [LOT]-{numberingForm.qcSeries.prefix}-{String(numberingForm.qcSeries.nextSeq).padStart(numberingForm.qcSeries.paddingDigits, '0')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Stage Tag / Sub-Prefix:
+                      </label>
+                      <input
+                        type="text"
+                        value={numberingForm.qcSeries.prefix}
+                        onChange={(e) =>
+                          setNumberingForm({
+                            ...numberingForm,
+                            qcSeries: { ...numberingForm.qcSeries, prefix: e.target.value.toUpperCase().trim() }
+                          })
+                        }
+                        placeholder="e.g. QC"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-purple-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Padding Digits:
+                        </label>
+                        <select
+                          value={numberingForm.qcSeries.paddingDigits}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              qcSeries: { ...numberingForm.qcSeries, paddingDigits: Number(e.target.value) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-purple-500 focus:bg-white"
+                        >
+                          <option value={2}>2 Digits (01 - 99)</option>
+                          <option value={3}>3 Digits (001 - 999)</option>
+                          <option value={4}>4 Digits (0001 - 9999)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Default Next Counter:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={numberingForm.qcSeries.nextSeq}
+                          onChange={(e) =>
+                            setNumberingForm({
+                              ...numberingForm,
+                              qcSeries: { ...numberingForm.qcSeries, nextSeq: Math.max(1, Number(e.target.value) || 1) }
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-purple-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Collision Repair & IndexedDB Integrity Card */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl shrink-0 mt-0.5">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-extrabold text-amber-950 uppercase m-0">
+                      IndexedDB Auto-Repair & Collision Synchronization Engine
+                    </h5>
+                    <p className="text-xs text-amber-800 mt-1 max-w-2xl leading-relaxed">
+                      If legacy random batch identifiers (<code className="font-mono bg-amber-200/60 px-1 py-0.5 rounded text-[11px]">B-XXXX</code>) or conflicting numbers exist in browser storage, clicking below will scan all active jobs, standardize sub-batches into their parent lot hierarchy, and push counters ahead to prevent any duplicate key errors.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRepairAndSyncSequences}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 shrink-0 shadow-sm"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Run Sequence Repair Now
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: WHATSAPP BACKUP & LIVE AUTO-REPORTING (WhatsApp Backup) */}
       {/* ========================================================================= */}
       {activeTab === 'whatsapp' && (
         <div className="space-y-6">
@@ -4532,6 +5053,27 @@ ${formLines.join('\n')}
                   onChange={(e) => setOrderSeq(Number(e.target.value) || 1)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 outline-none"
                 />
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-bold text-indigo-900 uppercase">
+                    Stage-Wise Batch Lineage & Master Padding
+                  </div>
+                  <div className="text-[10px] text-indigo-700">
+                    Configure Slitting, Cutting, and QC prefix tags, padding digits (001 vs 0001), and collision repairs.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('master_data');
+                    setMasterSubTab('numbering');
+                  }}
+                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] font-bold cursor-pointer shrink-0"
+                >
+                  Open Prefix Master →
+                </button>
               </div>
             </div>
 

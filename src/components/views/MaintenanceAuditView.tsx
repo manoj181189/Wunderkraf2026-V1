@@ -270,7 +270,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
       { Stage: 'Cutting', Parameter: 'Operator', Value: cutLog?.worker || 'CUT_OP1' },
       { Stage: 'Slitting', Parameter: 'Machine', Value: slitLog?.machine || 'Slitting-1' },
       { Stage: 'Slitting', Parameter: 'Operator', Value: slitLog?.worker || 'RAMESH_SLIT' },
-      { Stage: 'Raw Material', Parameter: 'Paper Brand', Value: primaryJob?.paperBrand || 'ITC CyberXL 280 GSM' },
+      { Stage: 'Raw Material', Parameter: 'Paper Brand', Value: `${primaryJob?.paperBrand || 'ITC CyberXL'} ${primaryJob?.gsm || primaryJob?.targetGsm || ''}`.trim() },
       { Stage: 'Raw Material', Parameter: 'Lot / Remark', Value: primaryJob?.customRemark || 'Standard Reel' }
     ];
     exportToCSV(`Wunderkraf_Traceability_${matchedOrder?.id || primaryJob?.id}.csv`, traceRows);
@@ -465,7 +465,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                   );
                 })()}
                 <span className="text-xs bg-amber-400/20 text-amber-200 border border-amber-300/30 px-2 py-0.5 rounded font-bold">
-                  GSM: <b>{primaryJob?.gsm || '280 GSM'}</b>
+                  GSM: <b>{primaryJob?.gsm || (primaryJob?.plannedGsms && primaryJob.plannedGsms.join(', ')) || primaryJob?.targetGsm || 'N/A'}</b>
                 </span>
                 <span className="text-xs bg-blue-400/20 text-blue-100 border border-blue-300/30 px-2 py-0.5 rounded font-bold">
                   Job ID: <b>{primaryJob?.id}</b>
@@ -871,7 +871,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                       <div>
                         <span className="text-[10px] text-amber-800 font-bold uppercase block">Paper Manufacturer</span>
                         <span className="font-black text-slate-900">
-                          {primaryJob?.paperBrand || 'ITC CyberXL 280 GSM'}
+                          {primaryJob?.paperBrand || 'ITC CyberXL'} {primaryJob?.gsm || primaryJob?.targetGsm || ''}
                         </span>
                       </div>
                       <div>
@@ -1053,7 +1053,7 @@ export const MaintenanceAuditView: React.FC<MaintenanceAuditViewProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1 m-0">
-                    Raw Paper: {j.paperBrand || 'ITC CyberXL 280 GSM'} • Rolls: {j.availableRolls || 0} • QC Crates:{' '}
+                    Raw Paper: {j.paperBrand || 'ITC CyberXL'} {j.gsm || j.targetGsm || ''} • Rolls: {j.availableRolls || 0} • QC Crates:{' '}
                     {j.availableQcCrates || 0}
                   </p>
                 </div>

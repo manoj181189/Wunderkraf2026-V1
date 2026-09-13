@@ -3,6 +3,7 @@ import { ArrowLeft, SearchCheck, Play, Pause, Square, Zap, Undo2, XCircle, Check
 import { FactoryState, Job, ProductType, RunningBatch } from '../../types';
 import { PRODUCTS, DEPT_WORKERS } from '../../lib/constants';
 import { getCurrentExpectedShift, getJobAllReels, getJobAllGsms } from '../../lib/utils';
+import { getNumberingMaster, generateQCInspectionBatchId } from '../../lib/numberingMaster';
 import { LotGenealogyModal } from '../LotGenealogyModal';
 
 interface QCViewProps {
@@ -164,7 +165,9 @@ export const QCView: React.FC<QCViewProps> = ({
     }
 
     // Fresh batch when new job or different inspector
-    const batchId = 'B-' + Math.floor(1000 + Math.random() * 9000);
+    const master = getNumberingMaster(state.seriesConfig);
+    const batchId = generateQCInspectionBatchId(job.id, job.runningBatches || [], master);
+    const upstreamBatchId = job.tracedLots?.Forming || job.tracedLots?.Cutting || job.tracedLots?.Slitting || job.id;
 
     const newBatch: RunningBatch = {
       batchId,
@@ -173,6 +176,7 @@ export const QCView: React.FC<QCViewProps> = ({
       shift,
       startTime: nowTime,
       status: 'Running',
+      parentBatchId: upstreamBatchId,
       issuedQty: cratesCount,
       producedQty: 0,
       worker: cleanInspector,
@@ -183,6 +187,7 @@ export const QCView: React.FC<QCViewProps> = ({
       if (j.id !== job.id) return j;
       return {
         ...j,
+        tracedLots: { ...(j.tracedLots || {}), QC: batchId },
         availableFormingCrates: (j.availableFormingCrates || 0) - cratesCount,
         runningBatches: [...(j.runningBatches || []), newBatch]
       };

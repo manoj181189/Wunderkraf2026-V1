@@ -171,6 +171,14 @@ export interface RunningBatch {
   glueBrand?: string;
   glueUsageKg?: number;
   cuttingMaterialScrapKg?: number;
+  layerType?: 'Plain' | 'Printed';
+  layerSegmentGsm?: string | number;
+}
+
+export interface PlannedLayer {
+  gsm: number | string;
+  type: 'Plain' | 'Printed';
+  requiredReels: number;
 }
 
 export interface JobReelItem {
@@ -190,6 +198,8 @@ export interface JobReelItem {
   printedRollDesign?: string;
   printedRollIcon?: string;
   customRemark?: string;
+  layerType?: 'Plain' | 'Printed';
+  layerSegmentGsm?: string | number;
 }
 
 export interface Job {
@@ -235,6 +245,8 @@ export interface Job {
   planId?: string;
   targetLayers?: number;
   targetGsm?: string;
+  plannedGsms?: string[];
+  plannedLayers?: PlannedLayer[];
   targetLengthMeters?: number;
   actualLengthMeters?: number;
   targetGlueBrand?: string;
@@ -350,9 +362,24 @@ export interface ShiftConfig {
   nightEnd: string;
 }
 
+export interface NumberingEntityConfig {
+  prefix: string;
+  paddingDigits: number; // e.g. 2, 3, or 4
+  nextSeq: number;
+}
+
+export interface NumberingSeriesMaster {
+  jobSeries: NumberingEntityConfig;
+  slitSeries: NumberingEntityConfig;
+  cutSeries: NumberingEntityConfig;
+  qcSeries: NumberingEntityConfig;
+  useGlobalJobPrefix?: boolean;
+}
+
 export interface SeriesConfig {
   orderSeq: number;
   productSeqs: Record<string, number>;
+  numberingMaster?: NumberingSeriesMaster;
 }
 
 export interface WhatsAppConfig {
@@ -526,6 +553,8 @@ export interface ProductionPlan {
   targetQuantity?: number;
   paperBrand?: string;
   targetGsm?: string;
+  plannedGsms?: string[];
+  plannedLayers?: PlannedLayer[];
   notes?: string;
   status: 'Scheduled' | 'In-Progress' | 'Completed' | 'Cancelled';
   createdAt: string;

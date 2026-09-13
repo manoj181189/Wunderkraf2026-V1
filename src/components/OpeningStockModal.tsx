@@ -21,7 +21,7 @@ export const OpeningStockModal: React.FC<OpeningStockModalProps> = ({
   // Form State
   const [product, setProduct] = useState<ProductType>(productList[0] as ProductType || 'Spoon');
   const [paperBrand, setPaperBrand] = useState<string>(PAPER_BRANDS[0] || 'ITC');
-  const [gsm, setGsm] = useState<string>('280 GSM');
+  const [gsm, setGsm] = useState<string>(() => (state.targetGsmMaster && state.targetGsmMaster.length > 0 ? state.targetGsmMaster[0] : '120 GSM'));
   const [stage, setStage] = useState<'Rolls' | 'Cutting' | 'Forming' | 'QC' | 'Packed'>('Rolls');
   const [qty, setQty] = useState<string>('10');
   const [pcsPerUnit, setPcsPerUnit] = useState<string>('5000');
